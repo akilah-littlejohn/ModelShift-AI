@@ -19,7 +19,7 @@ interface SidebarProps {
 
 const navigation = [
   { id: 'playground', name: 'AI Playground', icon: Brain },
-  { id: 'agents', name: 'Prompt Agents', icon: Bot },
+  { id: 'agents', name: 'Prompt Agent Management', icon: Bot },
   { id: 'keys', name: 'API Keys', icon: Key },
   { id: 'history', name: 'History', icon: History },
   { id: 'analytics', name: 'Analytics', icon: BarChart3 },

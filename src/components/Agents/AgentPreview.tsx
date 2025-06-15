@@ -130,7 +130,7 @@ export function AgentPreview({ agent, onClose, onEdit }: AgentPreviewProps) {
           {/* Interactive Testing */}
           <div className="bg-gradient-to-r from-primary-50 to-secondary-50 dark:from-primary-900/20 dark:to-secondary-900/20 rounded-lg p-6">
             <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">
-              Test This Agent
+              Test This Prompt Agent
             </h3>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

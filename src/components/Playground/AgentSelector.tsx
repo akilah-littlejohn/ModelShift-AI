@@ -18,13 +18,13 @@ export function AgentSelector({ selected, onChange }: AgentSelectorProps) {
           <Plus className="w-8 h-8 text-white" />
         </div>
         <h3 className="text-lg font-medium text-neutral-900 dark:text-white mb-2">
-          No Agents Available
+          No Prompt Agents Available
         </h3>
         <p className="text-neutral-500 dark:text-neutral-400 mb-4">
-          Create your first AI agent to get started with the playground
+          Create your first prompt agent to get started with the playground
         </p>
         <p className="text-sm text-neutral-400 dark:text-neutral-500">
-          Go to Agent Management to create custom agents
+          Go to Prompt Agent Management to create custom prompt agents
         </p>
       </div>
     );
@@ -54,7 +54,7 @@ export function AgentSelector({ selected, onChange }: AgentSelectorProps) {
             <X className="w-5 h-5 text-neutral-500 dark:text-neutral-400" />
             <div>
               <h4 className="font-semibold text-neutral-900 dark:text-white">
-                No Agent (Direct Prompt)
+                No Prompt Agent (Direct Input)
               </h4>
               <span className="text-xs px-2 py-1 bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 rounded-full">
                 Direct Input
@@ -62,7 +62,7 @@ export function AgentSelector({ selected, onChange }: AgentSelectorProps) {
             </div>
           </div>
           <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
-            Use your input directly without any agent processing
+            Use your input directly without any prompt agent processing
           </p>
           <p className="text-xs text-neutral-500 dark:text-neutral-500">
             Example: "Write a short story about a robot"

@@ -34,10 +34,10 @@ export function AgentManagement() {
   };
 
   const handleDeleteAgent = (agentId: string) => {
-    if (window.confirm('Are you sure you want to delete this agent?')) {
+    if (window.confirm('Are you sure you want to delete this prompt agent?')) {
       agentStorage.delete(agentId);
       setAgents(agents.filter(agent => agent.id !== agentId));
-      toast.success('Agent deleted successfully');
+      toast.success('Prompt agent deleted successfully');
     }
   };
 
@@ -51,7 +51,7 @@ export function AgentManagement() {
     
     agentStorage.save(duplicatedAgent);
     setAgents([...agents, duplicatedAgent]);
-    toast.success('Agent duplicated successfully');
+    toast.success('Prompt agent duplicated successfully');
   };
 
   const handleSaveAgent = (agent: Agent) => {
@@ -59,10 +59,10 @@ export function AgentManagement() {
     
     if (editingAgent) {
       setAgents(agents.map(a => a.id === agent.id ? agent : a));
-      toast.success('Agent updated successfully');
+      toast.success('Prompt agent updated successfully');
     } else {
       setAgents([...agents, agent]);
-      toast.success('Agent created successfully');
+      toast.success('Prompt agent created successfully');
     }
     
     setShowEditor(false);
@@ -83,10 +83,10 @@ export function AgentManagement() {
       {/* Header */}
       <div className="text-center">
         <h1 className="text-3xl font-bold text-neutral-900 dark:text-white mb-2">
-          AI Agent Management
+          Prompt Agent Management
         </h1>
         <p className="text-neutral-600 dark:text-neutral-400">
-          Create, customize, and manage your AI agents with specialized prompts and behaviors
+          Create, customize, and manage your prompt agents with specialized templates and behaviors
         </p>
       </div>
 
@@ -98,7 +98,7 @@ export function AgentManagement() {
             <div className="relative flex-1 max-w-md">
               <input
                 type="text"
-                placeholder="Search agents..."
+                placeholder="Search prompt agents..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-4 pr-4 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
@@ -124,7 +124,7 @@ export function AgentManagement() {
             className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-primary-500 to-secondary-500 text-white rounded-lg hover:from-primary-600 hover:to-secondary-600 transition-all duration-200"
           >
             <Plus className="w-4 h-4" />
-            <span>Create Agent</span>
+            <span>Create Prompt Agent</span>
           </button>
         </div>
       </div>
@@ -135,12 +135,12 @@ export function AgentManagement() {
           <div className="col-span-full text-center py-12 bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
             <Bot className="w-12 h-12 text-neutral-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-neutral-900 dark:text-white mb-2">
-              {searchTerm || selectedCategory ? 'No Agents Found' : 'No Custom Agents Yet'}
+              {searchTerm || selectedCategory ? 'No Prompt Agents Found' : 'No Custom Prompt Agents Yet'}
             </h3>
             <p className="text-neutral-600 dark:text-neutral-400 mb-4">
               {searchTerm || selectedCategory 
                 ? 'Try adjusting your search or filter criteria'
-                : 'Create your first custom AI agent to get started'
+                : 'Create your first custom prompt agent to get started'
               }
             </p>
             {!searchTerm && !selectedCategory && (
@@ -149,7 +149,7 @@ export function AgentManagement() {
                 className="inline-flex items-center space-x-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
               >
                 <Plus className="w-4 h-4" />
-                <span>Create Agent</span>
+                <span>Create Prompt Agent</span>
               </button>
             )}
           </div>
@@ -290,7 +290,7 @@ function AgentCard({ agent, onEdit, onDelete, onDuplicate, onPreview }: AgentCar
       <div className="flex items-center justify-between pt-4 border-t border-neutral-200 dark:border-neutral-700">
         <div className="flex items-center space-x-2 text-xs text-neutral-500 dark:text-neutral-400">
           <Zap className="w-3 h-3" />
-          <span>{agent.promptTemplate ? 'Advanced' : 'Basic'} Prompt</span>
+          <span>{agent.promptTemplate ? 'Advanced' : 'Basic'} Template</span>
         </div>
         
         <button

@@ -40,13 +40,13 @@ export function PlaygroundView() {
     }));
     setResults(initialResults);
 
-    // Generate prompt - use agent if selected, otherwise use direct input
+    // Generate prompt - use prompt agent if selected, otherwise use direct input
     let prompt = input;
     if (selectedAgent) {
       try {
         prompt = AgentService.buildPrompt(selectedAgent, input);
       } catch (error) {
-        // If agent not found, fall back to direct input
+        // If prompt agent not found, fall back to direct input
         prompt = input;
       }
     }
@@ -182,15 +182,15 @@ export function PlaygroundView() {
             />
           </div>
 
-          {/* Agent Selection */}
+          {/* Prompt Agent Selection */}
           <div>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">
-                Choose AI Agent (Optional)
+                Choose Prompt Agent (Optional)
               </h3>
               {availableAgents.length === 0 && (
                 <span className="text-sm text-neutral-500 dark:text-neutral-400">
-                  No agents available
+                  No prompt agents available
                 </span>
               )}
             </div>
@@ -202,10 +202,10 @@ export function PlaygroundView() {
             ) : (
               <div className="text-center py-8 border-2 border-dashed border-neutral-300 dark:border-neutral-600 rounded-lg">
                 <p className="text-neutral-500 dark:text-neutral-400 mb-2">
-                  No custom agents available
+                  No custom prompt agents available
                 </p>
                 <p className="text-sm text-neutral-400 dark:text-neutral-500">
-                  You can still use the playground with direct prompts, or create agents in Agent Management
+                  You can still use the playground with direct prompts, or create prompt agents in Prompt Agent Management
                 </p>
               </div>
             )}
@@ -237,7 +237,7 @@ export function PlaygroundView() {
             onChange={(e) => setInput(e.target.value)}
             placeholder={selectedAgentData && selectedAgentData.examples && selectedAgentData.examples.length > 0 
               ? `Example: ${selectedAgentData.examples[0]}` 
-              : 'Enter your prompt here... (You can use this playground with or without selecting an agent)'
+              : 'Enter your prompt here... (You can use this playground with or without selecting a prompt agent)'
             }
             className="w-full h-32 px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white resize-none transition-colors"
           />
@@ -248,7 +248,7 @@ export function PlaygroundView() {
               <span>~{Math.ceil(input.length / 4)} tokens</span>
               {selectedAgent && (
                 <span className="text-secondary-600 dark:text-secondary-400">
-                  Using agent: {selectedAgentData?.name || 'Unknown'}
+                  Using prompt agent: {selectedAgentData?.name || 'Unknown'}
                 </span>
               )}
             </div>

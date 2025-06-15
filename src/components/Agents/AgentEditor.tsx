@@ -121,10 +121,10 @@ export function AgentEditor({ agent, onSave, onClose }: AgentEditorProps) {
               </div>
               <div>
                 <h2 className="text-xl font-bold text-neutral-900 dark:text-white">
-                  {agent ? 'Edit Agent' : 'Create New Agent'}
+                  {agent ? 'Edit Prompt Agent' : 'Create New Prompt Agent'}
                 </h2>
                 <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                  Design a custom AI agent with specialized prompts and behaviors
+                  Design a custom prompt agent with specialized templates and behaviors
                 </p>
               </div>
             </div>
@@ -144,7 +144,7 @@ export function AgentEditor({ agent, onSave, onClose }: AgentEditorProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                  Agent Name *
+                  Prompt Agent Name *
                 </label>
                 <input
                   type="text"
@@ -180,7 +180,7 @@ export function AgentEditor({ agent, onSave, onClose }: AgentEditorProps) {
               <textarea
                 value={formData.description || ''}
                 onChange={(e) => handleInputChange('description', e.target.value)}
-                placeholder="Describe what this agent does and how it helps users..."
+                placeholder="Describe what this prompt agent does and how it helps users..."
                 rows={3}
                 className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white resize-none"
                 required
@@ -256,7 +256,7 @@ Please provide:
             <div className="bg-neutral-50 dark:bg-neutral-900/50 rounded-lg p-4">
               <div className="flex items-center space-x-2 mb-3">
                 <TestTube className="w-4 h-4 text-secondary-600 dark:text-secondary-400" />
-                <h3 className="font-medium text-neutral-900 dark:text-white">Test Your Prompt</h3>
+                <h3 className="font-medium text-neutral-900 dark:text-white">Test Your Template</h3>
               </div>
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -267,7 +267,7 @@ Please provide:
                   <textarea
                     value={testInput}
                     onChange={(e) => setTestInput(e.target.value)}
-                    placeholder="Enter sample input to test your prompt..."
+                    placeholder="Enter sample input to test your template..."
                     rows={3}
                     className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white resize-none"
                   />
@@ -311,7 +311,7 @@ Please provide:
               className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-primary-500 to-secondary-500 text-white rounded-lg hover:from-primary-600 hover:to-secondary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
             >
               <Save className="w-4 h-4" />
-              <span>{agent ? 'Update Agent' : 'Create Agent'}</span>
+              <span>{agent ? 'Update Prompt Agent' : 'Create Prompt Agent'}</span>
             </button>
           </div>
         </div>

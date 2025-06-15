@@ -31,7 +31,7 @@ export class AgentService {
   static buildPrompt(agentId: string, input: string): string {
     const agent = this.getAgent(agentId);
     if (!agent) {
-      throw new Error(`Agent '${agentId}' not found`);
+      throw new Error(`Prompt agent '${agentId}' not found`);
     }
 
     // For custom agents, use their template directly

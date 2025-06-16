@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
     exclude: ['lucide-react'],
+    include: ['crypto-js', 'react-hot-toast'],
   },
   server: {
     proxy: {

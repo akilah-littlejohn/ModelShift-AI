@@ -134,6 +134,13 @@ export interface ConfigValidationResult {
   warnings: string[];
 }
 
+// NEW: Debate Mode Types
+export interface DebateSideConfig {
+  selectedProviders: string[];
+  selectedAgent: string;
+  label: string;
+}
+
 // UI Types
 export interface ComparisonResult {
   provider: string;
@@ -145,6 +152,8 @@ export interface ComparisonResult {
     tokens: number;
     cost: number;
   };
+  sideId?: 'A' | 'B'; // NEW: For debate mode
+  sideLabel?: string; // NEW: For debate mode
 }
 
 export interface ThemeContextType {

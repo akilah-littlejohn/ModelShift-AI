@@ -80,7 +80,7 @@ export const keyVault = {
     }).filter(key => Object.keys(key.keyData).length > 0);
   },
 
-  private updateProviderKeysList(provider: string, keyId: string): void {
+  updateProviderKeysList(provider: string, keyId: string): void {
     const existingKeys = this.getProviderKeysList(provider);
     if (!existingKeys.includes(keyId)) {
       existingKeys.push(keyId);
@@ -88,7 +88,7 @@ export const keyVault = {
     }
   },
 
-  private removeFromProviderKeysList(provider: string, keyId: string): void {
+  removeFromProviderKeysList(provider: string, keyId: string): void {
     const existingKeys = this.getProviderKeysList(provider);
     const updatedKeys = existingKeys.filter(id => id !== keyId);
     if (updatedKeys.length > 0) {
@@ -98,7 +98,7 @@ export const keyVault = {
     }
   },
 
-  private getProviderKeysList(provider: string): string[] {
+  getProviderKeysList(provider: string): string[] {
     try {
       const stored = localStorage.getItem(`provider_keys_${provider}`);
       if (stored) {

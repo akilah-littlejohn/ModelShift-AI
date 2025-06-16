@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import type { User } from '../types';
 
 interface AuthContextType {
@@ -28,7 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // Demo authentication
     const mockUser: User = {
-      id: '1',
+      id: uuidv4(),
       email,
       name: email.split('@')[0],
       plan: 'pro',

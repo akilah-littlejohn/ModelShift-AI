@@ -300,17 +300,30 @@ export class MigrationReadyAnalyticsService {
     }
 
     const eventsToSync = [...this.pendingSyncQueue];
+    let successCount = 0;
+    
+    // Clear the queue immediately to prevent infinite retries
+    this.pendingSyncQueue = [];
+    this.savePendingSyncQueue();
     
     try {
       for (const event of eventsToSync) {
-        await this.saveToSupabase(event);
+        try {
+          await this.saveToSupabase(event);
+          successCount++;
+        } catch (error) {
+          // Log individual event sync failures but don't re-queue them
+          console.warn(`Failed to sync analytics event ${event.id}:`, error);
+        }
       }
       
-      // Clear successfully synced events
-      this.pendingSyncQueue = [];
-      this.savePendingSyncQueue();
+      if (successCount > 0) {
+        console.log(`Successfully synced ${successCount}/${eventsToSync.length} analytics events to Supabase`);
+      }
       
-      console.log(`Successfully synced ${eventsToSync.length} analytics events to Supabase`);
+      if (successCount < eventsToSync.length) {
+        console.warn(`${eventsToSync.length - successCount} analytics events could not be synced (likely due to RLS policies)`);
+      }
     } catch (error) {
       console.error('Failed to sync analytics events:', error);
     }

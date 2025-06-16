@@ -1,28 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { TrendingUp, Clock, DollarSign, Zap, Activity, Users, RefreshCw, AlertTriangle } from 'lucide-react';
+import { TrendingUp, Clock, DollarSign, Zap, Activity, Users, RefreshCw, AlertTriangle, Calendar, Filter } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
-import { db } from '../../lib/supabase';
+import { analyticsService } from '../../lib/analytics/AnalyticsService';
 import { useAuth } from '../../contexts/AuthContext';
-import { providers } from '../../data/providers';
-import { AgentService } from '../../lib/agents';
-import type { PromptExecution } from '../../types';
+import type { AnalyticsSummary } from '../../lib/analytics/types';
 
-interface AnalyticsData {
-  totalRequests: number;
-  totalSpend: number;
-  avgResponseTime: number;
-  successRate: number;
-  usageData: Array<{ date: string; requests: number; cost: number }>;
-  providerData: Array<{ name: string; value: number; cost: number; color: string }>;
-  agentData: Array<{ name: string; requests: number; success: number }>;
-}
+type TimeRange = '7d' | '30d' | '90d';
 
 export function AnalyticsView() {
   const { user } = useAuth();
-  const [executions, setExecutions] = useState<PromptExecution[]>([]);
+  const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isSupabaseConfigured, setIsSupabaseConfigured] = useState(true);
+  const [timeRange, setTimeRange] = useState<TimeRange>('30d');
+  const [selectedProvider, setSelectedProvider] = useState<string>('');
 
   const loadAnalyticsData = async () => {
     if (!user) {
@@ -34,40 +25,27 @@ export function AnalyticsView() {
     setError(null);
     
     try {
-      // Check if Supabase is properly configured
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const endDate = new Date();
+      const startDate = new Date();
       
-      if (!supabaseUrl || !supabaseKey || supabaseUrl.includes('demo') || supabaseKey.includes('demo')) {
-        setIsSupabaseConfigured(false);
-        setError('Supabase is not configured. Please set up your Supabase environment variables.');
-        setIsLoading(false);
-        return;
+      // Set start date based on selected time range
+      switch (timeRange) {
+        case '7d':
+          startDate.setDate(endDate.getDate() - 7);
+          break;
+        case '30d':
+          startDate.setDate(endDate.getDate() - 30);
+          break;
+        case '90d':
+          startDate.setDate(endDate.getDate() - 90);
+          break;
       }
 
-      const data = await db.prompts.getByUserId(user.id, 100); // Get last 100 executions
-      setExecutions(data);
-      setIsSupabaseConfigured(true);
+      const analyticsData = analyticsService.getAnalyticsSummary(user.id, startDate, endDate);
+      setAnalytics(analyticsData);
     } catch (err) {
       console.error('Failed to load analytics data:', err);
-      
-      // Enhanced error handling
-      if (err instanceof Error) {
-        if (err.message.includes('404') || err.message.includes('not found')) {
-          setError('Database tables not found. Please run the Supabase migrations to set up the required tables.');
-        } else if (err.message.includes('permission') || err.message.includes('RLS') || err.message.includes('policy')) {
-          setError('Database permission error. Please check your Supabase Row Level Security policies.');
-        } else if (err.message.includes('Invalid or missing')) {
-          setError('Supabase configuration error. Please check your environment variables.');
-          setIsSupabaseConfigured(false);
-        } else if (err.message.includes('network') || err.message.includes('fetch')) {
-          setError('Network error. Please check your internet connection and Supabase URL.');
-        } else {
-          setError(`Database error: ${err.message}`);
-        }
-      } else {
-        setError('An unknown error occurred while loading analytics data.');
-      }
+      setError(err instanceof Error ? err.message : 'Failed to load analytics data');
     } finally {
       setIsLoading(false);
     }
@@ -75,128 +53,21 @@ export function AnalyticsView() {
 
   useEffect(() => {
     loadAnalyticsData();
-  }, [user]);
+  }, [user, timeRange]);
 
-  const analyticsData: AnalyticsData = useMemo(() => {
-    if (executions.length === 0) {
-      return {
-        totalRequests: 0,
-        totalSpend: 0,
-        avgResponseTime: 0,
-        successRate: 0,
-        usageData: [],
-        providerData: [],
-        agentData: []
-      };
-    }
-
-    // Calculate total metrics
-    const totalRequests = executions.length;
-    let totalResponseTime = 0;
-    let totalSuccessfulResponses = 0;
-    let totalResponses = 0;
-    let totalSpend = 0;
-
-    // Provider usage tracking
-    const providerUsage: Record<string, { count: number; cost: number }> = {};
+  const filteredAnalytics = useMemo(() => {
+    if (!analytics || !selectedProvider) return analytics;
     
-    // Agent usage tracking
-    const agentUsage: Record<string, { requests: number; success: number }> = {};
-
-    // Daily usage tracking
-    const dailyUsage: Record<string, { requests: number; cost: number }> = {};
-
-    executions.forEach(execution => {
-      // Track daily usage
-      const date = new Date(execution.created_at).toISOString().split('T')[0];
-      if (!dailyUsage[date]) {
-        dailyUsage[date] = { requests: 0, cost: 0 };
-      }
-      dailyUsage[date].requests += 1;
-
-      // Track agent usage
-      const agentName = execution.agent_type === 'direct' ? 'Direct Input' : 
-        AgentService.getAgent(execution.agent_type)?.name || execution.agent_type;
-      
-      if (!agentUsage[agentName]) {
-        agentUsage[agentName] = { requests: 0, success: 0 };
-      }
-      agentUsage[agentName].requests += 1;
-
-      // Process each provider response
-      execution.responses.forEach(response => {
-        totalResponses += 1;
-        totalResponseTime += response.latency;
-
-        if (response.success) {
-          totalSuccessfulResponses += 1;
-          agentUsage[agentName].success += 1;
-        }
-
-        // Calculate cost based on tokens and provider pricing
-        const provider = providers.find(p => p.id === response.provider);
-        let cost = 0;
-        if (provider && response.tokens > 0) {
-          cost = (response.tokens * provider.capabilities.pricing.output) / 1000;
-        }
-        totalSpend += cost;
-        dailyUsage[date].cost += cost;
-
-        // Track provider usage
-        if (!providerUsage[response.provider]) {
-          providerUsage[response.provider] = { count: 0, cost: 0 };
-        }
-        providerUsage[response.provider].count += 1;
-        providerUsage[response.provider].cost += cost;
-      });
-    });
-
-    // Calculate averages
-    const avgResponseTime = totalResponses > 0 ? totalResponseTime / totalResponses : 0;
-    const successRate = totalResponses > 0 ? (totalSuccessfulResponses / totalResponses) * 100 : 0;
-
-    // Prepare usage data for chart (last 7 days)
-    const usageData = Object.entries(dailyUsage)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-7)
-      .map(([date, data]) => ({
-        date: new Date(date).toLocaleDateString(),
-        requests: data.requests,
-        cost: Number(data.cost.toFixed(4))
-      }));
-
-    // Prepare provider data for pie chart
-    const totalProviderRequests = Object.values(providerUsage).reduce((sum, p) => sum + p.count, 0);
-    const providerData = Object.entries(providerUsage).map(([providerId, data]) => {
-      const provider = providers.find(p => p.id === providerId);
-      return {
-        name: provider?.displayName || providerId,
-        value: totalProviderRequests > 0 ? Math.round((data.count / totalProviderRequests) * 100) : 0,
-        cost: Number(data.cost.toFixed(4)),
-        color: provider?.color || '#6b7280'
-      };
-    });
-
-    // Prepare agent data for bar chart
-    const agentData = Object.entries(agentUsage)
-      .map(([name, data]) => ({
-        name: name.length > 15 ? name.substring(0, 15) + '...' : name,
-        requests: data.requests,
-        success: Math.round((data.success / Math.max(data.requests, 1)) * 100)
-      }))
-      .sort((a, b) => b.requests - a.requests)
-      .slice(0, 5); // Top 5 agents
-
+    // Filter analytics data by selected provider
     return {
-      totalRequests,
-      totalSpend: Number(totalSpend.toFixed(4)),
-      avgResponseTime: Math.round(avgResponseTime),
-      successRate: Number(successRate.toFixed(1)),
-      usageData,
-      providerData,
-      agentData
+      ...analytics,
+      providerData: analytics.providerData.filter(p => p.name.toLowerCase().includes(selectedProvider.toLowerCase())),
+      usageData: analytics.usageData, // Keep usage data as is for now
+      agentData: analytics.agentData // Keep agent data as is for now
     };
-  }, [executions]);
+  }, [analytics, selectedProvider]);
+
+  const syncQueueStatus = analyticsService.getSyncQueueStatus();
 
   if (isLoading) {
     return (
@@ -242,22 +113,6 @@ export function AnalyticsView() {
                 {error}
               </p>
               
-              {!isSupabaseConfigured && (
-                <div className="bg-red-100 dark:bg-red-900/40 rounded-lg p-4 mb-4">
-                  <h4 className="font-medium text-red-900 dark:text-red-100 mb-2">
-                    Supabase Setup Required
-                  </h4>
-                  <div className="text-sm text-red-700 dark:text-red-300 space-y-2">
-                    <p>To enable analytics, you need to:</p>
-                    <ol className="list-decimal list-inside space-y-1 ml-4">
-                      <li>Create a Supabase project at <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" className="underline">supabase.com</a></li>
-                      <li>Set up your environment variables in the .env file</li>
-                      <li>Run the database migrations to create required tables</li>
-                    </ol>
-                  </div>
-                </div>
-              )}
-              
               <div className="flex space-x-3">
                 <button
                   onClick={loadAnalyticsData}
@@ -266,18 +121,6 @@ export function AnalyticsView() {
                   <RefreshCw className="w-4 h-4" />
                   <span>Retry</span>
                 </button>
-                
-                {isSupabaseConfigured && (
-                  <button
-                    onClick={() => {
-                      setError(null);
-                      setExecutions([]);
-                    }}
-                    className="inline-flex items-center space-x-2 px-4 py-2 bg-neutral-600 text-white rounded-lg hover:bg-neutral-700 transition-colors"
-                  >
-                    <span>Continue Without Analytics</span>
-                  </button>
-                )}
               </div>
             </div>
           </div>
@@ -286,7 +129,7 @@ export function AnalyticsView() {
     );
   }
 
-  if (executions.length === 0) {
+  if (!analytics || analytics.totalRequests === 0) {
     return (
       <div className="max-w-7xl mx-auto p-6 space-y-8">
         <div className="text-center">
@@ -297,6 +140,24 @@ export function AnalyticsView() {
             Monitor your AI usage, costs, and performance metrics
           </p>
         </div>
+        
+        {/* Sync Status */}
+        {syncQueueStatus.pending > 0 && (
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <div className="flex items-center space-x-3">
+              <RefreshCw className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              <div>
+                <h3 className="font-medium text-blue-900 dark:text-blue-100">
+                  Sync Status
+                </h3>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  {syncQueueStatus.pending} events pending sync to Supabase
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        
         <div className="text-center py-12 bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
           <Activity className="w-12 h-12 text-neutral-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-neutral-900 dark:text-white mb-2">
@@ -319,6 +180,8 @@ export function AnalyticsView() {
     );
   }
 
+  const displayAnalytics = filteredAnalytics || analytics;
+
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-8">
       {/* Header */}
@@ -331,43 +194,91 @@ export function AnalyticsView() {
             Monitor your AI usage, costs, and performance metrics
           </p>
         </div>
-        <button
-          onClick={loadAnalyticsData}
-          className="flex items-center space-x-2 px-3 py-2 text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors"
-          title="Refresh data"
-        >
-          <RefreshCw className="w-4 h-4" />
-          <span>Refresh</span>
-        </button>
+      </div>
+
+      {/* Controls */}
+      <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6">
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Time Range Selector */}
+            <div className="flex items-center space-x-2">
+              <Calendar className="w-4 h-4 text-neutral-500 dark:text-neutral-400" />
+              <select
+                value={timeRange}
+                onChange={(e) => setTimeRange(e.target.value as TimeRange)}
+                className="px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+              >
+                <option value="7d">Last 7 days</option>
+                <option value="30d">Last 30 days</option>
+                <option value="90d">Last 90 days</option>
+              </select>
+            </div>
+
+            {/* Provider Filter */}
+            <div className="flex items-center space-x-2">
+              <Filter className="w-4 h-4 text-neutral-500 dark:text-neutral-400" />
+              <select
+                value={selectedProvider}
+                onChange={(e) => setSelectedProvider(e.target.value)}
+                className="px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+              >
+                <option value="">All Providers</option>
+                <option value="openai">OpenAI</option>
+                <option value="gemini">Google Gemini</option>
+                <option value="claude">Anthropic Claude</option>
+                <option value="ibm">IBM WatsonX</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-3">
+            {/* Sync Status */}
+            {syncQueueStatus.pending > 0 && (
+              <div className="flex items-center space-x-2 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-sm">
+                <RefreshCw className="w-3 h-3" />
+                <span>{syncQueueStatus.pending} pending sync</span>
+              </div>
+            )}
+            
+            <button
+              onClick={loadAnalyticsData}
+              className="flex items-center space-x-2 px-3 py-2 text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors"
+              title="Refresh data"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Refresh</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <MetricCard
           title="Total Requests"
-          value={analyticsData.totalRequests.toLocaleString()}
-          change={executions.length > 0 ? "+100%" : "0%"}
+          value={displayAnalytics.totalRequests.toLocaleString()}
+          change={displayAnalytics.totalRequests > 0 ? "+100%" : "0%"}
           icon={Activity}
           color="primary"
         />
         <MetricCard
           title="Total Spend"
-          value={`$${analyticsData.totalSpend.toFixed(4)}`}
-          change={analyticsData.totalSpend > 0 ? "+100%" : "0%"}
+          value={`$${displayAnalytics.totalSpend.toFixed(4)}`}
+          change={displayAnalytics.totalSpend > 0 ? "+100%" : "0%"}
           icon={DollarSign}
           color="accent"
         />
         <MetricCard
           title="Avg Response Time"
-          value={`${analyticsData.avgResponseTime}ms`}
+          value={`${displayAnalytics.avgResponseTime}ms`}
           change="0%"
           icon={Clock}
           color="secondary"
         />
         <MetricCard
           title="Success Rate"
-          value={`${analyticsData.successRate}%`}
-          change={analyticsData.successRate > 90 ? "+5%" : "0%"}
+          value={`${displayAnalytics.successRate}%`}
+          change={displayAnalytics.successRate > 90 ? "+5%" : "0%"}
           icon={TrendingUp}
           color="emerald"
         />
@@ -378,11 +289,11 @@ export function AnalyticsView() {
         {/* Usage Trend */}
         <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6">
           <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">
-            Usage Trend (Last 7 Days)
+            Usage Trend ({timeRange})
           </h3>
-          {analyticsData.usageData.length > 0 ? (
+          {displayAnalytics.usageData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={analyticsData.usageData}>
+              <LineChart data={displayAnalytics.usageData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis 
                   dataKey="date" 
@@ -409,7 +320,7 @@ export function AnalyticsView() {
             </ResponsiveContainer>
           ) : (
             <div className="h-[300px] flex items-center justify-center text-neutral-500 dark:text-neutral-400">
-              No usage data available
+              No usage data available for selected time range
             </div>
           )}
         </div>
@@ -419,11 +330,11 @@ export function AnalyticsView() {
           <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">
             Provider Usage
           </h3>
-          {analyticsData.providerData.length > 0 ? (
+          {displayAnalytics.providerData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={analyticsData.providerData}
+                  data={displayAnalytics.providerData}
                   cx="50%"
                   cy="50%"
                   outerRadius={100}
@@ -432,7 +343,7 @@ export function AnalyticsView() {
                   label={({ name, value }) => `${name}: ${value}%`}
                   labelLine={false}
                 >
-                  {analyticsData.providerData.map((entry, index) => (
+                  {displayAnalytics.providerData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -458,9 +369,9 @@ export function AnalyticsView() {
           <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">
             Top Agent Performance
           </h3>
-          {analyticsData.agentData.length > 0 ? (
+          {displayAnalytics.agentData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={analyticsData.agentData}>
+              <BarChart data={displayAnalytics.agentData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
                 <YAxis stroke="#6b7280" fontSize={12} />
@@ -488,8 +399,8 @@ export function AnalyticsView() {
             Cost Breakdown
           </h3>
           <div className="space-y-4">
-            {analyticsData.providerData.length > 0 ? (
-              analyticsData.providerData.map(provider => (
+            {displayAnalytics.providerData.length > 0 ? (
+              displayAnalytics.providerData.map(provider => (
                 <div key={provider.name} className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <div 
@@ -515,6 +426,33 @@ export function AnalyticsView() {
                 No cost data available
               </div>
             )}
+          </div>
+        </div>
+      </div>
+
+      {/* Time Range Summary */}
+      <div className="bg-gradient-to-r from-primary-50 to-secondary-50 dark:from-primary-900/20 dark:to-secondary-900/20 rounded-lg p-6">
+        <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">
+          Summary for {timeRange === '7d' ? 'Last 7 Days' : timeRange === '30d' ? 'Last 30 Days' : 'Last 90 Days'}
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-primary-600 dark:text-primary-400">
+              {displayAnalytics.totalRequests}
+            </div>
+            <div className="text-sm text-neutral-600 dark:text-neutral-400">Total Requests</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-accent-600 dark:text-accent-400">
+              ${displayAnalytics.totalSpend.toFixed(2)}
+            </div>
+            <div className="text-sm text-neutral-600 dark:text-neutral-400">Total Spend</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-secondary-600 dark:text-secondary-400">
+              {displayAnalytics.successRate}%
+            </div>
+            <div className="text-sm text-neutral-600 dark:text-neutral-400">Success Rate</div>
           </div>
         </div>
       </div>

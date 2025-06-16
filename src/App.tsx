@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { analyticsService } from './lib/analytics/AnalyticsService';
+import { supabase } from './lib/supabase';
 import { LoginForm } from './components/Auth/LoginForm';
 import { Header } from './components/Layout/Header';
 import { Sidebar } from './components/Layout/Sidebar';
@@ -16,6 +18,65 @@ import { SDKDocsView } from './components/Docs/SDKDocsView';
 function AppContent() {
   const { user, isLoading } = useAuth();
   const [activeView, setActiveView] = useState('playground');
+  const [analyticsInitialized, setAnalyticsInitialized] = useState(false);
+
+  // Initialize analytics service when user is available
+  useEffect(() => {
+    if (user && !analyticsInitialized) {
+      initializeAnalytics();
+      setAnalyticsInitialized(true);
+    }
+  }, [user, analyticsInitialized]);
+
+  const initializeAnalytics = async () => {
+    try {
+      // Check if Supabase is available and configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (supabaseUrl && supabaseKey && 
+          !supabaseUrl.includes('demo') && !supabaseKey.includes('demo')) {
+        
+        // Test Supabase connection
+        try {
+          const { data, error } = await supabase
+            .from('analytics_events')
+            .select('id')
+            .limit(1);
+          
+          if (!error) {
+            // Supabase is available, configure for hybrid mode
+            analyticsService.configure({
+              mode: 'supabase',
+              supabaseClient: supabase,
+              enableRealTimeSync: true
+            });
+            
+            console.log('Analytics service configured for Supabase mode');
+            
+            // Attempt to sync any pending local events
+            const syncStatus = analyticsService.getSyncQueueStatus();
+            if (syncStatus.pending > 0) {
+              console.log(`Attempting to sync ${syncStatus.pending} pending analytics events`);
+            }
+          } else {
+            console.warn('Supabase analytics tables not available, using local mode');
+            analyticsService.configure({ mode: 'local' });
+          }
+        } catch (error) {
+          console.warn('Supabase connection failed, using local analytics:', error);
+          analyticsService.configure({ mode: 'local' });
+        }
+      } else {
+        console.log('Supabase not configured, using local analytics');
+        analyticsService.configure({ mode: 'local' });
+      }
+    } catch (error) {
+      console.error('Failed to initialize analytics:', error);
+      // Fallback to local mode
+      analyticsService.configure({ mode: 'local' });
+    }
+  };
 
   if (isLoading) {
     return (

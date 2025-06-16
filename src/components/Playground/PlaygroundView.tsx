@@ -8,6 +8,7 @@ import { AgentService } from '../../lib/agents';
 import { ModelShiftAIClientFactory } from '../../lib/modelshift-ai-sdk';
 import { keyVault } from '../../lib/encryption';
 import { db } from '../../lib/supabase';
+import { analyticsService } from '../../lib/analytics/AnalyticsService';
 import { useAuth } from '../../contexts/AuthContext';
 import type { ComparisonResult, PromptExecution, ProviderResponse } from '../../types';
 import toast from 'react-hot-toast';
@@ -126,6 +127,26 @@ export function PlaygroundView() {
 
         totalTokens += estimatedTokens;
 
+        // Track analytics event for successful execution
+        await analyticsService.trackEvent({
+          userId: user.id,
+          eventType: 'provider_call',
+          providerId,
+          agentId: selectedAgent || undefined,
+          promptLength: prompt.length,
+          responseLength: response.length,
+          success: true,
+          metrics: {
+            latency,
+            tokens: estimatedTokens,
+            cost: estimatedCost
+          },
+          metadata: {
+            originalInput: input,
+            agentUsed: selectedAgent || 'direct'
+          }
+        });
+
         // Update specific result
         setResults(prev => prev.map((result, i) => 
           i === index ? {
@@ -165,6 +186,29 @@ export function PlaygroundView() {
           success: false,
           error: userFriendlyError
         });
+
+        // Track analytics event for failed execution
+        await analyticsService.trackEvent({
+          userId: user.id,
+          eventType: 'provider_call',
+          providerId,
+          agentId: selectedAgent || undefined,
+          promptLength: prompt.length,
+          responseLength: 0,
+          success: false,
+          errorType: errorMessage.includes('401') ? 'authentication' : 
+                     errorMessage.includes('network') ? 'network' : 'unknown',
+          metrics: {
+            latency,
+            tokens: 0,
+            cost: 0
+          },
+          metadata: {
+            originalInput: input,
+            agentUsed: selectedAgent || 'direct',
+            errorMessage: userFriendlyError
+          }
+        });
         
         setResults(prev => prev.map((result, i) => 
           i === index ? {
@@ -191,6 +235,30 @@ export function PlaygroundView() {
     
     const totalTime = Date.now() - startTime;
     setIsExecuting(false);
+
+    // Track overall execution analytics
+    await analyticsService.trackEvent({
+      userId: user.id,
+      eventType: 'prompt_execution',
+      providerId: selectedProviders[0], // Primary provider for grouping
+      agentId: selectedAgent || undefined,
+      promptLength: input.length,
+      responseLength: providerResponses.reduce((sum, r) => sum + r.response.length, 0),
+      success: providerResponses.some(r => r.success),
+      metrics: {
+        latency: totalTime,
+        tokens: totalTokens,
+        cost: providerResponses.reduce((sum, r) => {
+          const provider = providers.find(p => p.id === r.provider);
+          return sum + (provider ? (r.tokens * provider.capabilities.pricing.output) / 1000 : 0);
+        }, 0)
+      },
+      metadata: {
+        providersUsed: selectedProviders,
+        successfulProviders: providerResponses.filter(r => r.success).map(r => r.provider),
+        failedProviders: providerResponses.filter(r => !r.success).map(r => r.provider)
+      }
+    });
     
     // Save execution data to Supabase for analytics (with enhanced error handling)
     try {
@@ -224,7 +292,7 @@ export function PlaygroundView() {
         }
       }
       
-      // Don't show error to user as the main functionality worked
+      // Don't show error to user as the main functionality worked and analytics were tracked
       toast.success(`Execution completed in ${(totalTime / 1000).toFixed(1)}s`);
     }
   };

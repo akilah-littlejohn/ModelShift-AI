@@ -125,5 +125,58 @@ export const db = {
       if (error) throw error;
       return data || [];
     }
+  },
+
+  analytics: {
+    async createEvent(event: {
+      id: string;
+      user_id: string;
+      event_type: string;
+      provider_id: string;
+      agent_id?: string;
+      prompt_length: number;
+      response_length: number;
+      success: boolean;
+      error_type?: string;
+      metrics: any;
+      metadata?: any;
+      timestamp: string;
+    }) {
+      const { data, error } = await supabase
+        .from('analytics_events')
+        .insert([event])
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+
+    async getEvents(userId: string, startDate: string, endDate: string, limit: number = 1000) {
+      const { data, error } = await supabase
+        .from('analytics_events')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('timestamp', startDate)
+        .lte('timestamp', endDate)
+        .order('timestamp', { ascending: false })
+        .limit(limit);
+      
+      if (error) throw error;
+      return data || [];
+    },
+
+    async getAggregations(userId: string, startDate: string, endDate: string) {
+      const { data, error } = await supabase
+        .from('analytics_aggregations')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
+    }
   }
 };

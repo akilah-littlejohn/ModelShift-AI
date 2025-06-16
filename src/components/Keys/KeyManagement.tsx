@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Key, Eye, EyeOff, Trash2, Shield, AlertTriangle, Code, Upload, Download, ChevronDown } from 'lucide-react';
+import { Plus, Key, Eye, EyeOff, Trash2, Shield, AlertTriangle, Code, Upload, Download } from 'lucide-react';
 import { providers } from '../../data/providers';
 import { keyVault } from '../../lib/encryption';
 import { ConfigurationGenerator } from './ConfigurationGenerator';
@@ -14,8 +14,6 @@ export function KeyManagement() {
   const [showConfigModal, setShowConfigModal] = useState<string | null>(null);
   const [showExportModal, setShowExportModal] = useState<string | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [showAddAdditionalModal, setShowAddAdditionalModal] = useState<string | null>(null);
-  const [showAdditionalKeys, setShowAdditionalKeys] = useState<Record<string, boolean>>({});
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -143,160 +141,97 @@ export function KeyManagement() {
             const isVisible = visibleKeys.has(key.id);
             const displayKey = getDisplayKey(key.keyData, isVisible);
 
-            // Get additional keys for this provider
-            const additionalKeys = keyVault.listKeysForProvider(key.provider).slice(1);
-
             return (
               <div
                 key={key.id}
-                className="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-hidden"
+                className="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-6"
               >
-                {/* Main Key Display */}
-                <div className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start space-x-4">
-                      <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-lg flex items-center justify-center">
-                        <span className="text-2xl">{provider.icon}</span>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start space-x-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-lg flex items-center justify-center">
+                      <span className="text-2xl">{provider.icon}</span>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">
+                          {key.name}
+                        </h3>
+                        <span className="px-2 py-1 bg-accent-100 dark:bg-accent-900/30 text-accent-700 dark:text-accent-300 rounded-full text-xs font-medium">
+                          Active
+                        </span>
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">
-                            {key.name}
-                          </h3>
-                          <span className="px-2 py-1 bg-accent-100 dark:bg-accent-900/30 text-accent-700 dark:text-accent-300 rounded-full text-xs font-medium">
-                            Active
-                          </span>
-                        </div>
-                        <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
-                          {provider.displayName}
-                        </p>
-                        
-                        {/* Key Display */}
-                        <div className="bg-neutral-50 dark:bg-neutral-700 rounded-lg p-3 space-y-2">
-                          {/* Primary Key */}
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <div className="text-xs text-neutral-500 dark:text-neutral-400 mb-1">
-                                Primary Key
-                              </div>
-                              <code className="text-sm font-mono text-neutral-700 dark:text-neutral-300">
-                                {displayKey.slice(0, 50)}{displayKey.length > 50 ? '...' : ''}
-                              </code>
+                      <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
+                        {provider.displayName}
+                      </p>
+                      
+                      {/* Key Display */}
+                      <div className="bg-neutral-50 dark:bg-neutral-700 rounded-lg p-3 space-y-2">
+                        {/* Primary Key (usually API Key) */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="text-xs text-neutral-500 dark:text-neutral-400 mb-1">
+                              Primary Key
                             </div>
-                            <button
-                              onClick={() => toggleKeyVisibility(key.id)}
-                              className="p-1 text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors ml-2"
-                              title={isVisible ? 'Hide key' : 'Show key'}
-                            >
-                              {isVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                            </button>
+                            <code className="text-sm font-mono text-neutral-700 dark:text-neutral-300">
+                              {displayKey.slice(0, 50)}{displayKey.length > 50 ? '...' : ''}
+                            </code>
                           </div>
-
-                          {/* Additional Fields */}
-                          {Object.entries(key.keyData).filter(([fieldName]) => fieldName !== 'apiKey').map(([fieldName, fieldValue]) => (
-                            <div key={fieldName} className="border-t border-neutral-200 dark:border-neutral-600 pt-2">
-                              <div className="text-xs text-neutral-500 dark:text-neutral-400 mb-1 capitalize">
-                                {fieldName.replace(/([A-Z])/g, ' $1').trim()}
-                              </div>
-                              <code className="text-sm font-mono text-neutral-700 dark:text-neutral-300">
-                                {isVisible ? fieldValue : '••••••••••••••••••••'}
-                              </code>
-                            </div>
-                          ))}
+                          <button
+                            onClick={() => toggleKeyVisibility(key.id)}
+                            className="p-1 text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors ml-2"
+                            title={isVisible ? 'Hide key' : 'Show key'}
+                          >
+                            {isVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
                         </div>
 
-                        {/* Metadata */}
-                        <div className="flex items-center space-x-4 mt-3 text-xs text-neutral-500 dark:text-neutral-400">
-                          <span>Added {new Date(key.created_at).toLocaleDateString()}</span>
-                          {key.last_used && (
-                            <span>Last used {new Date(key.last_used).toLocaleDateString()}</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => setShowExportModal(key.provider)}
-                        className="p-2 text-secondary-500 hover:text-secondary-700 dark:text-secondary-400 dark:hover:text-secondary-300 hover:bg-secondary-50 dark:hover:bg-secondary-900/20 rounded-lg transition-colors"
-                        title="Export configuration"
-                      >
-                        <Download className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setShowConfigModal(key.provider)}
-                        className="p-2 text-primary-500 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
-                        title="Generate configuration"
-                      >
-                        <Code className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => deleteKey(key.provider)}
-                        className="p-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                        title="Delete key"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Additional Keys Section */}
-                {additionalKeys.length > 0 && (
-                  <div className="border-t border-neutral-200 dark:border-neutral-700 p-4 bg-neutral-50 dark:bg-neutral-900">
-                    <button
-                      onClick={() => setShowAdditionalKeys(prev => ({
-                        ...prev,
-                        [key.provider]: !prev[key.provider]
-                      }))}
-                      className="flex items-center space-x-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors"
-                    >
-                      <span>{additionalKeys.length} additional key{additionalKeys.length > 1 ? 's' : ''}</span>
-                      <ChevronDown className={`w-4 h-4 transition-transform ${showAdditionalKeys[key.provider] ? 'rotate-180' : ''}`} />
-                    </button>
-                    
-                    {showAdditionalKeys[key.provider] && (
-                      <div className="mt-3 space-y-2">
-                        {additionalKeys.map((additionalKey) => (
-                          <div key={additionalKey.id} className="flex items-center justify-between p-3 bg-white dark:bg-neutral-800 rounded border border-neutral-200 dark:border-neutral-700">
-                            <div>
-                              <div className="text-sm font-medium text-neutral-900 dark:text-white">
-                                {additionalKey.label}
-                              </div>
-                              <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                                Added {new Date(additionalKey.createdAt).toLocaleDateString()} • 
-                                Used {additionalKey.usageCount} times
-                                {additionalKey.lastUsed && ` • Last used ${new Date(additionalKey.lastUsed).toLocaleDateString()}`}
-                              </div>
+                        {/* Additional Fields */}
+                        {Object.entries(key.keyData).filter(([fieldName]) => fieldName !== 'apiKey').map(([fieldName, fieldValue]) => (
+                          <div key={fieldName} className="border-t border-neutral-200 dark:border-neutral-600 pt-2">
+                            <div className="text-xs text-neutral-500 dark:text-neutral-400 mb-1 capitalize">
+                              {fieldName.replace(/([A-Z])/g, ' $1').trim()}
                             </div>
-                            <button
-                              onClick={() => {
-                                keyVault.removeKeyById(additionalKey.id);
-                                loadKeys();
-                                toast.success('Additional key deleted successfully');
-                              }}
-                              className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                              title="Delete additional key"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <code className="text-sm font-mono text-neutral-700 dark:text-neutral-300">
+                              {isVisible ? fieldValue : '••••••••••••••••••••'}
+                            </code>
                           </div>
                         ))}
                       </div>
-                    )}
-                  </div>
-                )}
 
-                {/* Add Additional Key Button */}
-                <div className="border-t border-neutral-200 dark:border-neutral-700 p-4 bg-neutral-50 dark:bg-neutral-900">
-                  <button
-                    onClick={() => setShowAddAdditionalModal(key.provider)}
-                    className="flex items-center space-x-2 text-sm text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-200 transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Add another {provider.displayName} key</span>
-                  </button>
+                      {/* Metadata */}
+                      <div className="flex items-center space-x-4 mt-3 text-xs text-neutral-500 dark:text-neutral-400">
+                        <span>Added {new Date(key.created_at).toLocaleDateString()}</span>
+                        {key.last_used && (
+                          <span>Last used {new Date(key.last_used).toLocaleDateString()}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => setShowExportModal(key.provider)}
+                      className="p-2 text-secondary-500 hover:text-secondary-700 dark:text-secondary-400 dark:hover:text-secondary-300 hover:bg-secondary-50 dark:hover:bg-secondary-900/20 rounded-lg transition-colors"
+                      title="Export configuration"
+                    >
+                      <Download className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setShowConfigModal(key.provider)}
+                      className="p-2 text-primary-500 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
+                      title="Generate configuration"
+                    >
+                      <Code className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => deleteKey(key.provider)}
+                      className="p-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                      title="Delete key"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -311,18 +246,6 @@ export function KeyManagement() {
           onAdd={() => {
             loadKeys();
             setShowAddModal(false);
-          }}
-        />
-      )}
-
-      {/* Add Additional Key Modal */}
-      {showAddAdditionalModal && (
-        <AddAdditionalKeyModal
-          provider={showAddAdditionalModal}
-          onClose={() => setShowAddAdditionalModal(null)}
-          onAdd={() => {
-            loadKeys();
-            setShowAddAdditionalModal(null);
           }}
         />
       )}
@@ -472,139 +395,6 @@ function AddKeyModal({ onClose, onAdd }: AddKeyModalProps) {
                 <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-amber-700 dark:text-amber-300">
                   Your credentials will be encrypted and stored locally in your browser. They will never be sent to our servers.
-                </p>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex justify-end space-x-3 pt-4">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
-              >
-                Add Key
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-interface AddAdditionalKeyModalProps {
-  provider: string;
-  onClose: () => void;
-  onAdd: () => void;
-}
-
-function AddAdditionalKeyModal({ provider, onClose, onAdd }: AddAdditionalKeyModalProps) {
-  const [label, setLabel] = useState('');
-  const [keyFieldValues, setKeyFieldValues] = useState<Record<string, string>>({});
-
-  const providerData = providers.find(p => p.id === provider);
-
-  const handleFieldChange = (fieldName: string, value: string) => {
-    setKeyFieldValues(prev => ({
-      ...prev,
-      [fieldName]: value
-    }));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!label.trim()) {
-      toast.error('Please provide a label for this key');
-      return;
-    }
-
-    if (!providerData) {
-      toast.error('Invalid provider');
-      return;
-    }
-
-    // Validate all required fields are filled
-    const missingFields = providerData.keyRequirements
-      .filter(req => req.required && !keyFieldValues[req.name]?.trim())
-      .map(req => req.label);
-
-    if (missingFields.length > 0) {
-      toast.error(`Please fill in: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    // Store the additional key
-    keyVault.addAdditionalKey(provider, keyFieldValues, label);
-    
-    toast.success('Additional API key added successfully');
-    onAdd();
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-xl border border-neutral-200 dark:border-neutral-700 w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <div className="p-6">
-          <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">
-            Add Additional {providerData?.displayName} Key
-          </h3>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Label Field */}
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                Key Label <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                placeholder="e.g., Production Key, Development Key"
-                className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
-                required
-              />
-            </div>
-
-            {/* Dynamic Key Fields */}
-            {providerData && (
-              <div className="space-y-4">
-                <div className="border-t border-neutral-200 dark:border-neutral-700 pt-4">
-                  <h4 className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-3">
-                    Required Credentials
-                  </h4>
-                  {providerData.keyRequirements.map((requirement) => (
-                    <div key={requirement.name} className="mb-4">
-                      <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                        {requirement.label}
-                        {requirement.required && <span className="text-red-500 ml-1">*</span>}
-                      </label>
-                      <input
-                        type={requirement.type}
-                        value={keyFieldValues[requirement.name] || ''}
-                        onChange={(e) => handleFieldChange(requirement.name, e.target.value)}
-                        placeholder={requirement.placeholder}
-                        className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
-                        required={requirement.required}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Security Notice */}
-            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-              <div className="flex items-start space-x-2">
-                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-amber-700 dark:text-amber-300">
-                  This additional key will be stored securely alongside your existing {providerData?.displayName} key.
                 </p>
               </div>
             </div>

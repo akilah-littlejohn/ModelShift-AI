@@ -353,6 +353,7 @@ export const anthropicClaudeConfig: ProviderConfig = {
   buildHeaders: (keyData: Record<string, string>) => ({
     'x-api-key': keyData.apiKey,
     'anthropic-version': '2023-06-01',
+    'anthropic-dangerous-direct-browser-access': 'true',
     'Content-Type': 'application/json'
   }),
   defaultModel: 'claude-3-sonnet-20240229',

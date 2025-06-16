@@ -11,15 +11,38 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Helper function to validate UUID format
+function isValidUUID(uuid: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate auth check
-    const mockUser = localStorage.getItem('modelshift-ai-user');
-    if (mockUser) {
-      setUser(JSON.parse(mockUser));
+    // Check for existing user in localStorage
+    const mockUserData = localStorage.getItem('modelshift-ai-user');
+    if (mockUserData) {
+      try {
+        const parsedUser = JSON.parse(mockUserData);
+        
+        // Validate that the user has a valid UUID
+        if (parsedUser && parsedUser.id && isValidUUID(parsedUser.id)) {
+          setUser(parsedUser);
+        } else {
+          // Invalid user data (likely from old session with non-UUID ID)
+          console.warn('Invalid user data found in localStorage, clearing...');
+          localStorage.removeItem('modelshift-ai-user');
+          setUser(null);
+        }
+      } catch (error) {
+        // Corrupted data in localStorage
+        console.error('Error parsing user data from localStorage:', error);
+        localStorage.removeItem('modelshift-ai-user');
+        setUser(null);
+      }
     }
     setIsLoading(false);
   }, []);
@@ -27,9 +50,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     
-    // Demo authentication
+    // Demo authentication - always generate a proper UUID
     const mockUser: User = {
-      id: uuidv4(),
+      id: uuidv4(), // This ensures we always have a valid UUID
       email,
       name: email.split('@')[0],
       plan: 'pro',

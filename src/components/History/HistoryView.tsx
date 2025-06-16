@@ -1,58 +1,138 @@
-import React, { useState } from 'react';
-import { Clock, Eye, Trash2, Search, Filter, Download } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Clock, Eye, Trash2, Search, Filter, Download, RefreshCw, AlertTriangle, Calendar, BarChart3 } from 'lucide-react';
 import { AgentService } from '../../lib/agents';
 import { providers } from '../../data/providers';
-
-const mockHistory = [
-  {
-    id: '1',
-    prompt: 'Generate business names for an AI-powered fitness app',
-    agent_type: 'business-name',
-    providers: ['openai', 'claude'],
-    responses: [
-      { provider: 'openai', response: 'FitAI, SmartFit Pro, AI Trainer...', success: true, latency: 1200, tokens: 150 },
-      { provider: 'claude', response: 'IntelliGym, AI Fitness Coach, Neural Fit...', success: true, latency: 980, tokens: 145 }
-    ],
-    created_at: '2024-01-07T10:30:00Z',
-    execution_time: 1200,
-    tokens_used: 295
-  },
-  {
-    id: '2',
-    prompt: 'Create a pitch for project management SaaS',
-    agent_type: 'saas-pitch',
-    providers: ['gemini', 'ibm'],
-    responses: [
-      { provider: 'gemini', response: 'Introducing TaskFlow: The intelligent project...', success: true, latency: 1450, tokens: 380 },
-      { provider: 'ibm', response: 'Revolutionary project management platform...', success: false, latency: 2100, tokens: 0 }
-    ],
-    created_at: '2024-01-07T09:15:00Z',
-    execution_time: 2100,
-    tokens_used: 380
-  },
-  {
-    id: '3',
-    prompt: 'User cannot access dashboard after login',
-    agent_type: 'support-summarizer',
-    providers: ['openai'],
-    responses: [
-      { provider: 'openai', response: 'Technical Issue - High Priority\nSummary: Dashboard access...', success: true, latency: 890, tokens: 95 }
-    ],
-    created_at: '2024-01-06T16:45:00Z',
-    execution_time: 890,
-    tokens_used: 95
-  }
-];
+import { db } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
+import type { PromptExecution } from '../../types';
+import toast from 'react-hot-toast';
 
 export function HistoryView() {
+  const { user } = useAuth();
+  const [executions, setExecutions] = useState<PromptExecution[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAgent, setSelectedAgent] = useState('');
   const [selectedProvider, setSelectedProvider] = useState('');
   const [selectedExecution, setSelectedExecution] = useState<string | null>(null);
+  const [timeRange, setTimeRange] = useState('30d');
 
   const agents = AgentService.getAllAgents();
 
-  const filteredHistory = mockHistory.filter(execution => {
+  useEffect(() => {
+    if (user) {
+      loadExecutions();
+    }
+  }, [user, timeRange]);
+
+  const loadExecutions = async () => {
+    if (!user) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Check if Supabase is properly configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || supabaseUrl.includes('demo') || supabaseKey.includes('demo')) {
+        setError('Supabase is not configured. Please set up your Supabase environment variables to view execution history.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Calculate date range
+      const endDate = new Date();
+      const startDate = new Date();
+      switch (timeRange) {
+        case '7d':
+          startDate.setDate(endDate.getDate() - 7);
+          break;
+        case '30d':
+          startDate.setDate(endDate.getDate() - 30);
+          break;
+        case '90d':
+          startDate.setDate(endDate.getDate() - 90);
+          break;
+        default:
+          startDate.setDate(endDate.getDate() - 30);
+      }
+
+      const data = await db.prompts.getByUserId(user.id, 100);
+      
+      // Filter by date range
+      const filteredData = data.filter(execution => {
+        const executionDate = new Date(execution.created_at);
+        return executionDate >= startDate && executionDate <= endDate;
+      });
+
+      setExecutions(filteredData);
+    } catch (err) {
+      console.error('Failed to load execution history:', err);
+      
+      if (err instanceof Error) {
+        if (err.message.includes('404') || err.message.includes('not found')) {
+          setError('Database tables not found. Please run the Supabase migrations to set up the required tables.');
+        } else if (err.message.includes('permission') || err.message.includes('RLS') || err.message.includes('policy')) {
+          setError('Database permission error. Please check your Supabase Row Level Security policies.');
+        } else if (err.message.includes('Invalid or missing')) {
+          setError('Supabase configuration error. Please check your environment variables.');
+        } else if (err.message.includes('network') || err.message.includes('fetch')) {
+          setError('Network error. Please check your internet connection and Supabase URL.');
+        } else {
+          setError(`Database error: ${err.message}`);
+        }
+      } else {
+        setError('An unknown error occurred while loading execution history.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteExecution = async (executionId: string) => {
+    if (!window.confirm('Are you sure you want to delete this execution?')) {
+      return;
+    }
+
+    try {
+      // Note: We would need to add a delete method to the db.prompts service
+      // For now, we'll just remove it from the local state
+      setExecutions(executions.filter(exec => exec.id !== executionId));
+      toast.success('Execution deleted successfully');
+    } catch (error) {
+      toast.error('Failed to delete execution');
+    }
+  };
+
+  const exportExecutions = () => {
+    const dataToExport = filteredExecutions.map(execution => ({
+      id: execution.id,
+      prompt: execution.prompt,
+      agent_type: execution.agent_type,
+      providers: execution.providers,
+      responses: execution.responses,
+      execution_time: execution.execution_time,
+      tokens_used: execution.tokens_used,
+      created_at: execution.created_at
+    }));
+
+    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `modelshift-executions-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    toast.success('Execution history exported successfully');
+  };
+
+  const filteredExecutions = executions.filter(execution => {
     const matchesSearch = execution.prompt.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesAgent = !selectedAgent || execution.agent_type === selectedAgent;
     const matchesProvider = !selectedProvider || execution.providers.includes(selectedProvider);
@@ -61,12 +141,88 @@ export function HistoryView() {
   });
 
   const getAgentInfo = (agentId: string) => {
+    if (agentId === 'direct') return { name: 'Direct Input', category: 'Direct' };
     return AgentService.getAgent(agentId);
   };
 
   const getProviderInfo = (providerId: string) => {
     return providers.find(provider => provider.id === providerId);
   };
+
+  const calculateTotalCost = (execution: PromptExecution): number => {
+    return execution.responses.reduce((total, response) => {
+      const provider = getProviderInfo(response.provider);
+      if (provider && response.tokens > 0) {
+        return total + (response.tokens * provider.capabilities.pricing.output) / 1000;
+      }
+      return total;
+    }, 0);
+  };
+
+  const getSuccessRate = (execution: PromptExecution): number => {
+    const successfulResponses = execution.responses.filter(r => r.success).length;
+    return execution.responses.length > 0 ? (successfulResponses / execution.responses.length) * 100 : 0;
+  };
+
+  if (isLoading) {
+    return (
+      <div className="max-w-7xl mx-auto p-6 space-y-8">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-neutral-900 dark:text-white mb-2">
+            Execution History
+          </h1>
+          <p className="text-neutral-600 dark:text-neutral-400">
+            View and analyze your previous AI prompt executions
+          </p>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <RefreshCw className="w-8 h-8 text-primary-500 animate-spin mx-auto mb-4" />
+            <p className="text-neutral-500 dark:text-neutral-400">Loading execution history...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-7xl mx-auto p-6 space-y-8">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-neutral-900 dark:text-white mb-2">
+            Execution History
+          </h1>
+          <p className="text-neutral-600 dark:text-neutral-400">
+            View and analyze your previous AI prompt executions
+          </p>
+        </div>
+        
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
+          <div className="flex items-start space-x-3">
+            <AlertTriangle className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-lg font-medium text-red-900 dark:text-red-100 mb-2">
+                Error Loading Execution History
+              </h3>
+              <p className="text-red-700 dark:text-red-300 mb-4">
+                {error}
+              </p>
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={loadExecutions}
+                  className="inline-flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  <span>Retry</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-8">
@@ -80,9 +236,72 @@ export function HistoryView() {
         </p>
       </div>
 
+      {/* Summary Stats */}
+      {executions.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Total Executions</h3>
+              <BarChart3 className="w-5 h-5 text-primary-500" />
+            </div>
+            <div className="text-2xl font-bold text-neutral-900 dark:text-white">
+              {filteredExecutions.length}
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Total Tokens</h3>
+              <Clock className="w-5 h-5 text-secondary-500" />
+            </div>
+            <div className="text-2xl font-bold text-neutral-900 dark:text-white">
+              {filteredExecutions.reduce((sum, exec) => sum + exec.tokens_used, 0).toLocaleString()}
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Avg Response Time</h3>
+              <Clock className="w-5 h-5 text-accent-500" />
+            </div>
+            <div className="text-2xl font-bold text-neutral-900 dark:text-white">
+              {filteredExecutions.length > 0 
+                ? Math.round(filteredExecutions.reduce((sum, exec) => sum + exec.execution_time, 0) / filteredExecutions.length)
+                : 0}ms
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Success Rate</h3>
+              <BarChart3 className="w-5 h-5 text-emerald-500" />
+            </div>
+            <div className="text-2xl font-bold text-neutral-900 dark:text-white">
+              {filteredExecutions.length > 0 
+                ? Math.round(filteredExecutions.reduce((sum, exec) => sum + getSuccessRate(exec), 0) / filteredExecutions.length)
+                : 0}%
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          {/* Time Range */}
+          <div className="flex items-center space-x-2">
+            <Calendar className="w-4 h-4 text-neutral-500 dark:text-neutral-400" />
+            <select
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value)}
+              className="flex-1 px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+            >
+              <option value="7d">Last 7 days</option>
+              <option value="30d">Last 30 days</option>
+              <option value="90d">Last 90 days</option>
+            </select>
+          </div>
+
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-neutral-400" />
@@ -102,6 +321,7 @@ export function HistoryView() {
             className="px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
           >
             <option value="">All Agents</option>
+            <option value="direct">Direct Input</option>
             {agents.map(agent => (
               <option key={agent.id} value={agent.id}>{agent.name}</option>
             ))}
@@ -119,33 +339,48 @@ export function HistoryView() {
             ))}
           </select>
 
-          {/* Export Button */}
-          <button className="flex items-center justify-center space-x-2 px-4 py-2 bg-accent-500 text-white rounded-lg hover:bg-accent-600 transition-colors">
-            <Download className="w-4 h-4" />
-            <span>Export</span>
-          </button>
+          {/* Actions */}
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={loadExecutions}
+              className="p-2 text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors"
+              title="Refresh"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+            <button
+              onClick={exportExecutions}
+              disabled={filteredExecutions.length === 0}
+              className="flex items-center space-x-2 px-3 py-2 bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              <span>Export</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* History List */}
       <div className="space-y-4">
-        {filteredHistory.length === 0 ? (
+        {filteredExecutions.length === 0 ? (
           <div className="text-center py-12 bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
             <Clock className="w-12 h-12 text-neutral-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-neutral-900 dark:text-white mb-2">
-              No Executions Found
+              {executions.length === 0 ? 'No Executions Found' : 'No Executions Match Filters'}
             </h3>
             <p className="text-neutral-600 dark:text-neutral-400">
-              {searchTerm || selectedAgent || selectedProvider 
-                ? 'Try adjusting your filters'
-                : 'Start using the playground to see your execution history here'
+              {executions.length === 0 
+                ? 'Start using the playground to see your execution history here'
+                : 'Try adjusting your filters or search criteria'
               }
             </p>
           </div>
         ) : (
-          filteredHistory.map((execution) => {
+          filteredExecutions.map((execution) => {
             const agentInfo = getAgentInfo(execution.agent_type);
             const isExpanded = selectedExecution === execution.id;
+            const totalCost = calculateTotalCost(execution);
+            const successRate = getSuccessRate(execution);
 
             return (
               <div
@@ -165,8 +400,17 @@ export function HistoryView() {
                         <span className="text-sm text-neutral-500 dark:text-neutral-400">
                           {new Date(execution.created_at).toLocaleString()}
                         </span>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          successRate === 100 
+                            ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                            : successRate > 50
+                            ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                            : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                        }`}>
+                          {successRate}% success
+                        </span>
                       </div>
-                      <h3 className="text-lg font-medium text-neutral-900 dark:text-white mb-2">
+                      <h3 className="text-lg font-medium text-neutral-900 dark:text-white mb-2 line-clamp-2">
                         {execution.prompt}
                       </h3>
                       
@@ -190,7 +434,10 @@ export function HistoryView() {
                           <span>{execution.execution_time}ms</span>
                         </div>
                         <div>
-                          {execution.tokens_used} tokens
+                          {execution.tokens_used.toLocaleString()} tokens
+                        </div>
+                        <div>
+                          ${totalCost.toFixed(4)} cost
                         </div>
                         <div>
                           {execution.responses.filter(r => r.success).length}/{execution.responses.length} successful
@@ -208,6 +455,7 @@ export function HistoryView() {
                         <Eye className="w-4 h-4" />
                       </button>
                       <button
+                        onClick={() => deleteExecution(execution.id)}
                         className="p-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                         title="Delete execution"
                       >
@@ -221,7 +469,7 @@ export function HistoryView() {
                 {isExpanded && (
                   <div className="p-6 bg-neutral-50 dark:bg-neutral-900/50">
                     <h4 className="font-medium text-neutral-900 dark:text-white mb-4">
-                      Responses
+                      Provider Responses
                     </h4>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                       {execution.responses.map((response, index) => {
@@ -245,7 +493,7 @@ export function HistoryView() {
                               </div>
                               <div className={`px-2 py-1 rounded-full text-xs font-medium ${
                                 response.success
-                                  ? 'bg-accent-100 dark:bg-accent-900/30 text-accent-700 dark:text-accent-300'
+                                  ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
                                   : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
                               }`}>
                                 {response.success ? 'Success' : 'Failed'}
@@ -253,22 +501,42 @@ export function HistoryView() {
                             </div>
                             
                             {response.success ? (
-                              <div className="text-sm text-neutral-700 dark:text-neutral-300 mb-3 line-clamp-3">
-                                {response.response}
+                              <div className="text-sm text-neutral-700 dark:text-neutral-300 mb-3 max-h-32 overflow-y-auto">
+                                <div className="whitespace-pre-wrap break-words">
+                                  {response.response.length > 200 
+                                    ? `${response.response.substring(0, 200)}...` 
+                                    : response.response
+                                  }
+                                </div>
                               </div>
                             ) : (
                               <div className="text-sm text-red-600 dark:text-red-400 mb-3">
-                                Request failed
+                                {response.error || 'Request failed'}
                               </div>
                             )}
 
                             <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
                               <span>{response.latency}ms</span>
-                              <span>{response.tokens} tokens</span>
+                              <span>{response.tokens.toLocaleString()} tokens</span>
+                              {providerInfo && (
+                                <span>${((response.tokens * providerInfo.capabilities.pricing.output) / 1000).toFixed(4)}</span>
+                              )}
                             </div>
                           </div>
                         );
                       })}
+                    </div>
+
+                    {/* Full Prompt */}
+                    <div className="mt-6">
+                      <h4 className="font-medium text-neutral-900 dark:text-white mb-2">
+                        Full Prompt
+                      </h4>
+                      <div className="bg-neutral-900 rounded-lg p-4 max-h-40 overflow-y-auto">
+                        <pre className="text-sm text-neutral-100 whitespace-pre-wrap">
+                          {execution.prompt}
+                        </pre>
+                      </div>
                     </div>
                   </div>
                 )}

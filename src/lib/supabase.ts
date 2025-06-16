@@ -1,8 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 import type { PromptExecution } from '../types';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://demo.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'demo-key';
+// Ensure we have valid environment variables
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// Validate the Supabase URL
+if (!supabaseUrl || !supabaseUrl.startsWith('http')) {
+  throw new Error('Invalid or missing VITE_SUPABASE_URL environment variable');
+}
+
+if (!supabaseAnonKey) {
+  throw new Error('Missing VITE_SUPABASE_ANON_KEY environment variable');
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 

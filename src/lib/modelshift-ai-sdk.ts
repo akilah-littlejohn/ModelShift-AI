@@ -16,12 +16,43 @@ export interface ProviderConfig {
   defaultParameters?: Record<string, any>;
 }
 
+// Helper function to determine if we're in development and should use proxy
+function isDevelopment(): boolean {
+  return import.meta.env.DEV || window.location.hostname === 'localhost' || 
+         window.location.hostname.includes('webcontainer') ||
+         window.location.hostname.includes('stackblitz');
+}
+
+// Helper function to convert external URLs to proxy URLs in development
+function getProxyUrl(originalUrl: string): string {
+  if (!isDevelopment()) {
+    return originalUrl;
+  }
+
+  // Map external API URLs to proxy paths
+  if (originalUrl.includes('api.openai.com')) {
+    return originalUrl.replace('https://api.openai.com', '/api/openai');
+  }
+  if (originalUrl.includes('api.anthropic.com')) {
+    return originalUrl.replace('https://api.anthropic.com', '/api/anthropic');
+  }
+  if (originalUrl.includes('generativelanguage.googleapis.com')) {
+    return originalUrl.replace('https://generativelanguage.googleapis.com', '/api/gemini');
+  }
+  if (originalUrl.includes('us-south.ml.cloud.ibm.com')) {
+    return originalUrl.replace('https://us-south.ml.cloud.ibm.com', '/api/ibm');
+  }
+
+  return originalUrl;
+}
+
 export class ConfigurableClient implements ModelShiftAIClient {
   constructor(private readonly keyData: Record<string, string>, private readonly config: ProviderConfig) {}
 
   async generate(prompt: string): Promise<string> {
     try {
-      const endpoint = this.getEndpoint();
+      const originalEndpoint = this.getEndpoint();
+      const endpoint = getProxyUrl(originalEndpoint);
       const headers = this.buildHeaders();
       const body = this.config.buildRequestBody(prompt, this.keyData);
 
@@ -79,13 +110,20 @@ export class ConfigurableClient implements ModelShiftAIClient {
       // Enhanced error handling for different types of network issues
       if (error instanceof TypeError) {
         if (error.message === 'Failed to fetch') {
-          throw new Error(
-            'Network request failed. This may be due to CORS restrictions in the development environment. ' +
-            'In a production environment, you would need to either:\n' +
-            '1. Use a backend proxy to make API calls\n' +
-            '2. Configure CORS headers on your server\n' +
-            '3. Use the provider\'s official SDK with proper authentication'
-          );
+          if (isDevelopment()) {
+            throw new Error(
+              'Network request failed. The development proxy may not be configured correctly. ' +
+              'Please ensure the Vite development server is running with proxy configuration.'
+            );
+          } else {
+            throw new Error(
+              'Network request failed. This may be due to CORS restrictions or network connectivity issues. ' +
+              'In a production environment, you would need to either:\n' +
+              '1. Use a backend proxy to make API calls\n' +
+              '2. Configure CORS headers on your server\n' +
+              '3. Use the provider\'s official SDK with proper authentication'
+            );
+          }
         }
         if (error.message.includes('NetworkError')) {
           throw new Error(
@@ -128,7 +166,8 @@ export class DataDrivenClient implements ModelShiftAIClient {
 
   async generate(prompt: string): Promise<string> {
     try {
-      const endpoint = this.buildEndpoint();
+      const originalEndpoint = this.buildEndpoint();
+      const endpoint = getProxyUrl(originalEndpoint);
       const headers = this.buildHeaders();
       const body = this.buildRequestBody(prompt);
 
@@ -189,13 +228,20 @@ export class DataDrivenClient implements ModelShiftAIClient {
       console.error('Error during generate():', error);
       
       if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        throw new Error(
-          'Network request failed. This may be due to CORS restrictions in the development environment. ' +
-          'In a production environment, you would need to either:\n' +
-          '1. Use a backend proxy to make API calls\n' +
-          '2. Configure CORS headers on your server\n' +
-          '3. Use the provider\'s official SDK with proper authentication'
-        );
+        if (isDevelopment()) {
+          throw new Error(
+            'Network request failed. The development proxy may not be configured correctly. ' +
+            'Please ensure the Vite development server is running with proxy configuration.'
+          );
+        } else {
+          throw new Error(
+            'Network request failed. This may be due to CORS restrictions in the development environment. ' +
+            'In a production environment, you would need to either:\n' +
+            '1. Use a backend proxy to make API calls\n' +
+            '2. Configure CORS headers on your server\n' +
+            '3. Use the provider\'s official SDK with proper authentication'
+          );
+        }
       }
       
       throw error;

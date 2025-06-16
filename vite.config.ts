@@ -9,6 +9,16 @@ export default defineConfig({
   },
   server: {
     proxy: {
+      // Proxy for Supabase API
+      '/api/supabase': {
+        target: 'https://owzbrgcwyuugzjafadjy.supabase.co',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/supabase/, ''),
+        secure: true,
+        headers: {
+          'Origin': 'https://owzbrgcwyuugzjafadjy.supabase.co'
+        }
+      },
       // Proxy for OpenAI API
       '/api/openai': {
         target: 'https://api.openai.com',

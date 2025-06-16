@@ -14,7 +14,11 @@ if (!supabaseAnonKey) {
   throw new Error('Missing VITE_SUPABASE_ANON_KEY environment variable');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Use proxy URL in development to avoid CORS issues
+const isDevelopment = import.meta.env.DEV;
+const clientUrl = isDevelopment ? '/api/supabase' : supabaseUrl;
+
+export const supabase = createClient(clientUrl, supabaseAnonKey);
 
 // Database Operations
 export const db = {

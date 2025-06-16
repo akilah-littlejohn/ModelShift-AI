@@ -5,16 +5,15 @@ import type { PromptExecution } from '../types';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Validate the Supabase URL - allow relative URLs for development proxy
-if (!supabaseUrl || (!supabaseUrl.startsWith('http') && !supabaseUrl.startsWith('/'))) {
-  throw new Error('Invalid or missing VITE_SUPABASE_URL environment variable');
+// Validate the Supabase URL - must be an absolute URL
+if (!supabaseUrl || !supabaseUrl.startsWith('http')) {
+  throw new Error('Invalid or missing VITE_SUPABASE_URL environment variable. Must be an absolute URL starting with http:// or https://');
 }
 
 if (!supabaseAnonKey) {
   throw new Error('Missing VITE_SUPABASE_ANON_KEY environment variable');
 }
 
-// Always use the full supabaseUrl - Vite proxy will handle redirection in development
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Database Operations

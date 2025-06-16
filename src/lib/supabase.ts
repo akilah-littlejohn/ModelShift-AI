@@ -14,11 +14,8 @@ if (!supabaseAnonKey) {
   throw new Error('Missing VITE_SUPABASE_ANON_KEY environment variable');
 }
 
-// Use proxy URL in development to avoid CORS issues
-const isDevelopment = import.meta.env.DEV;
-const clientUrl = isDevelopment ? '/api/supabase' : supabaseUrl;
-
-export const supabase = createClient(clientUrl, supabaseAnonKey);
+// Always use the full supabaseUrl - Vite proxy will handle redirection in development
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Database Operations
 export const db = {

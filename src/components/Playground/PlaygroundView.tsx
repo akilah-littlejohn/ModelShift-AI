@@ -8,6 +8,7 @@ import { AgentService } from '../../lib/agents';
 import { ModelShiftAIClientFactory } from '../../lib/modelshift-ai-sdk';
 import { keyVault } from '../../lib/encryption';
 import { db } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { analyticsService } from '../../lib/analytics/AnalyticsService';
 import { useAuth } from '../../contexts/AuthContext';
 import type { ComparisonResult, PromptExecution, ProviderResponse } from '../../types';
@@ -20,6 +21,16 @@ export function PlaygroundView() {
   const [input, setInput] = useState('');
   const [results, setResults] = useState<ComparisonResult[]>([]);
   const [isExecuting, setIsExecuting] = useState(false);
+
+  // Check if we have a real Supabase session for database operations
+  const hasRealSupabaseSession = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      return session && session.user && !session.user.email?.includes('demo');
+    } catch {
+      return false;
+    }
+  };
 
   const handleExecute = async () => {
     if (!input.trim()) {
@@ -260,39 +271,46 @@ export function PlaygroundView() {
       }
     });
     
-    // Save execution data to Supabase for analytics (with enhanced error handling)
-    try {
-      const executionData: Omit<PromptExecution, 'id' | 'created_at'> = {
-        user_id: user.id,
-        prompt: input, // Store original input, not the processed prompt
-        agent_type: selectedAgent || 'direct',
-        providers: selectedProviders,
-        responses: providerResponses,
-        execution_time: totalTime,
-        tokens_used: totalTokens
-      };
+    // Save execution data to Supabase only if we have a real authenticated session
+    const hasRealSession = await hasRealSupabaseSession();
+    if (hasRealSession) {
+      try {
+        const executionData: Omit<PromptExecution, 'id' | 'created_at'> = {
+          user_id: user.id,
+          prompt: input, // Store original input, not the processed prompt
+          agent_type: selectedAgent || 'direct',
+          providers: selectedProviders,
+          responses: providerResponses,
+          execution_time: totalTime,
+          tokens_used: totalTokens
+        };
 
-      await db.prompts.create(executionData);
-      
-      // Update user usage count
-      await db.users.updateUsage(user.id, user.usage_count + 1);
-      
-      toast.success(`Execution completed in ${(totalTime / 1000).toFixed(1)}s`);
-    } catch (error) {
-      console.error('Failed to save execution data:', error);
-      
-      // Enhanced error handling for database issues
-      if (error instanceof Error) {
-        if (error.message.includes('404') || error.message.includes('not found')) {
-          console.warn('Database table not found - execution data not saved. This is expected in development.');
-        } else if (error.message.includes('permission') || error.message.includes('RLS')) {
-          console.warn('Database permission issue - execution data not saved.');
-        } else {
-          console.error('Database error:', error.message);
+        await db.prompts.create(executionData);
+        
+        // Update user usage count
+        await db.users.updateUsage(user.id, user.usage_count + 1);
+        
+        toast.success(`Execution completed in ${(totalTime / 1000).toFixed(1)}s`);
+      } catch (error) {
+        console.error('Failed to save execution data:', error);
+        
+        // Enhanced error handling for database issues
+        if (error instanceof Error) {
+          if (error.message.includes('404') || error.message.includes('not found')) {
+            console.warn('Database table not found - execution data not saved. This is expected in development.');
+          } else if (error.message.includes('permission') || error.message.includes('RLS') || error.message.includes('42501')) {
+            console.warn('Database permission issue (RLS) - execution data not saved. Using mock authentication.');
+          } else {
+            console.error('Database error:', error.message);
+          }
         }
+        
+        // Don't show error to user as the main functionality worked and analytics were tracked
+        toast.success(`Execution completed in ${(totalTime / 1000).toFixed(1)}s`);
       }
-      
-      // Don't show error to user as the main functionality worked and analytics were tracked
+    } else {
+      // Skip Supabase operations when using mock authentication
+      console.log('Using mock authentication - skipping Supabase database operations');
       toast.success(`Execution completed in ${(totalTime / 1000).toFixed(1)}s`);
     }
   };

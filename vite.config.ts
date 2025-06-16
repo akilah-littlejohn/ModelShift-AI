@@ -19,47 +19,8 @@ export default defineConfig({
         headers: {
           'Origin': 'https://owzbrgcwyuugzjafadjy.supabase.co'
         }
-      },
-      // Proxy for OpenAI API
-      '/api/openai': {
-        target: 'https://api.openai.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/openai/, ''),
-        secure: true,
-        headers: {
-          'Origin': 'https://api.openai.com'
-        }
-      },
-      // Proxy for Anthropic Claude API
-      '/api/anthropic': {
-        target: 'https://api.anthropic.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/anthropic/, ''),
-        secure: true,
-        headers: {
-          'Origin': 'https://api.anthropic.com'
-        }
-      },
-      // Proxy for Google Gemini API
-      '/api/gemini': {
-        target: 'https://generativelanguage.googleapis.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/gemini/, ''),
-        secure: true,
-        headers: {
-          'Origin': 'https://generativelanguage.googleapis.com'
-        }
-      },
-      // Proxy for IBM WatsonX API
-      '/api/ibm': {
-        target: 'https://us-south.ml.cloud.ibm.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/ibm/, ''),
-        secure: true,
-        headers: {
-          'Origin': 'https://us-south.ml.cloud.ibm.com'
-        }
       }
+      // Note: Removed AI provider proxies as they're now handled by the Supabase Edge Function
     }
   }
 });

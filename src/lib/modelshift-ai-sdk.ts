@@ -23,36 +23,90 @@ function isDevelopment(): boolean {
          window.location.hostname.includes('stackblitz');
 }
 
-// Helper function to convert external URLs to proxy URLs in development
-function getProxyUrl(originalUrl: string): string {
-  if (!isDevelopment()) {
-    return originalUrl;
-  }
+// New Proxy Client that uses the Supabase Edge Function
+export class ProxyClient implements ModelShiftAIClient {
+  constructor(
+    private readonly providerId: string,
+    private readonly customModel?: string,
+    private readonly customParameters?: Record<string, any>
+  ) {}
 
-  // Map external API URLs to proxy paths
-  if (originalUrl.includes('api.openai.com')) {
-    return originalUrl.replace('https://api.openai.com', '/api/openai');
-  }
-  if (originalUrl.includes('api.anthropic.com')) {
-    return originalUrl.replace('https://api.anthropic.com', '/api/anthropic');
-  }
-  if (originalUrl.includes('generativelanguage.googleapis.com')) {
-    return originalUrl.replace('https://generativelanguage.googleapis.com', '/api/gemini');
-  }
-  if (originalUrl.includes('us-south.ml.cloud.ibm.com')) {
-    return originalUrl.replace('https://us-south.ml.cloud.ibm.com', '/api/ibm');
-  }
+  async generate(prompt: string): Promise<string> {
+    try {
+      // Get Supabase URL and anon key from environment
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Supabase configuration missing. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.');
+      }
 
-  return originalUrl;
+      // Construct the Edge Function URL
+      const edgeFunctionUrl = `${supabaseUrl}/functions/v1/ai-proxy`;
+
+      // Prepare request body
+      const requestBody = {
+        providerId: this.providerId,
+        prompt,
+        model: this.customModel,
+        parameters: this.customParameters
+      };
+
+      // Make request to Edge Function
+      const response = await fetch(edgeFunctionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+          'apikey': supabaseAnonKey
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+        let errorText = '';
+        try {
+          const errorData = await response.json();
+          errorText = errorData.error || `HTTP ${response.status}`;
+        } catch (e) {
+          errorText = `HTTP ${response.status}`;
+        }
+        
+        console.error(`Edge Function request failed: ${response.status} - ${errorText}`);
+        throw new Error(`AI proxy request failed: ${errorText}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'AI proxy request failed');
+      }
+
+      return data.response || 'No response';
+    } catch (error) {
+      console.error('Error during ProxyClient.generate():', error);
+      
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        throw new Error(
+          'Network request failed. Please check your internet connection and Supabase configuration.'
+        );
+      }
+      
+      throw error;
+    }
+  }
 }
 
+// Legacy ConfigurableClient for backward compatibility (now deprecated)
 export class ConfigurableClient implements ModelShiftAIClient {
   constructor(private readonly keyData: Record<string, string>, private readonly config: ProviderConfig) {}
 
   async generate(prompt: string): Promise<string> {
+    console.warn('ConfigurableClient is deprecated. Please use ProxyClient for enhanced security.');
+    
     try {
       const originalEndpoint = this.getEndpoint();
-      const endpoint = getProxyUrl(originalEndpoint);
+      const endpoint = this.getProxyUrl(originalEndpoint);
       const headers = this.buildHeaders();
       const body = this.config.buildRequestBody(prompt, this.keyData);
 
@@ -153,6 +207,29 @@ export class ConfigurableClient implements ModelShiftAIClient {
       'Authorization': `Bearer ${this.keyData.apiKey}`
     };
   }
+
+  // Helper function to convert external URLs to proxy URLs in development
+  private getProxyUrl(originalUrl: string): string {
+    if (!isDevelopment()) {
+      return originalUrl;
+    }
+
+    // Map external API URLs to proxy paths
+    if (originalUrl.includes('api.openai.com')) {
+      return originalUrl.replace('https://api.openai.com', '/api/openai');
+    }
+    if (originalUrl.includes('api.anthropic.com')) {
+      return originalUrl.replace('https://api.anthropic.com', '/api/anthropic');
+    }
+    if (originalUrl.includes('generativelanguage.googleapis.com')) {
+      return originalUrl.replace('https://generativelanguage.googleapis.com', '/api/gemini');
+    }
+    if (originalUrl.includes('us-south.ml.cloud.ibm.com')) {
+      return originalUrl.replace('https://us-south.ml.cloud.ibm.com', '/api/ibm');
+    }
+
+    return originalUrl;
+  }
 }
 
 // New Data-Driven Configurable Client
@@ -165,9 +242,11 @@ export class DataDrivenClient implements ModelShiftAIClient {
   ) {}
 
   async generate(prompt: string): Promise<string> {
+    console.warn('DataDrivenClient is deprecated. Please use ProxyClient for enhanced security.');
+    
     try {
       const originalEndpoint = this.buildEndpoint();
-      const endpoint = getProxyUrl(originalEndpoint);
+      const endpoint = this.getProxyUrl(originalEndpoint);
       const headers = this.buildHeaders();
       const body = this.buildRequestBody(prompt);
 
@@ -299,6 +378,29 @@ export class DataDrivenClient implements ModelShiftAIClient {
     
     return body;
   }
+
+  // Helper function to convert external URLs to proxy URLs in development
+  private getProxyUrl(originalUrl: string): string {
+    if (!isDevelopment()) {
+      return originalUrl;
+    }
+
+    // Map external API URLs to proxy paths
+    if (originalUrl.includes('api.openai.com')) {
+      return originalUrl.replace('https://api.openai.com', '/api/openai');
+    }
+    if (originalUrl.includes('api.anthropic.com')) {
+      return originalUrl.replace('https://api.anthropic.com', '/api/anthropic');
+    }
+    if (originalUrl.includes('generativelanguage.googleapis.com')) {
+      return originalUrl.replace('https://generativelanguage.googleapis.com', '/api/gemini');
+    }
+    if (originalUrl.includes('us-south.ml.cloud.ibm.com')) {
+      return originalUrl.replace('https://us-south.ml.cloud.ibm.com', '/api/ibm');
+    }
+
+    return originalUrl;
+  }
 }
 
 // Provider Configurations (Legacy - for backward compatibility)
@@ -353,8 +455,8 @@ export const anthropicClaudeConfig: ProviderConfig = {
   buildHeaders: (keyData: Record<string, string>) => ({
     'x-api-key': keyData.apiKey,
     'anthropic-version': '2023-06-01',
-    'anthropic-dangerous-direct-browser-access': 'true',
     'Content-Type': 'application/json'
+    // Note: Removed 'anthropic-dangerous-direct-browser-access' as it's not needed for proxy calls
   }),
   defaultModel: 'claude-3-sonnet-20240229',
   defaultParameters: {
@@ -432,7 +534,33 @@ Classify the input into one of the categories.`;
 
 // Client Factory
 export class ModelShiftAIClientFactory {
-  static create(provider: string, keyData: Record<string, string>): ModelShiftAIClient {
+  // NEW: Primary method using the secure proxy
+  static create(provider: string, keyData?: Record<string, string>): ModelShiftAIClient {
+    // Check if Supabase is configured for proxy mode
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (supabaseUrl && supabaseAnonKey && 
+        !supabaseUrl.includes('demo') && !supabaseAnonKey.includes('demo')) {
+      // Use the secure proxy client
+      console.log(`Creating ProxyClient for ${provider}`);
+      return new ProxyClient(provider);
+    } else {
+      // Fallback to legacy direct client for development/demo
+      console.warn(`Supabase not configured, falling back to direct client for ${provider}`);
+      const config = providerConfigs[provider];
+      if (!config) {
+        throw new Error(`Provider '${provider}' not supported`);
+      }
+      if (!keyData) {
+        throw new Error(`API keys required for direct client mode`);
+      }
+      return new ConfigurableClient(keyData, config);
+    }
+  }
+
+  // Legacy method for backward compatibility
+  static createLegacy(provider: string, keyData: Record<string, string>): ModelShiftAIClient {
     const config = providerConfigs[provider];
     if (!config) {
       throw new Error(`Provider '${provider}' not supported`);
@@ -452,36 +580,51 @@ export class ModelShiftAIClientFactory {
 
   // Enhanced method for creating clients from serialized configurations
   static createFromSerializedConfig(serializedConfig: import('../types').SerializedConfig): ModelShiftAIClient {
-    const baseConfig = providerConfigs[serializedConfig.providerId];
-    if (!baseConfig) {
-      throw new Error(`Provider '${serializedConfig.providerId}' not supported`);
-    }
-
-    // Create a custom config that overrides defaults with serialized values
-    const customConfig: ProviderConfig = {
-      ...baseConfig,
-      buildRequestBody: (prompt: string, keyData: Record<string, string>) => {
-        const baseBody = baseConfig.buildRequestBody(prompt, keyData);
-        
-        // Override model and parameters if specified in serialized config
-        const customBody = { ...baseBody };
-        
-        if (serializedConfig.model) {
-          if ('model' in customBody) {
-            customBody.model = serializedConfig.model;
-          } else if ('model_id' in customBody) {
-            (customBody as any).model_id = serializedConfig.model;
-          }
-        }
-        
-        if (serializedConfig.parameters) {
-          Object.assign(customBody, serializedConfig.parameters);
-        }
-        
-        return customBody;
+    // Check if Supabase is configured for proxy mode
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (supabaseUrl && supabaseAnonKey && 
+        !supabaseUrl.includes('demo') && !supabaseAnonKey.includes('demo')) {
+      // Use the secure proxy client
+      return new ProxyClient(
+        serializedConfig.providerId,
+        serializedConfig.model,
+        serializedConfig.parameters
+      );
+    } else {
+      // Fallback to legacy client
+      const baseConfig = providerConfigs[serializedConfig.providerId];
+      if (!baseConfig) {
+        throw new Error(`Provider '${serializedConfig.providerId}' not supported`);
       }
-    };
 
-    return new ConfigurableClient(serializedConfig.keyData, customConfig);
+      // Create a custom config that overrides defaults with serialized values
+      const customConfig: ProviderConfig = {
+        ...baseConfig,
+        buildRequestBody: (prompt: string, keyData: Record<string, string>) => {
+          const baseBody = baseConfig.buildRequestBody(prompt, keyData);
+          
+          // Override model and parameters if specified in serialized config
+          const customBody = { ...baseBody };
+          
+          if (serializedConfig.model) {
+            if ('model' in customBody) {
+              customBody.model = serializedConfig.model;
+            } else if ('model_id' in customBody) {
+              (customBody as any).model_id = serializedConfig.model;
+            }
+          }
+          
+          if (serializedConfig.parameters) {
+            Object.assign(customBody, serializedConfig.parameters);
+          }
+          
+          return customBody;
+        }
+      };
+
+      return new ConfigurableClient(serializedConfig.keyData, customConfig);
+    }
   }
 }

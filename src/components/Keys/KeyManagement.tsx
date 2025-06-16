@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Key, Eye, EyeOff, Trash2, Shield, AlertTriangle, Code, Upload, Download } from 'lucide-react';
+import { Plus, Key, Eye, EyeOff, Trash2, Shield, AlertTriangle, Code, Upload, Download, ChevronDown } from 'lucide-react';
 import { providers } from '../../data/providers';
 import { keyVault } from '../../lib/encryption';
 import { ConfigurationGenerator } from './ConfigurationGenerator';
 import { ConfigurationExporter } from './ConfigurationExporter';
 import { ConfigurationImporter } from './ConfigurationImporter';
+import { AddAdditionalKeyModal } from './AddAdditionalKeyModal';
 import type { APIKey } from '../../types';
 import toast from 'react-hot-toast';
 
@@ -14,6 +15,8 @@ export function KeyManagement() {
   const [showConfigModal, setShowConfigModal] = useState<string | null>(null);
   const [showExportModal, setShowExportModal] = useState<string | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showAddAdditionalModal, setShowAddAdditionalModal] = useState<string | null>(null);
+  const [showAdditionalKeys, setShowAdditionalKeys] = useState<Record<string, boolean>>({});
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -141,97 +144,160 @@ export function KeyManagement() {
             const isVisible = visibleKeys.has(key.id);
             const displayKey = getDisplayKey(key.keyData, isVisible);
 
+            // Get additional keys for this provider
+            const additionalKeys = keyVault.listKeysForProvider(key.provider).slice(1);
+
             return (
               <div
                 key={key.id}
-                className="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-6"
+                className="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-hidden"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start space-x-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-lg flex items-center justify-center">
-                      <span className="text-2xl">{provider.icon}</span>
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">
-                          {key.name}
-                        </h3>
-                        <span className="px-2 py-1 bg-accent-100 dark:bg-accent-900/30 text-accent-700 dark:text-accent-300 rounded-full text-xs font-medium">
-                          Active
-                        </span>
+                {/* Main Key Display */}
+                <div className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start space-x-4">
+                      <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-lg flex items-center justify-center">
+                        <span className="text-2xl">{provider.icon}</span>
                       </div>
-                      <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
-                        {provider.displayName}
-                      </p>
-                      
-                      {/* Key Display */}
-                      <div className="bg-neutral-50 dark:bg-neutral-700 rounded-lg p-3 space-y-2">
-                        {/* Primary Key (usually API Key) */}
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="text-xs text-neutral-500 dark:text-neutral-400 mb-1">
-                              Primary Key
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">
+                            {key.name}
+                          </h3>
+                          <span className="px-2 py-1 bg-accent-100 dark:bg-accent-900/30 text-accent-700 dark:text-accent-300 rounded-full text-xs font-medium">
+                            Active
+                          </span>
+                        </div>
+                        <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
+                          {provider.displayName}
+                        </p>
+                        
+                        {/* Key Display */}
+                        <div className="bg-neutral-50 dark:bg-neutral-700 rounded-lg p-3 space-y-2">
+                          {/* Primary Key */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="text-xs text-neutral-500 dark:text-neutral-400 mb-1">
+                                Primary Key
+                              </div>
+                              <code className="text-sm font-mono text-neutral-700 dark:text-neutral-300">
+                                {displayKey.slice(0, 50)}{displayKey.length > 50 ? '...' : ''}
+                              </code>
                             </div>
-                            <code className="text-sm font-mono text-neutral-700 dark:text-neutral-300">
-                              {displayKey.slice(0, 50)}{displayKey.length > 50 ? '...' : ''}
-                            </code>
+                            <button
+                              onClick={() => toggleKeyVisibility(key.id)}
+                              className="p-1 text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors ml-2"
+                              title={isVisible ? 'Hide key' : 'Show key'}
+                            >
+                              {isVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
                           </div>
-                          <button
-                            onClick={() => toggleKeyVisibility(key.id)}
-                            className="p-1 text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors ml-2"
-                            title={isVisible ? 'Hide key' : 'Show key'}
-                          >
-                            {isVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
+
+                          {/* Additional Fields */}
+                          {Object.entries(key.keyData).filter(([fieldName]) => fieldName !== 'apiKey').map(([fieldName, fieldValue]) => (
+                            <div key={fieldName} className="border-t border-neutral-200 dark:border-neutral-600 pt-2">
+                              <div className="text-xs text-neutral-500 dark:text-neutral-400 mb-1 capitalize">
+                                {fieldName.replace(/([A-Z])/g, ' $1').trim()}
+                              </div>
+                              <code className="text-sm font-mono text-neutral-700 dark:text-neutral-300">
+                                {isVisible ? fieldValue : '••••••••••••••••••••'}
+                              </code>
+                            </div>
+                          ))}
                         </div>
 
-                        {/* Additional Fields */}
-                        {Object.entries(key.keyData).filter(([fieldName]) => fieldName !== 'apiKey').map(([fieldName, fieldValue]) => (
-                          <div key={fieldName} className="border-t border-neutral-200 dark:border-neutral-600 pt-2">
-                            <div className="text-xs text-neutral-500 dark:text-neutral-400 mb-1 capitalize">
-                              {fieldName.replace(/([A-Z])/g, ' $1').trim()}
+                        {/* Metadata */}
+                        <div className="flex items-center space-x-4 mt-3 text-xs text-neutral-500 dark:text-neutral-400">
+                          <span>Added {new Date(key.created_at).toLocaleDateString()}</span>
+                          {key.last_used && (
+                            <span>Last used {new Date(key.last_used).toLocaleDateString()}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => setShowExportModal(key.provider)}
+                        className="p-2 text-secondary-500 hover:text-secondary-700 dark:text-secondary-400 dark:hover:text-secondary-300 hover:bg-secondary-50 dark:hover:bg-secondary-900/20 rounded-lg transition-colors"
+                        title="Export configuration"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setShowConfigModal(key.provider)}
+                        className="p-2 text-primary-500 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
+                        title="Generate configuration"
+                      >
+                        <Code className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => deleteKey(key.provider)}
+                        className="p-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                        title="Delete key"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Additional Keys Section */}
+                {additionalKeys.length > 0 && (
+                  <div className="border-t border-neutral-200 dark:border-neutral-700 p-4 bg-neutral-50 dark:bg-neutral-900">
+                    <button
+                      onClick={() => setShowAdditionalKeys(prev => ({
+                        ...prev,
+                        [key.provider]: !prev[key.provider]
+                      }))}
+                      className="flex items-center space-x-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors"
+                    >
+                      <span>{additionalKeys.length} additional key{additionalKeys.length > 1 ? 's' : ''}</span>
+                      <ChevronDown className={`w-4 h-4 transition-transform ${showAdditionalKeys[key.provider] ? 'rotate-180' : ''}`} />
+                    </button>
+                    
+                    {showAdditionalKeys[key.provider] && (
+                      <div className="mt-3 space-y-2">
+                        {additionalKeys.map((additionalKey) => (
+                          <div key={additionalKey.id} className="flex items-center justify-between p-3 bg-white dark:bg-neutral-800 rounded border border-neutral-200 dark:border-neutral-700">
+                            <div>
+                              <div className="text-sm font-medium text-neutral-900 dark:text-white">
+                                {additionalKey.label}
+                              </div>
+                              <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                                Added {new Date(additionalKey.createdAt).toLocaleDateString()} • 
+                                Used {additionalKey.usageCount} times
+                                {additionalKey.lastUsed && ` • Last used ${new Date(additionalKey.lastUsed).toLocaleDateString()}`}
+                              </div>
                             </div>
-                            <code className="text-sm font-mono text-neutral-700 dark:text-neutral-300">
-                              {isVisible ? fieldValue : '••••••••••••••••••••'}
-                            </code>
+                            <button
+                              onClick={() => {
+                                keyVault.removeKeyById(additionalKey.id);
+                                loadKeys();
+                                toast.success('Additional key deleted successfully');
+                              }}
+                              className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                              title="Delete additional key"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         ))}
                       </div>
-
-                      {/* Metadata */}
-                      <div className="flex items-center space-x-4 mt-3 text-xs text-neutral-500 dark:text-neutral-400">
-                        <span>Added {new Date(key.created_at).toLocaleDateString()}</span>
-                        {key.last_used && (
-                          <span>Last used {new Date(key.last_used).toLocaleDateString()}</span>
-                        )}
-                      </div>
-                    </div>
+                    )}
                   </div>
+                )}
 
-                  {/* Actions */}
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => setShowExportModal(key.provider)}
-                      className="p-2 text-secondary-500 hover:text-secondary-700 dark:text-secondary-400 dark:hover:text-secondary-300 hover:bg-secondary-50 dark:hover:bg-secondary-900/20 rounded-lg transition-colors"
-                      title="Export configuration"
-                    >
-                      <Download className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setShowConfigModal(key.provider)}
-                      className="p-2 text-primary-500 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
-                      title="Generate configuration"
-                    >
-                      <Code className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => deleteKey(key.provider)}
-                      className="p-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                      title="Delete key"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                {/* Add Additional Key Button */}
+                <div className="border-t border-neutral-200 dark:border-neutral-700 p-4 bg-neutral-50 dark:bg-neutral-900">
+                  <button
+                    onClick={() => setShowAddAdditionalModal(key.provider)}
+                    className="flex items-center space-x-2 text-sm text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-200 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add another {provider.displayName} key</span>
+                  </button>
                 </div>
               </div>
             );
@@ -246,6 +312,18 @@ export function KeyManagement() {
           onAdd={() => {
             loadKeys();
             setShowAddModal(false);
+          }}
+        />
+      )}
+
+      {/* Add Additional Key Modal */}
+      {showAddAdditionalModal && (
+        <AddAdditionalKeyModal
+          provider={showAddAdditionalModal}
+          onClose={() => setShowAddAdditionalModal(null)}
+          onAdd={() => {
+            loadKeys();
+            setShowAddAdditionalModal(null);
           }}
         />
       )}

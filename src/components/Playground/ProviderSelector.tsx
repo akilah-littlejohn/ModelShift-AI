@@ -18,7 +18,7 @@ export function ProviderSelector({ selected, onChange }: ProviderSelectorProps) 
   };
 
   const hasValidCredentials = (providerId: string): boolean => {
-    const keyData = keyVault.retrieve(providerId);
+    const keyData = keyVault.retrieveDefault(providerId);
     if (!keyData) return false;
 
     const provider = providers.find(p => p.id === providerId);

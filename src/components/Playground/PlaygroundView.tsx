@@ -56,8 +56,8 @@ export function PlaygroundView() {
       const requestStart = Date.now();
       
       try {
-        // Check if API key exists
-        const keyData = keyVault.retrieve(providerId);
+        // Check if API key exists - use the default key for the provider
+        const keyData = keyVault.retrieveDefault(providerId);
         if (!keyData || Object.keys(keyData).length === 0) {
           throw new Error(`API credentials not found for ${providerId}. Please add them in the API Keys section.`);
         }

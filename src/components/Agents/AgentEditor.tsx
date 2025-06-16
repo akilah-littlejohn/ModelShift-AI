@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Save, X, Bot, Lightbulb, Code, TestTube } from 'lucide-react';
+import { Save, X, Bot, Lightbulb, Code, TestTube, Zap } from 'lucide-react';
 import type { Agent } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -23,9 +23,27 @@ export function AgentEditor({ agent, onSave, onClose }: AgentEditorProps) {
   const [testInput, setTestInput] = useState('');
   const [generatedPrompt, setGeneratedPrompt] = useState('');
 
+  // NEW: Advanced mode state
+  const [isAdvancedMode, setIsAdvancedMode] = useState(false);
+  const [advancedPrompt, setAdvancedPrompt] = useState({
+    rolePersona: '',
+    goalTask: '',
+    contextBackground: '',
+    constraintsRules: '',
+    styleFormat: ''
+  });
+
   useEffect(() => {
     if (agent) {
       setFormData(agent);
+      setIsAdvancedMode(agent.isAdvancedMode || false);
+      setAdvancedPrompt(agent.advancedPrompt || {
+        rolePersona: '',
+        goalTask: '',
+        contextBackground: '',
+        constraintsRules: '',
+        styleFormat: ''
+      });
     }
   }, [agent]);
 
@@ -60,21 +78,76 @@ export function AgentEditor({ agent, onSave, onClose }: AgentEditorProps) {
     }));
   };
 
+  // NEW: Generate combined prompt from advanced fields
+  const generateCombinedPrompt = () => {
+    if (!isAdvancedMode) {
+      return formData.promptTemplate || '';
+    }
+
+    const sections = [];
+    
+    if (advancedPrompt.rolePersona?.trim()) {
+      sections.push(`[Role/Persona]\n${advancedPrompt.rolePersona.trim()}`);
+    }
+    
+    if (advancedPrompt.goalTask?.trim()) {
+      sections.push(`[Goal/Task]\n${advancedPrompt.goalTask.trim()}`);
+    }
+    
+    if (advancedPrompt.contextBackground?.trim()) {
+      sections.push(`[Context/Background]\n${advancedPrompt.contextBackground.trim()}`);
+    }
+    
+    if (advancedPrompt.constraintsRules?.trim()) {
+      sections.push(`[Constraints/Rules]\n${advancedPrompt.constraintsRules.trim()}`);
+    }
+    
+    if (advancedPrompt.styleFormat?.trim()) {
+      sections.push(`[Style/Format Requirements]\n${advancedPrompt.styleFormat.trim()}`);
+    }
+
+    // Always add the input placeholder
+    sections.push(`[User Input]\n{input}`);
+    
+    return sections.join('\n\n');
+  };
+
   const testPrompt = () => {
-    if (!testInput.trim() || !formData.promptTemplate) {
-      setGeneratedPrompt('Please enter test input and a prompt template');
+    if (!testInput.trim()) {
+      setGeneratedPrompt('Please enter test input');
+      return;
+    }
+
+    let promptToTest = '';
+    if (isAdvancedMode) {
+      promptToTest = generateCombinedPrompt();
+    } else {
+      promptToTest = formData.promptTemplate || '';
+    }
+
+    if (!promptToTest) {
+      setGeneratedPrompt('Please create a prompt template first');
       return;
     }
 
     // Simple template replacement for testing
-    const prompt = formData.promptTemplate.replace(/\{input\}/g, testInput);
+    const prompt = promptToTest.replace(/\{input\}/g, testInput);
     setGeneratedPrompt(prompt);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name?.trim() || !formData.description?.trim() || !formData.promptTemplate?.trim()) {
+    if (!formData.name?.trim() || !formData.description?.trim()) {
+      return;
+    }
+
+    // Generate the final prompt template
+    const finalPromptTemplate = isAdvancedMode 
+      ? generateCombinedPrompt()
+      : formData.promptTemplate?.trim() || '';
+
+    if (!finalPromptTemplate) {
       return;
     }
 
@@ -83,10 +156,13 @@ export function AgentEditor({ agent, onSave, onClose }: AgentEditorProps) {
       name: formData.name.trim(),
       description: formData.description.trim(),
       category: formData.category || 'Custom',
-      promptTemplate: formData.promptTemplate.trim(),
+      promptTemplate: finalPromptTemplate,
       examples: (formData.examples || []).filter(ex => ex.trim()),
       icon: formData.icon || 'Bot',
-      isCustom: true
+      isCustom: true,
+      // NEW: Save advanced mode data
+      isAdvancedMode,
+      advancedPrompt: isAdvancedMode ? advancedPrompt : undefined
     };
 
     onSave(agentData);
@@ -187,21 +263,51 @@ export function AgentEditor({ agent, onSave, onClose }: AgentEditorProps) {
               />
             </div>
 
-            {/* Prompt Template */}
-            <div>
-              <div className="flex items-center space-x-2 mb-2">
-                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                  Prompt Template *
-                </label>
-                <div className="flex items-center space-x-1 text-xs text-neutral-500 dark:text-neutral-400">
-                  <Lightbulb className="w-3 h-3" />
-                  <span>Use {'{input}'} as placeholder for user input</span>
-                </div>
+            {/* NEW: Advanced Mode Toggle */}
+            <div className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <div>
+                <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-1 flex items-center space-x-2">
+                  <Zap className="w-4 h-4" />
+                  <span>Advanced Prompt Mode</span>
+                </h4>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  Use structured prompt engineering with professional templates
+                </p>
               </div>
-              <textarea
-                value={formData.promptTemplate || ''}
-                onChange={(e) => handleInputChange('promptTemplate', e.target.value)}
-                placeholder="You are an expert email marketing specialist. Your task is to create compelling email campaigns.
+              <button
+                type="button"
+                onClick={() => setIsAdvancedMode(!isAdvancedMode)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  isAdvancedMode 
+                    ? 'bg-blue-600' 
+                    : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    isAdvancedMode ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Prompt Template Section - Conditional based on mode */}
+            {!isAdvancedMode ? (
+              // EXISTING Simple Mode (keep exactly as is)
+              <div>
+                <div className="flex items-center space-x-2 mb-2">
+                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                    Prompt Template *
+                  </label>
+                  <div className="flex items-center space-x-1 text-xs text-neutral-500 dark:text-neutral-400">
+                    <Lightbulb className="w-3 h-3" />
+                    <span>Use {'{input}'} as placeholder for user input</span>
+                  </div>
+                </div>
+                <textarea
+                  value={formData.promptTemplate || ''}
+                  onChange={(e) => handleInputChange('promptTemplate', e.target.value)}
+                  placeholder="You are an expert email marketing specialist. Your task is to create compelling email campaigns.
 
 User Request: {input}
 
@@ -210,11 +316,109 @@ Please provide:
 2. Email body content
 3. Call-to-action recommendations
 4. Best practices for this campaign"
-                rows={8}
-                className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white resize-none font-mono text-sm"
-                required
-              />
-            </div>
+                  rows={8}
+                  className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white resize-none font-mono text-sm"
+                  required
+                />
+              </div>
+            ) : (
+              // NEW Advanced Mode
+              <div className="space-y-6">
+                <div className="flex items-center space-x-2 mb-4">
+                  <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">
+                    Advanced Prompt Builder
+                  </h3>
+                  <div className="flex items-center space-x-1 text-xs text-neutral-500 dark:text-neutral-400">
+                    <Lightbulb className="w-3 h-3" />
+                    <span>Professional prompt engineering structure</span>
+                  </div>
+                </div>
+
+                {/* Role/Persona */}
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                    Role/Persona *
+                  </label>
+                  <textarea
+                    value={advancedPrompt.rolePersona}
+                    onChange={(e) => setAdvancedPrompt(prev => ({ ...prev, rolePersona: e.target.value }))}
+                    placeholder="You are an Advanced AI Agent Manager for the ModelShift AI platform. You are an expert in AI model orchestration, agent behavior configuration, and intelligent routing between different AI models..."
+                    rows={3}
+                    className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white resize-none"
+                    required
+                  />
+                </div>
+
+                {/* Goal/Task */}
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                    Goal/Task *
+                  </label>
+                  <textarea
+                    value={advancedPrompt.goalTask}
+                    onChange={(e) => setAdvancedPrompt(prev => ({ ...prev, goalTask: e.target.value }))}
+                    placeholder="Your primary objective is to intelligently manage and coordinate multiple AI agents within the ModelShift ecosystem. This includes: analyzing incoming requests, managing smooth transitions between different AI agents..."
+                    rows={3}
+                    className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white resize-none"
+                    required
+                  />
+                </div>
+
+                {/* Context/Background */}
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                    Context/Background
+                  </label>
+                  <textarea
+                    value={advancedPrompt.contextBackground}
+                    onChange={(e) => setAdvancedPrompt(prev => ({ ...prev, contextBackground: e.target.value }))}
+                    placeholder="ModelShift AI is a platform that provides access to multiple AI models including Creative Writer, Technical Expert, Marketing Specialist..."
+                    rows={3}
+                    className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white resize-none"
+                  />
+                </div>
+
+                {/* Constraints/Rules */}
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                    Constraints/Rules
+                  </label>
+                  <textarea
+                    value={advancedPrompt.constraintsRules}
+                    onChange={(e) => setAdvancedPrompt(prev => ({ ...prev, constraintsRules: e.target.value }))}
+                    placeholder="Always maintain conversation context when switching between AI models. Clearly indicate when a model switch occurs. Ensure response consistency..."
+                    rows={3}
+                    className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white resize-none"
+                  />
+                </div>
+
+                {/* Style/Format Requirements */}
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                    Style/Format Requirements
+                  </label>
+                  <textarea
+                    value={advancedPrompt.styleFormat}
+                    onChange={(e) => setAdvancedPrompt(prev => ({ ...prev, styleFormat: e.target.value }))}
+                    placeholder="Use clear, professional communication with technical accuracy. Provide structured responses with clear section headers when appropriate..."
+                    rows={3}
+                    className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white resize-none"
+                  />
+                </div>
+
+                {/* Generated Prompt Preview */}
+                <div className="bg-neutral-50 dark:bg-neutral-900/50 rounded-lg p-4">
+                  <h4 className="font-medium text-neutral-900 dark:text-white mb-2">
+                    Generated Prompt Template Preview
+                  </h4>
+                  <div className="bg-neutral-900 rounded-lg p-3 max-h-40 overflow-y-auto">
+                    <pre className="text-xs text-neutral-100 whitespace-pre-wrap">
+                      {generateCombinedPrompt() || 'Generated template will appear here...'}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Examples */}
             <div>
@@ -307,7 +511,14 @@ Please provide:
             </button>
             <button
               onClick={handleSubmit}
-              disabled={!formData.name?.trim() || !formData.description?.trim() || !formData.promptTemplate?.trim()}
+              disabled={
+                !formData.name?.trim() || 
+                !formData.description?.trim() || 
+                (isAdvancedMode 
+                  ? !advancedPrompt.rolePersona?.trim() || !advancedPrompt.goalTask?.trim()
+                  : !formData.promptTemplate?.trim()
+                )
+              }
               className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-primary-500 to-secondary-500 text-white rounded-lg hover:from-primary-600 hover:to-secondary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
             >
               <Save className="w-4 h-4" />

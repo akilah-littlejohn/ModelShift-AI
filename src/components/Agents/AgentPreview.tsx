@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Edit, Play, Copy, Check, Bot } from 'lucide-react';
+import { X, Edit, Play, Copy, Check, Bot, Zap } from 'lucide-react';
 import type { Agent } from '../../types';
 import toast from 'react-hot-toast';
 
@@ -63,6 +63,12 @@ export function AgentPreview({ agent, onClose, onEdit }: AgentPreviewProps) {
                       Custom
                     </span>
                   )}
+                  {agent.isAdvancedMode && (
+                    <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs font-medium flex items-center space-x-1">
+                      <Zap className="w-3 h-3" />
+                      <span>Advanced Mode</span>
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -115,10 +121,52 @@ export function AgentPreview({ agent, onClose, onEdit }: AgentPreviewProps) {
             </div>
           </div>
 
+          {/* Advanced Mode Details */}
+          {agent.isAdvancedMode && agent.advancedPrompt && (
+            <div>
+              <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-3 flex items-center space-x-2">
+                <Zap className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <span>Advanced Prompt Structure</span>
+              </h3>
+              <div className="space-y-4">
+                {agent.advancedPrompt.rolePersona && (
+                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                    <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Role/Persona</h4>
+                    <p className="text-sm text-blue-700 dark:text-blue-300">{agent.advancedPrompt.rolePersona}</p>
+                  </div>
+                )}
+                {agent.advancedPrompt.goalTask && (
+                  <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
+                    <h4 className="font-medium text-green-900 dark:text-green-100 mb-2">Goal/Task</h4>
+                    <p className="text-sm text-green-700 dark:text-green-300">{agent.advancedPrompt.goalTask}</p>
+                  </div>
+                )}
+                {agent.advancedPrompt.contextBackground && (
+                  <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
+                    <h4 className="font-medium text-purple-900 dark:text-purple-100 mb-2">Context/Background</h4>
+                    <p className="text-sm text-purple-700 dark:text-purple-300">{agent.advancedPrompt.contextBackground}</p>
+                  </div>
+                )}
+                {agent.advancedPrompt.constraintsRules && (
+                  <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4">
+                    <h4 className="font-medium text-orange-900 dark:text-orange-100 mb-2">Constraints/Rules</h4>
+                    <p className="text-sm text-orange-700 dark:text-orange-300">{agent.advancedPrompt.constraintsRules}</p>
+                  </div>
+                )}
+                {agent.advancedPrompt.styleFormat && (
+                  <div className="bg-pink-50 dark:bg-pink-900/20 rounded-lg p-4">
+                    <h4 className="font-medium text-pink-900 dark:text-pink-100 mb-2">Style/Format Requirements</h4>
+                    <p className="text-sm text-pink-700 dark:text-pink-300">{agent.advancedPrompt.styleFormat}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Prompt Template */}
           <div>
             <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-3">
-              Prompt Template
+              {agent.isAdvancedMode ? 'Generated Prompt Template' : 'Prompt Template'}
             </h3>
             <div className="bg-neutral-900 rounded-lg p-4">
               <pre className="text-sm text-neutral-100 whitespace-pre-wrap overflow-x-auto">

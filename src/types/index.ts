@@ -100,6 +100,16 @@ export interface Agent {
   promptTemplate: string;
   examples: string[];
   isCustom?: boolean; // Added to distinguish custom agents
+  
+  // NEW: Advanced prompt mode fields (optional for backward compatibility)
+  isAdvancedMode?: boolean;
+  advancedPrompt?: {
+    rolePersona?: string;
+    goalTask?: string;
+    contextBackground?: string;
+    constraintsRules?: string;
+    styleFormat?: string;
+  };
 }
 
 // Configuration Copy-Paste Types

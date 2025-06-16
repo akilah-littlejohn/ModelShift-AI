@@ -5,7 +5,6 @@ import { keyVault } from '../../lib/encryption';
 import { ConfigurationGenerator } from './ConfigurationGenerator';
 import { ConfigurationExporter } from './ConfigurationExporter';
 import { ConfigurationImporter } from './ConfigurationImporter';
-import { AddAdditionalKeyModal } from './AddAdditionalKeyModal';
 import type { APIKey } from '../../types';
 import toast from 'react-hot-toast';
 
@@ -473,6 +472,139 @@ function AddKeyModal({ onClose, onAdd }: AddKeyModalProps) {
                 <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-amber-700 dark:text-amber-300">
                   Your credentials will be encrypted and stored locally in your browser. They will never be sent to our servers.
+                </p>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end space-x-3 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
+              >
+                Add Key
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface AddAdditionalKeyModalProps {
+  provider: string;
+  onClose: () => void;
+  onAdd: () => void;
+}
+
+function AddAdditionalKeyModal({ provider, onClose, onAdd }: AddAdditionalKeyModalProps) {
+  const [label, setLabel] = useState('');
+  const [keyFieldValues, setKeyFieldValues] = useState<Record<string, string>>({});
+
+  const providerData = providers.find(p => p.id === provider);
+
+  const handleFieldChange = (fieldName: string, value: string) => {
+    setKeyFieldValues(prev => ({
+      ...prev,
+      [fieldName]: value
+    }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!label.trim()) {
+      toast.error('Please provide a label for this key');
+      return;
+    }
+
+    if (!providerData) {
+      toast.error('Invalid provider');
+      return;
+    }
+
+    // Validate all required fields are filled
+    const missingFields = providerData.keyRequirements
+      .filter(req => req.required && !keyFieldValues[req.name]?.trim())
+      .map(req => req.label);
+
+    if (missingFields.length > 0) {
+      toast.error(`Please fill in: ${missingFields.join(', ')}`);
+      return;
+    }
+
+    // Store the additional key
+    keyVault.addAdditionalKey(provider, keyFieldValues, label);
+    
+    toast.success('Additional API key added successfully');
+    onAdd();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-xl border border-neutral-200 dark:border-neutral-700 w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="p-6">
+          <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">
+            Add Additional {providerData?.displayName} Key
+          </h3>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Label Field */}
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                Key Label <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder="e.g., Production Key, Development Key"
+                className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+                required
+              />
+            </div>
+
+            {/* Dynamic Key Fields */}
+            {providerData && (
+              <div className="space-y-4">
+                <div className="border-t border-neutral-200 dark:border-neutral-700 pt-4">
+                  <h4 className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-3">
+                    Required Credentials
+                  </h4>
+                  {providerData.keyRequirements.map((requirement) => (
+                    <div key={requirement.name} className="mb-4">
+                      <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                        {requirement.label}
+                        {requirement.required && <span className="text-red-500 ml-1">*</span>}
+                      </label>
+                      <input
+                        type={requirement.type}
+                        value={keyFieldValues[requirement.name] || ''}
+                        onChange={(e) => handleFieldChange(requirement.name, e.target.value)}
+                        placeholder={requirement.placeholder}
+                        className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+                        required={requirement.required}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Security Notice */}
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+              <div className="flex items-start space-x-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  This additional key will be stored securely alongside your existing {providerData?.displayName} key.
                 </p>
               </div>
             </div>

@@ -34,10 +34,15 @@ function AppContent() {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       
+      // Check if we have a real Supabase session (not mock auth)
+      const { data: { session } } = await supabase.auth.getSession();
+      const hasRealSupabaseSession = session && session.user && !session.user.email?.includes('demo');
+      
       if (supabaseUrl && supabaseKey && 
-          !supabaseUrl.includes('demo') && !supabaseKey.includes('demo')) {
+          !supabaseUrl.includes('demo') && !supabaseKey.includes('demo') &&
+          hasRealSupabaseSession) {
         
-        // Test Supabase connection
+        // Test Supabase connection with authenticated user
         try {
           const { data, error } = await supabase
             .from('analytics_events')
@@ -45,7 +50,7 @@ function AppContent() {
             .limit(1);
           
           if (!error) {
-            // Supabase is available, configure for hybrid mode
+            // Supabase is available with proper authentication, configure for hybrid mode
             analyticsService.configure({
               mode: 'supabase',
               supabaseClient: supabase,
@@ -60,15 +65,15 @@ function AppContent() {
               console.log(`Attempting to sync ${syncStatus.pending} pending analytics events`);
             }
           } else {
-            console.warn('Supabase analytics tables not available, using local mode');
+            console.warn('Supabase analytics tables not available or RLS blocking access, using local mode');
             analyticsService.configure({ mode: 'local' });
           }
         } catch (error) {
-          console.warn('Supabase connection failed, using local analytics:', error);
+          console.warn('Supabase connection failed or RLS blocking access, using local analytics:', error);
           analyticsService.configure({ mode: 'local' });
         }
       } else {
-        console.log('Supabase not configured, using local analytics');
+        console.log('Supabase not configured or using mock authentication, using local analytics');
         analyticsService.configure({ mode: 'local' });
       }
     } catch (error) {

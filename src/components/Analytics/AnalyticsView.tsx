@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { TrendingUp, Clock, DollarSign, Zap, Activity, Users, RefreshCw } from 'lucide-react';
+import { TrendingUp, Clock, DollarSign, Zap, Activity, Users, RefreshCw, AlertTriangle } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import { db } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -22,19 +22,52 @@ export function AnalyticsView() {
   const [executions, setExecutions] = useState<PromptExecution[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isSupabaseConfigured, setIsSupabaseConfigured] = useState(true);
 
   const loadAnalyticsData = async () => {
-    if (!user) return;
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
     
     setIsLoading(true);
     setError(null);
     
     try {
+      // Check if Supabase is properly configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || supabaseUrl.includes('demo') || supabaseKey.includes('demo')) {
+        setIsSupabaseConfigured(false);
+        setError('Supabase is not configured. Please set up your Supabase environment variables.');
+        setIsLoading(false);
+        return;
+      }
+
       const data = await db.prompts.getByUserId(user.id, 100); // Get last 100 executions
       setExecutions(data);
+      setIsSupabaseConfigured(true);
     } catch (err) {
       console.error('Failed to load analytics data:', err);
-      setError('Failed to load analytics data. Please try again.');
+      
+      // Enhanced error handling
+      if (err instanceof Error) {
+        if (err.message.includes('404') || err.message.includes('not found')) {
+          setError('Database tables not found. Please run the Supabase migrations to set up the required tables.');
+        } else if (err.message.includes('permission') || err.message.includes('RLS') || err.message.includes('policy')) {
+          setError('Database permission error. Please check your Supabase Row Level Security policies.');
+        } else if (err.message.includes('Invalid or missing')) {
+          setError('Supabase configuration error. Please check your environment variables.');
+          setIsSupabaseConfigured(false);
+        } else if (err.message.includes('network') || err.message.includes('fetch')) {
+          setError('Network error. Please check your internet connection and Supabase URL.');
+        } else {
+          setError(`Database error: ${err.message}`);
+        }
+      } else {
+        setError('An unknown error occurred while loading analytics data.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -197,19 +230,57 @@ export function AnalyticsView() {
             Monitor your AI usage, costs, and performance metrics
           </p>
         </div>
-        <div className="text-center py-12 bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
-          <div className="text-red-500 mb-4">⚠️</div>
-          <h3 className="text-lg font-medium text-neutral-900 dark:text-white mb-2">
-            Error Loading Analytics
-          </h3>
-          <p className="text-neutral-600 dark:text-neutral-400 mb-4">{error}</p>
-          <button
-            onClick={loadAnalyticsData}
-            className="inline-flex items-center space-x-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-            <span>Retry</span>
-          </button>
+        
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
+          <div className="flex items-start space-x-3">
+            <AlertTriangle className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-lg font-medium text-red-900 dark:text-red-100 mb-2">
+                Error Loading Analytics
+              </h3>
+              <p className="text-red-700 dark:text-red-300 mb-4">
+                {error}
+              </p>
+              
+              {!isSupabaseConfigured && (
+                <div className="bg-red-100 dark:bg-red-900/40 rounded-lg p-4 mb-4">
+                  <h4 className="font-medium text-red-900 dark:text-red-100 mb-2">
+                    Supabase Setup Required
+                  </h4>
+                  <div className="text-sm text-red-700 dark:text-red-300 space-y-2">
+                    <p>To enable analytics, you need to:</p>
+                    <ol className="list-decimal list-inside space-y-1 ml-4">
+                      <li>Create a Supabase project at <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" className="underline">supabase.com</a></li>
+                      <li>Set up your environment variables in the .env file</li>
+                      <li>Run the database migrations to create required tables</li>
+                    </ol>
+                  </div>
+                </div>
+              )}
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={loadAnalyticsData}
+                  className="inline-flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  <span>Retry</span>
+                </button>
+                
+                {isSupabaseConfigured && (
+                  <button
+                    onClick={() => {
+                      setError(null);
+                      setExecutions([]);
+                    }}
+                    className="inline-flex items-center space-x-2 px-4 py-2 bg-neutral-600 text-white rounded-lg hover:bg-neutral-700 transition-colors"
+                  >
+                    <span>Continue Without Analytics</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -234,13 +305,15 @@ export function AnalyticsView() {
           <p className="text-neutral-600 dark:text-neutral-400 mb-4">
             Start using the AI playground to see your analytics data here
           </p>
-          <button
-            onClick={loadAnalyticsData}
-            className="inline-flex items-center space-x-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-            <span>Refresh</span>
-          </button>
+          <div className="flex justify-center space-x-3">
+            <button
+              onClick={loadAnalyticsData}
+              className="inline-flex items-center space-x-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Refresh</span>
+            </button>
+          </div>
         </div>
       </div>
     );

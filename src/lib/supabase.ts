@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import type { PromptExecution } from '../types';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://demo.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'demo-key';
@@ -30,10 +31,10 @@ export const db = {
       return data;
     },
 
-    async updateUsage(id: string, increment: number = 1) {
+    async updateUsage(id: string, newUsageCount: number) {
       const { error } = await supabase
         .from('users')
-        .update({ usage_count: increment })
+        .update({ usage_count: newUsageCount })
         .eq('id', id);
       
       if (error) throw error;
@@ -74,10 +75,13 @@ export const db = {
   },
 
   prompts: {
-    async create(prompt: any) {
+    async create(prompt: Omit<PromptExecution, 'id' | 'created_at'>): Promise<PromptExecution> {
       const { data, error } = await supabase
         .from('prompt_executions')
-        .insert([prompt])
+        .insert([{
+          ...prompt,
+          created_at: new Date().toISOString()
+        }])
         .select()
         .single();
       
@@ -85,13 +89,28 @@ export const db = {
       return data;
     },
 
-    async getByUserId(userId: string, limit: number = 50) {
+    async getByUserId(userId: string, limit: number = 50): Promise<PromptExecution[]> {
       const { data, error } = await supabase
         .from('prompt_executions')
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(limit);
+      
+      if (error) throw error;
+      return data || [];
+    },
+
+    async getAnalytics(userId: string, days: number = 30) {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+      
+      const { data, error } = await supabase
+        .from('prompt_executions')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('created_at', startDate.toISOString())
+        .order('created_at', { ascending: false });
       
       if (error) throw error;
       return data || [];

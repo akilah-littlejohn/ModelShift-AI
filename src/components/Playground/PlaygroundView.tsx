@@ -7,10 +7,13 @@ import { providers } from '../../data/providers';
 import { AgentService } from '../../lib/agents';
 import { ModelShiftAIClientFactory } from '../../lib/modelshift-ai-sdk';
 import { keyVault } from '../../lib/encryption';
-import type { ComparisonResult } from '../../types';
+import { db } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
+import type { ComparisonResult, PromptExecution, ProviderResponse } from '../../types';
 import toast from 'react-hot-toast';
 
 export function PlaygroundView() {
+  const { user } = useAuth();
   const [selectedProviders, setSelectedProviders] = useState<string[]>(['openai', 'claude']);
   const [selectedAgent, setSelectedAgent] = useState('');
   const [input, setInput] = useState('');
@@ -25,6 +28,11 @@ export function PlaygroundView() {
 
     if (selectedProviders.length === 0) {
       toast.error('Please select at least one provider');
+      return;
+    }
+
+    if (!user) {
+      toast.error('Please log in to use the playground');
       return;
     }
 
@@ -50,6 +58,10 @@ export function PlaygroundView() {
         prompt = input;
       }
     }
+
+    // Prepare data for analytics storage
+    const providerResponses: ProviderResponse[] = [];
+    let totalTokens = 0;
 
     // Execute requests in parallel
     const promises = selectedProviders.map(async (providerId, index) => {
@@ -84,6 +96,17 @@ export function PlaygroundView() {
         const estimatedCost = providerInfo ? 
           (estimatedTokens * providerInfo.capabilities.pricing.output) / 1000 : 0;
 
+        // Store provider response for analytics
+        providerResponses.push({
+          provider: providerId,
+          response,
+          latency,
+          tokens: estimatedTokens,
+          success: true
+        });
+
+        totalTokens += estimatedTokens;
+
         // Update specific result
         setResults(prev => prev.map((result, i) => 
           i === index ? {
@@ -100,6 +123,17 @@ export function PlaygroundView() {
 
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        const latency = Date.now() - requestStart;
+        
+        // Store failed response for analytics
+        providerResponses.push({
+          provider: providerId,
+          response: '',
+          latency,
+          tokens: 0,
+          success: false,
+          error: errorMessage
+        });
         
         setResults(prev => prev.map((result, i) => 
           i === index ? {
@@ -107,7 +141,7 @@ export function PlaygroundView() {
             loading: false,
             error: errorMessage,
             metrics: {
-              latency: Date.now() - requestStart,
+              latency,
               tokens: 0,
               cost: 0
             }
@@ -117,10 +151,33 @@ export function PlaygroundView() {
     });
 
     await Promise.all(promises);
-    setIsExecuting(false);
     
     const totalTime = Date.now() - startTime;
-    toast.success(`Execution completed in ${(totalTime / 1000).toFixed(1)}s`);
+    setIsExecuting(false);
+    
+    // Save execution data to Supabase for analytics
+    try {
+      const executionData: Omit<PromptExecution, 'id' | 'created_at'> = {
+        user_id: user.id,
+        prompt: input, // Store original input, not the processed prompt
+        agent_type: selectedAgent || 'direct',
+        providers: selectedProviders,
+        responses: providerResponses,
+        execution_time: totalTime,
+        tokens_used: totalTokens
+      };
+
+      await db.prompts.create(executionData);
+      
+      // Update user usage count
+      await db.users.updateUsage(user.id, user.usage_count + 1);
+      
+      toast.success(`Execution completed in ${(totalTime / 1000).toFixed(1)}s`);
+    } catch (error) {
+      console.error('Failed to save execution data:', error);
+      // Don't show error to user as the main functionality worked
+      toast.success(`Execution completed in ${(totalTime / 1000).toFixed(1)}s`);
+    }
   };
 
   const selectedAgentData = selectedAgent ? AgentService.getAgent(selectedAgent) : null;

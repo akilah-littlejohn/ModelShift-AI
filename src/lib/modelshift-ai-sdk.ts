@@ -35,9 +35,39 @@ export class ConfigurableClient implements ModelShiftAIClient {
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
+        let errorText = '';
+        let errorDetails = null;
+        
+        try {
+          errorText = await response.text();
+          // Try to parse as JSON to get structured error
+          if (errorText.trim().startsWith('{')) {
+            errorDetails = JSON.parse(errorText);
+          }
+        } catch (parseError) {
+          // If we can't parse the error, use the raw text
+          errorText = errorText || `HTTP ${response.status}`;
+        }
+
         console.error(`API request failed: ${response.status} ${errorText}`);
-        throw new Error(`API request failed: ${response.status} - ${response.statusText}`);
+        
+        // Enhanced error messages for common issues
+        if (response.status === 401) {
+          if (errorDetails?.error?.message) {
+            throw new Error(`Authentication failed: ${errorDetails.error.message}`);
+          } else {
+            throw new Error(`Authentication failed: Invalid API key or credentials (HTTP ${response.status})`);
+          }
+        } else if (response.status === 403) {
+          throw new Error(`Access forbidden: Check your API key permissions (HTTP ${response.status})`);
+        } else if (response.status === 429) {
+          throw new Error(`Rate limit exceeded: Too many requests (HTTP ${response.status})`);
+        } else if (response.status >= 500) {
+          throw new Error(`Server error: The API service is temporarily unavailable (HTTP ${response.status})`);
+        } else {
+          const errorMessage = errorDetails?.error?.message || errorDetails?.message || errorText || 'Unknown error';
+          throw new Error(`API request failed: ${errorMessage} (HTTP ${response.status})`);
+        }
       }
 
       const json = await response.json();
@@ -64,7 +94,7 @@ export class ConfigurableClient implements ModelShiftAIClient {
         }
       }
       
-      // Re-throw other errors as-is
+      // Re-throw other errors as-is (including our enhanced API errors)
       throw error;
     }
   }
@@ -111,14 +141,24 @@ export class DataDrivenClient implements ModelShiftAIClient {
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
+        let errorText = '';
+        let errorDetails = null;
+        
+        try {
+          errorText = await response.text();
+          if (errorText.trim().startsWith('{')) {
+            errorDetails = JSON.parse(errorText);
+          }
+        } catch (parseError) {
+          errorText = errorText || `HTTP ${response.status}`;
+        }
+
         console.error(`API request failed: ${response.status} ${errorText}`);
         
         // Try to parse error from response if errorJsonPath is provided
-        if (this.apiConfig.errorJsonPath) {
+        if (this.apiConfig.errorJsonPath && errorDetails) {
           try {
-            const errorJson = JSON.parse(errorText);
-            const errorMessage = getValueAtPath(errorJson, this.apiConfig.errorJsonPath);
+            const errorMessage = getValueAtPath(errorDetails, this.apiConfig.errorJsonPath);
             if (errorMessage) {
               throw new Error(`API Error: ${errorMessage}`);
             }
@@ -127,7 +167,19 @@ export class DataDrivenClient implements ModelShiftAIClient {
           }
         }
         
-        throw new Error(`API request failed: ${response.status} - ${response.statusText}`);
+        // Enhanced error messages
+        if (response.status === 401) {
+          throw new Error(`Authentication failed: Invalid API key or credentials (HTTP ${response.status})`);
+        } else if (response.status === 403) {
+          throw new Error(`Access forbidden: Check your API key permissions (HTTP ${response.status})`);
+        } else if (response.status === 429) {
+          throw new Error(`Rate limit exceeded: Too many requests (HTTP ${response.status})`);
+        } else if (response.status >= 500) {
+          throw new Error(`Server error: The API service is temporarily unavailable (HTTP ${response.status})`);
+        } else {
+          const errorMessage = errorDetails?.error?.message || errorDetails?.message || errorText || 'Unknown error';
+          throw new Error(`API request failed: ${errorMessage} (HTTP ${response.status})`);
+        }
       }
 
       const json = await response.json();

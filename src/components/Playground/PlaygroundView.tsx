@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, Zap, Clock, DollarSign, AlertTriangle, Info } from 'lucide-react';
+import { Play, Zap, Clock, DollarSign, AlertTriangle, Info, Key } from 'lucide-react';
 import { ProviderSelector } from './ProviderSelector';
 import { AgentSelector } from './AgentSelector';
 import { ResponseComparison } from './ResponseComparison';
@@ -33,6 +33,25 @@ export function PlaygroundView() {
 
     if (!user) {
       toast.error('Please log in to use the playground');
+      return;
+    }
+
+    // Check if API keys are configured for selected providers
+    const missingKeys = selectedProviders.filter(providerId => {
+      const keyData = keyVault.retrieveDefault(providerId);
+      return !keyData || Object.keys(keyData).length === 0;
+    });
+
+    if (missingKeys.length > 0) {
+      const providerNames = missingKeys.map(id => {
+        const provider = providers.find(p => p.id === id);
+        return provider?.displayName || id;
+      }).join(', ');
+      
+      toast.error(
+        `Missing API keys for: ${providerNames}. Please add them in the API Keys section.`,
+        { duration: 5000 }
+      );
       return;
     }
 
@@ -125,6 +144,18 @@ export function PlaygroundView() {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
         const latency = Date.now() - requestStart;
         
+        // Enhanced error handling for API key issues
+        let userFriendlyError = errorMessage;
+        if (errorMessage.includes('invalid_api_key') || errorMessage.includes('Incorrect API key')) {
+          const providerName = providers.find(p => p.id === providerId)?.displayName || providerId;
+          userFriendlyError = `Invalid API key for ${providerName}. Please check your API key in the API Keys section.`;
+        } else if (errorMessage.includes('401')) {
+          const providerName = providers.find(p => p.id === providerId)?.displayName || providerId;
+          userFriendlyError = `Authentication failed for ${providerName}. Please verify your API credentials.`;
+        } else if (errorMessage.includes('Failed to fetch') || errorMessage.includes('CORS')) {
+          userFriendlyError = `Network error: Unable to connect to ${providerId}. This may be due to CORS restrictions in the development environment.`;
+        }
+        
         // Store failed response for analytics
         providerResponses.push({
           provider: providerId,
@@ -132,14 +163,14 @@ export function PlaygroundView() {
           latency,
           tokens: 0,
           success: false,
-          error: errorMessage
+          error: userFriendlyError
         });
         
         setResults(prev => prev.map((result, i) => 
           i === index ? {
             ...result,
             loading: false,
-            error: errorMessage,
+            error: userFriendlyError,
             metrics: {
               latency,
               tokens: 0,
@@ -147,6 +178,12 @@ export function PlaygroundView() {
             }
           } : result
         ));
+
+        // Show toast for API key errors
+        if (errorMessage.includes('invalid_api_key') || errorMessage.includes('Incorrect API key') || errorMessage.includes('401')) {
+          const providerName = providers.find(p => p.id === providerId)?.displayName || providerId;
+          toast.error(`${providerName}: Invalid API key. Please update your credentials.`, { duration: 5000 });
+        }
       }
     });
 
@@ -155,7 +192,7 @@ export function PlaygroundView() {
     const totalTime = Date.now() - startTime;
     setIsExecuting(false);
     
-    // Save execution data to Supabase for analytics
+    // Save execution data to Supabase for analytics (with enhanced error handling)
     try {
       const executionData: Omit<PromptExecution, 'id' | 'created_at'> = {
         user_id: user.id,
@@ -175,6 +212,18 @@ export function PlaygroundView() {
       toast.success(`Execution completed in ${(totalTime / 1000).toFixed(1)}s`);
     } catch (error) {
       console.error('Failed to save execution data:', error);
+      
+      // Enhanced error handling for database issues
+      if (error instanceof Error) {
+        if (error.message.includes('404') || error.message.includes('not found')) {
+          console.warn('Database table not found - execution data not saved. This is expected in development.');
+        } else if (error.message.includes('permission') || error.message.includes('RLS')) {
+          console.warn('Database permission issue - execution data not saved.');
+        } else {
+          console.error('Database error:', error.message);
+        }
+      }
+      
       // Don't show error to user as the main functionality worked
       toast.success(`Execution completed in ${(totalTime / 1000).toFixed(1)}s`);
     }
@@ -188,6 +237,12 @@ export function PlaygroundView() {
                                    window.location.hostname.includes('webcontainer') ||
                                    window.location.hostname.includes('stackblitz');
 
+  // Check for missing API keys
+  const missingApiKeys = selectedProviders.filter(providerId => {
+    const keyData = keyVault.retrieveDefault(providerId);
+    return !keyData || Object.keys(keyData).length === 0;
+  });
+
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-8">
       {/* Header */}
@@ -199,6 +254,29 @@ export function PlaygroundView() {
           Test and compare AI responses across multiple providers
         </p>
       </div>
+
+      {/* Missing API Keys Warning */}
+      {missingApiKeys.length > 0 && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <Key className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-medium text-amber-900 dark:text-amber-100 mb-1">
+                Missing API Keys
+              </h3>
+              <p className="text-sm text-amber-700 dark:text-amber-300 mb-2">
+                You need to add API keys for the following providers: {missingApiKeys.map(id => {
+                  const provider = providers.find(p => p.id === id);
+                  return provider?.displayName || id;
+                }).join(', ')}
+              </p>
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Go to the API Keys section to add your credentials before using the playground.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Development Environment Notice */}
       {isDevelopmentEnvironment && (
@@ -312,7 +390,7 @@ export function PlaygroundView() {
             
             <button
               onClick={handleExecute}
-              disabled={isExecuting || !input.trim() || selectedProviders.length === 0}
+              disabled={isExecuting || !input.trim() || selectedProviders.length === 0 || missingApiKeys.length > 0}
               className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-primary-500 to-secondary-500 text-white rounded-lg font-medium hover:from-primary-600 hover:to-secondary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
             >
               {isExecuting ? (

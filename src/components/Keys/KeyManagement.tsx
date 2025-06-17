@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Key, Eye, EyeOff, Trash2, Shield, AlertTriangle, Code, Upload, Download, Edit, Settings } from 'lucide-react';
+import { Plus, Key, Eye, EyeOff, Trash2, Shield, AlertTriangle, Code, Upload, Download, Edit, Settings, FileText } from 'lucide-react';
 import { providers } from '../../data/providers';
 import { keyVault } from '../../lib/encryption';
 import { ConfigurationGenerator } from './ConfigurationGenerator';
@@ -172,30 +172,79 @@ export function KeyManagement() {
           Your API Keys
         </h2>
         <div className="flex flex-wrap gap-2">
+          {/* Import Configuration Button */}
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center space-x-2 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            title="Import a complete ModelShift AI configuration (provider + keys + settings)"
+          >
+            <FileText className="w-4 h-4" />
+            <span>Import Config</span>
+          </button>
+          
+          {/* Custom Provider Button */}
           <button
             onClick={() => setShowCustomProviderModal(true)}
             className="flex items-center space-x-2 px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+            title="Create a new custom AI provider for testing"
           >
             <Code className="w-4 h-4" />
             <span>Custom Provider</span>
           </button>
-          <button
-            onClick={() => setShowImportModal(true)}
-            className="flex items-center space-x-2 px-3 py-2 bg-accent-500 text-white rounded-lg hover:bg-accent-600 transition-colors"
-          >
-            <Upload className="w-4 h-4" />
-            <span>Import Config</span>
-          </button>
+          
+          {/* Add API Key Button */}
           <button
             onClick={() => {
               setEditingKey(null);
               setShowAddModal(true);
             }}
             className="flex items-center space-x-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
+            title="Add API keys for existing providers"
           >
             <Plus className="w-4 h-4" />
             <span>Add API Key</span>
           </button>
+        </div>
+      </div>
+
+      {/* Feature Explanation Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        {/* Import Configuration Card */}
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                Import Configuration
+              </h3>
+              <p className="text-sm text-blue-700 dark:text-blue-300 mb-2">
+                Import a complete ModelShift AI configuration that was previously exported. 
+                Includes provider settings, API keys, agent configurations, and model parameters.
+              </p>
+              <p className="text-xs text-blue-600 dark:text-blue-400">
+                Perfect for: Team collaboration, environment setup, configuration backup/restore
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Custom Provider Card */}
+        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <Code className="w-5 h-5 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-semibold text-purple-900 dark:text-purple-100 mb-1">
+                Custom Provider
+              </h3>
+              <p className="text-sm text-purple-700 dark:text-purple-300 mb-2">
+                Create entirely new AI providers that aren't built into the system. 
+                Define custom API endpoints, request formats, and response parsing.
+              </p>
+              <p className="text-xs text-purple-600 dark:text-purple-400">
+                Perfect for: Testing new AI services, custom deployments, experimental providers
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -207,34 +256,57 @@ export function KeyManagement() {
             <h3 className="text-lg font-medium text-neutral-900 dark:text-white mb-2">
               No API Keys Added
             </h3>
-            <p className="text-neutral-600 dark:text-neutral-400 mb-4">
-              Add your first API key to start using the AI playground
+            <p className="text-neutral-600 dark:text-neutral-400 mb-6">
+              Get started by choosing one of the options below
             </p>
-            <div className="flex justify-center space-x-3">
-              <button
-                onClick={() => {
-                  setEditingKey(null);
-                  setShowAddModal(true);
-                }}
-                className="inline-flex items-center space-x-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add API Key</span>
-              </button>
-              <button
-                onClick={() => setShowCustomProviderModal(true)}
-                className="inline-flex items-center space-x-2 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
-              >
-                <Code className="w-4 h-4" />
-                <span>Custom Provider</span>
-              </button>
-              <button
-                onClick={() => setShowImportModal(true)}
-                className="inline-flex items-center space-x-2 px-4 py-2 bg-accent-500 text-white rounded-lg hover:bg-accent-600 transition-colors"
-              >
-                <Upload className="w-4 h-4" />
-                <span>Import Configuration</span>
-              </button>
+            <div className="flex flex-col sm:flex-row justify-center gap-3">
+              {/* Import Configuration Option */}
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 max-w-xs">
+                <FileText className="w-8 h-8 text-blue-600 dark:text-blue-400 mx-auto mb-2" />
+                <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Import Configuration</h4>
+                <p className="text-sm text-blue-700 dark:text-blue-300 mb-3">
+                  Have an existing ModelShift AI configuration? Import it to restore your complete setup.
+                </p>
+                <button
+                  onClick={() => setShowImportModal(true)}
+                  className="w-full px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  Import Configuration
+                </button>
+              </div>
+
+              {/* Custom Provider Option */}
+              <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4 max-w-xs">
+                <Code className="w-8 h-8 text-purple-600 dark:text-purple-400 mx-auto mb-2" />
+                <h4 className="font-medium text-purple-900 dark:text-purple-100 mb-2">Custom Provider</h4>
+                <p className="text-sm text-purple-700 dark:text-purple-300 mb-3">
+                  Want to test a new AI service? Create a custom provider configuration.
+                </p>
+                <button
+                  onClick={() => setShowCustomProviderModal(true)}
+                  className="w-full px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+                >
+                  Create Custom Provider
+                </button>
+              </div>
+
+              {/* Add API Key Option */}
+              <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-4 max-w-xs">
+                <Plus className="w-8 h-8 text-primary-600 dark:text-primary-400 mx-auto mb-2" />
+                <h4 className="font-medium text-primary-900 dark:text-primary-100 mb-2">Add API Key</h4>
+                <p className="text-sm text-primary-700 dark:text-primary-300 mb-3">
+                  Add API keys for built-in providers like OpenAI, Claude, Gemini, or IBM.
+                </p>
+                <button
+                  onClick={() => {
+                    setEditingKey(null);
+                    setShowAddModal(true);
+                  }}
+                  className="w-full px-3 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
+                >
+                  Add API Key
+                </button>
+              </div>
             </div>
           </div>
         ) : (

@@ -29,7 +29,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('Initializing auth with:', { 
           hasUrl: !!supabaseUrl, 
           hasKey: !!supabaseAnonKey,
-          isDemo: supabaseUrl?.includes('demo') || supabaseAnonKey?.includes('demo')
+          isDemo: supabaseUrl?.includes('demo') || supabaseAnonKey?.includes('demo'),
+          urlPreview: supabaseUrl ? `${supabaseUrl.substring(0, 20)}...` : 'none'
         });
         
         if (!supabaseUrl || !supabaseAnonKey || 
@@ -56,12 +57,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        // Try to get the current session with timeout
+        // Try to get the current session with increased timeout
         console.log('Attempting to get Supabase session...');
         
         const sessionPromise = supabase.auth.getSession();
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session timeout')), 5000)
+          setTimeout(() => reject(new Error('Session timeout after 8 seconds')), 8000)
         );
         
         const { data: { session }, error } = await Promise.race([
@@ -87,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         // Fallback to mock user on any error
         if (mounted) {
-          console.log('Falling back to mock user due to error');
+          console.log('Falling back to mock user due to error:', error.message);
           const mockUser: AppUser = {
             id: 'demo-user-123',
             email: 'demo@modelshift.ai',
@@ -107,7 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Add a maximum timeout for the entire initialization
     const initTimeout = setTimeout(() => {
       if (mounted && isLoading) {
-        console.warn('Auth initialization timed out, using mock user');
+        console.warn('Auth initialization timed out after 12 seconds, using mock user');
         const mockUser: AppUser = {
           id: 'demo-user-123',
           email: 'demo@modelshift.ai',
@@ -121,7 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(mockUser);
         setIsLoading(false);
       }
-    }, 10000); // 10 second timeout
+    }, 12000); // 12 second timeout
 
     initializeAuth().finally(() => {
       clearTimeout(initTimeout);
@@ -171,7 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('Handling user session for:', supabaseUser.email);
       
-      // Try to get user from database with timeout
+      // Try to get user from database with increased timeout
       const userPromise = supabase
         .from('users')
         .select('*')
@@ -179,12 +180,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .single();
         
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Database timeout')), 3000)
+        setTimeout(() => reject(new Error('Database timeout after 8 seconds')), 8000)
       );
 
       let appUser: AppUser;
 
       try {
+        console.log('Querying database for user:', supabaseUser.id);
         const { data: existingUser, error } = await Promise.race([
           userPromise,
           timeoutPromise
@@ -206,16 +208,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           };
 
           try {
-            const { data: createdUser, error: createError } = await supabase
+            const createPromise = supabase
               .from('users')
               .insert([newUserData])
               .select()
               .single();
+              
+            const createTimeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('User creation timeout after 8 seconds')), 8000)
+            );
+
+            const { data: createdUser, error: createError } = await Promise.race([
+              createPromise,
+              createTimeoutPromise
+            ]) as any;
 
             if (createError) {
               throw createError;
             } else {
               appUser = createdUser;
+              console.log('Successfully created user:', appUser.email);
             }
           } catch (createError) {
             console.error('Error creating user:', createError);
@@ -225,15 +237,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
             };
+            console.log('Using fallback user object for creation error');
           }
         } else if (error) {
+          console.error('Database query error:', error);
           throw error;
         } else {
           appUser = existingUser;
           console.log('Found existing user:', appUser.email);
         }
       } catch (dbError) {
-        console.error('Database error, creating fallback user:', dbError);
+        console.error('Database error, creating fallback user:', dbError.message || dbError);
         // Create a fallback user object
         appUser = {
           id: supabaseUser.id,
@@ -247,6 +261,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
+        console.log('Using fallback user object due to database error');
       }
 
       console.log('Setting app user:', appUser.email);
@@ -266,6 +281,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
+      console.log('Using final fallback user due to session handling error');
       setUser(fallbackUser);
     } finally {
       setIsLoading(false);
@@ -278,10 +294,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('Attempting login for:', email);
       
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const loginPromise = supabase.auth.signInWithPassword({
         email,
         password,
       });
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Login timeout after 10 seconds')), 10000)
+      );
+
+      const { data, error } = await Promise.race([
+        loginPromise,
+        timeoutPromise
+      ]) as any;
 
       if (error) {
         console.error('Login error:', error);
@@ -291,6 +316,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('Login successful for:', email);
       // User session will be handled by the auth state change listener
     } catch (error) {
+      console.error('Login failed:', error.message || error);
       setIsLoading(false);
       throw error;
     }
@@ -299,10 +325,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     try {
       console.log('Logging out user');
-      await supabase.auth.signOut();
+      
+      const logoutPromise = supabase.auth.signOut();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Logout timeout after 5 seconds')), 5000)
+      );
+
+      await Promise.race([logoutPromise, timeoutPromise]);
       setUser(null);
+      console.log('Logout successful');
     } catch (error) {
       console.error('Error logging out:', error);
+      // Force logout locally even if Supabase call fails
+      setUser(null);
     }
   };
 

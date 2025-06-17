@@ -5,6 +5,7 @@ export interface User {
   name: string;
   plan: 'free' | 'pro' | 'enterprise';
   created_at: string;
+  updated_at: string;
   usage_limit: number;
   usage_count: number;
 }

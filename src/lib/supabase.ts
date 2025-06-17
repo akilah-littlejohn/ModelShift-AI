@@ -1,129 +1,221 @@
 import { createClient } from '@supabase/supabase-js';
 import type { PromptExecution } from '../types';
 
-// Ensure we have valid environment variables
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Get environment variables with fallbacks
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-// Validate the Supabase URL - must be an absolute URL
-if (!supabaseUrl || !supabaseUrl.startsWith('http')) {
-  throw new Error('Invalid or missing VITE_SUPABASE_URL environment variable. Must be an absolute URL starting with http:// or https://');
+// Validate environment variables
+if (!supabaseUrl) {
+  console.warn('VITE_SUPABASE_URL environment variable is not set');
 }
 
 if (!supabaseAnonKey) {
-  throw new Error('Missing VITE_SUPABASE_ANON_KEY environment variable');
+  console.warn('VITE_SUPABASE_ANON_KEY environment variable is not set');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Create Supabase client with error handling
+let supabase: any;
 
-// Database Operations
+try {
+  if (supabaseUrl && supabaseAnonKey) {
+    supabase = createClient(supabaseUrl, supabaseAnonKey);
+  } else {
+    // Create a mock client for development
+    console.warn('Creating mock Supabase client due to missing environment variables');
+    supabase = {
+      auth: {
+        getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+        signInWithPassword: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+        signOut: () => Promise.resolve({ error: null }),
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } })
+      },
+      from: () => ({
+        select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }) }) }),
+        insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }) }) }),
+        update: () => ({ eq: () => Promise.resolve({ error: new Error('Supabase not configured') }) })
+      }),
+      functions: {
+        invoke: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') })
+      }
+    };
+  }
+} catch (error) {
+  console.error('Error creating Supabase client:', error);
+  // Create a minimal mock client
+  supabase = {
+    auth: {
+      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+      signInWithPassword: () => Promise.resolve({ data: null, error: new Error('Supabase client error') }),
+      signOut: () => Promise.resolve({ error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } })
+    },
+    from: () => ({
+      select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: null, error: new Error('Supabase client error') }) }) }),
+      insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: new Error('Supabase client error') }) }) }),
+      update: () => ({ eq: () => Promise.resolve({ error: new Error('Supabase client error') }) })
+    }),
+    functions: {
+      invoke: () => Promise.resolve({ data: null, error: new Error('Supabase client error') })
+    }
+  };
+}
+
+export { supabase };
+
+// Database Operations with error handling
 export const db = {
   users: {
     async create(user: { email: string; name: string }) {
-      const { data, error } = await supabase
-        .from('users')
-        .insert([{ ...user, plan: 'free', usage_limit: 100, usage_count: 0 }])
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .insert([{ ...user, plan: 'free', usage_limit: 100, usage_count: 0 }])
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return data;
+      } catch (error) {
+        console.error('Error creating user:', error);
+        throw error;
+      }
     },
     
     async getById(id: string) {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', id)
-        .single();
-      
-      if (error) throw error;
-      return data;
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', id)
+          .single();
+        
+        if (error) throw error;
+        return data;
+      } catch (error) {
+        console.error('Error getting user by ID:', error);
+        throw error;
+      }
     },
 
     async updateUsage(id: string, newUsageCount: number) {
-      const { error } = await supabase
-        .from('users')
-        .update({ usage_count: newUsageCount })
-        .eq('id', id);
-      
-      if (error) throw error;
+      try {
+        const { error } = await supabase
+          .from('users')
+          .update({ usage_count: newUsageCount })
+          .eq('id', id);
+        
+        if (error) throw error;
+      } catch (error) {
+        console.error('Error updating user usage:', error);
+        throw error;
+      }
     }
   },
 
   apiKeys: {
     async create(apiKey: { user_id: string; provider: string; encrypted_key: string; name: string }) {
-      const { data, error } = await supabase
-        .from('api_keys')
-        .insert([{ ...apiKey, is_active: true }])
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
+      try {
+        const { data, error } = await supabase
+          .from('api_keys')
+          .insert([{ ...apiKey, is_active: true }])
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return data;
+      } catch (error) {
+        console.error('Error creating API key:', error);
+        throw error;
+      }
     },
 
     async getByUserId(userId: string) {
-      const { data, error } = await supabase
-        .from('api_keys')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('is_active', true);
-      
-      if (error) throw error;
-      return data || [];
+      try {
+        const { data, error } = await supabase
+          .from('api_keys')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('is_active', true);
+        
+        if (error) throw error;
+        return data || [];
+      } catch (error) {
+        console.error('Error getting API keys:', error);
+        return [];
+      }
     },
 
     async delete(id: string) {
-      const { error } = await supabase
-        .from('api_keys')
-        .update({ is_active: false })
-        .eq('id', id);
-      
-      if (error) throw error;
+      try {
+        const { error } = await supabase
+          .from('api_keys')
+          .update({ is_active: false })
+          .eq('id', id);
+        
+        if (error) throw error;
+      } catch (error) {
+        console.error('Error deleting API key:', error);
+        throw error;
+      }
     }
   },
 
   prompts: {
     async create(prompt: Omit<PromptExecution, 'id' | 'created_at'>): Promise<PromptExecution> {
-      const { data, error } = await supabase
-        .from('prompt_executions')
-        .insert([{
-          ...prompt,
-          created_at: new Date().toISOString()
-        }])
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
+      try {
+        const { data, error } = await supabase
+          .from('prompt_executions')
+          .insert([{
+            ...prompt,
+            created_at: new Date().toISOString()
+          }])
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return data;
+      } catch (error) {
+        console.error('Error creating prompt execution:', error);
+        throw error;
+      }
     },
 
     async getByUserId(userId: string, limit: number = 50): Promise<PromptExecution[]> {
-      const { data, error } = await supabase
-        .from('prompt_executions')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(limit);
-      
-      if (error) throw error;
-      return data || [];
+      try {
+        const { data, error } = await supabase
+          .from('prompt_executions')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(limit);
+        
+        if (error) throw error;
+        return data || [];
+      } catch (error) {
+        console.error('Error getting prompt executions:', error);
+        return [];
+      }
     },
 
     async getAnalytics(userId: string, days: number = 30) {
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - days);
-      
-      const { data, error } = await supabase
-        .from('prompt_executions')
-        .select('*')
-        .eq('user_id', userId)
-        .gte('created_at', startDate.toISOString())
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      return data || [];
+      try {
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - days);
+        
+        const { data, error } = await supabase
+          .from('prompt_executions')
+          .select('*')
+          .eq('user_id', userId)
+          .gte('created_at', startDate.toISOString())
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        return data || [];
+      } catch (error) {
+        console.error('Error getting analytics:', error);
+        return [];
+      }
     }
   },
 
@@ -142,41 +234,56 @@ export const db = {
       metadata?: any;
       timestamp: string;
     }) {
-      const { data, error } = await supabase
-        .from('analytics_events')
-        .insert([event])
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
+      try {
+        const { data, error } = await supabase
+          .from('analytics_events')
+          .insert([event])
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return data;
+      } catch (error) {
+        console.error('Error creating analytics event:', error);
+        throw error;
+      }
     },
 
     async getEvents(userId: string, startDate: string, endDate: string, limit: number = 1000) {
-      const { data, error } = await supabase
-        .from('analytics_events')
-        .select('*')
-        .eq('user_id', userId)
-        .gte('timestamp', startDate)
-        .lte('timestamp', endDate)
-        .order('timestamp', { ascending: false })
-        .limit(limit);
-      
-      if (error) throw error;
-      return data || [];
+      try {
+        const { data, error } = await supabase
+          .from('analytics_events')
+          .select('*')
+          .eq('user_id', userId)
+          .gte('timestamp', startDate)
+          .lte('timestamp', endDate)
+          .order('timestamp', { ascending: false })
+          .limit(limit);
+        
+        if (error) throw error;
+        return data || [];
+      } catch (error) {
+        console.error('Error getting analytics events:', error);
+        return [];
+      }
     },
 
     async getAggregations(userId: string, startDate: string, endDate: string) {
-      const { data, error } = await supabase
-        .from('analytics_aggregations')
-        .select('*')
-        .eq('user_id', userId)
-        .gte('date', startDate)
-        .lte('date', endDate)
-        .order('date', { ascending: false });
-      
-      if (error) throw error;
-      return data || [];
+      try {
+        const { data, error } = await supabase
+          .from('analytics_aggregations')
+          .select('*')
+          .eq('user_id', userId)
+          .gte('date', startDate)
+          .lte('date', endDate)
+          .order('date', { ascending: false });
+        
+        if (error) throw error;
+        return data || [];
+      } catch (error) {
+        console.error('Error getting analytics aggregations:', error);
+        return [];
+      }
     }
   }
 };

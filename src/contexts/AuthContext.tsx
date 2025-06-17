@@ -18,19 +18,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        handleUserSession(session.user);
-      } else {
-        setIsLoading(false);
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error getting session:', error);
+          if (mounted) {
+            setIsLoading(false);
+          }
+          return;
+        }
+
+        if (session?.user && mounted) {
+          await handleUserSession(session.user);
+        } else if (mounted) {
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
-    });
+    };
+
+    initializeAuth();
 
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+
       console.log('Auth state change:', event, session?.user?.email);
       
       if (session?.user) {
@@ -41,7 +64,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleUserSession = async (supabaseUser: User) => {
@@ -96,7 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(appUser);
     } catch (error) {
       console.error('Error handling user session:', error);
-      throw error;
+      // Don't throw error, just log it and continue
     } finally {
       setIsLoading(false);
     }

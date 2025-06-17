@@ -35,8 +35,15 @@ function AppContent() {
       const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       
       // Check if we have a real Supabase session (not mock auth)
-      const { data: { session } } = await supabase.auth.getSession();
-      const hasRealSupabaseSession = session && session.user && !session.user.email?.includes('demo');
+      let hasRealSupabaseSession = false;
+      
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        hasRealSupabaseSession = session && session.user && !session.user.email?.includes('demo');
+      } catch (error) {
+        console.warn('Could not check Supabase session:', error);
+        hasRealSupabaseSession = false;
+      }
       
       if (supabaseUrl && supabaseKey && 
           !supabaseUrl.includes('demo') && !supabaseKey.includes('demo') &&

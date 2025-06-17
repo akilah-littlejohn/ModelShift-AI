@@ -20,9 +20,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // Get initial session
     const initializeAuth = async () => {
       try {
+        // Check if Supabase is properly configured
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        
+        if (!supabaseUrl || !supabaseAnonKey || 
+            supabaseUrl.includes('demo') || supabaseAnonKey.includes('demo')) {
+          console.log('Supabase not configured, using mock authentication');
+          
+          // Create a mock user for demo purposes
+          const mockUser: AppUser = {
+            id: 'demo-user-123',
+            email: 'demo@modelshift.ai',
+            name: 'Demo User',
+            plan: 'free',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            usage_limit: 100,
+            usage_count: 0
+          };
+          
+          if (mounted) {
+            setUser(mockUser);
+            setIsLoading(false);
+          }
+          return;
+        }
+
+        // Try to get the current session
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
@@ -48,25 +75,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     initializeAuth();
 
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
-
-      console.log('Auth state change:', event, session?.user?.email);
+    // Listen for auth changes only if Supabase is configured
+    let subscription: any = null;
+    
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       
-      if (session?.user) {
-        await handleUserSession(session.user);
-      } else {
-        setUser(null);
-        setIsLoading(false);
+      if (supabaseUrl && supabaseAnonKey && 
+          !supabaseUrl.includes('demo') && !supabaseAnonKey.includes('demo')) {
+        
+        const {
+          data: { subscription: authSubscription },
+        } = supabase.auth.onAuthStateChange(async (event, session) => {
+          if (!mounted) return;
+
+          console.log('Auth state change:', event, session?.user?.email);
+          
+          if (session?.user) {
+            await handleUserSession(session.user);
+          } else {
+            setUser(null);
+            setIsLoading(false);
+          }
+        });
+        
+        subscription = authSubscription;
       }
-    });
+    } catch (error) {
+      console.error('Error setting up auth listener:', error);
+    }
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      if (subscription) {
+        subscription.unsubscribe();
+      }
     };
   }, []);
 
@@ -106,14 +150,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (createError) {
           console.error('Error creating user:', createError);
-          throw createError;
+          // Create a fallback user object
+          appUser = {
+            ...newUserData,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+        } else {
+          appUser = createdUser;
         }
 
-        appUser = createdUser;
         console.log('Successfully created user:', appUser.email);
       } else if (error) {
         console.error('Error fetching user:', error);
-        throw error;
+        // Create a fallback user object
+        appUser = {
+          id: supabaseUser.id,
+          email: supabaseUser.email || '',
+          name: supabaseUser.user_metadata?.name || 
+                supabaseUser.user_metadata?.full_name || 
+                supabaseUser.email?.split('@')[0] || 'User',
+          plan: 'free' as const,
+          usage_limit: 100,
+          usage_count: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
       } else {
         appUser = existingUser;
         console.log('Found existing user:', appUser.email);
@@ -122,7 +184,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(appUser);
     } catch (error) {
       console.error('Error handling user session:', error);
-      // Don't throw error, just log it and continue
+      // Create a fallback user object to prevent infinite loading
+      const fallbackUser: AppUser = {
+        id: supabaseUser.id,
+        email: supabaseUser.email || '',
+        name: supabaseUser.user_metadata?.name || 
+              supabaseUser.user_metadata?.full_name || 
+              supabaseUser.email?.split('@')[0] || 'User',
+        plan: 'free' as const,
+        usage_limit: 100,
+        usage_count: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      setUser(fallbackUser);
     } finally {
       setIsLoading(false);
     }

@@ -127,14 +127,18 @@ export class ProxyClient implements ModelShiftAIClient {
         
         console.error(`Edge Function request failed: ${response.status} - ${errorText}`);
         
-        // Enhanced error handling for missing API keys
+        // Enhanced error handling for missing API keys - throw specific error that can be caught
         if (errorText.includes('not set in Supabase secrets')) {
           const providerName = this.getProviderDisplayName();
-          throw new Error(
+          const missingKeyError = new Error(
             `${providerName} API key is not configured on the server. ` +
             `The server administrator needs to configure the API key in Supabase Edge Function secrets. ` +
             `Alternatively, you can configure local API keys in the API Keys section to use direct mode.`
           );
+          // Add a special property to identify this as a missing API key error
+          (missingKeyError as any).code = 'MISSING_SERVER_API_KEY';
+          (missingKeyError as any).providerId = this.providerId;
+          throw missingKeyError;
         }
         
         // Handle other common server-side errors
@@ -159,11 +163,15 @@ export class ProxyClient implements ModelShiftAIClient {
         // Handle structured error responses from the Edge Function
         if (data.error && data.error.includes('not set in Supabase secrets')) {
           const providerName = this.getProviderDisplayName();
-          throw new Error(
+          const missingKeyError = new Error(
             `${providerName} API key is not configured on the server. ` +
             `The server administrator needs to configure the API key in Supabase Edge Function secrets. ` +
             `Alternatively, you can configure local API keys in the API Keys section to use direct mode.`
           );
+          // Add a special property to identify this as a missing API key error
+          (missingKeyError as any).code = 'MISSING_SERVER_API_KEY';
+          (missingKeyError as any).providerId = this.providerId;
+          throw missingKeyError;
         }
         throw new Error(data.error || 'AI proxy request failed');
       }
@@ -649,7 +657,7 @@ Classify the input into one of the categories.`;
 
 // Client Factory
 export class ModelShiftAIClientFactory {
-  // NEW: Primary method using the secure proxy with fallback
+  // NEW: Primary method using the secure proxy with intelligent fallback
   static async create(provider: string, keyData?: Record<string, string>): Promise<ModelShiftAIClient> {
     // Check if Supabase is configured for proxy mode
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -662,9 +670,9 @@ export class ModelShiftAIClientFactory {
       const isProxyConfigured = await isSupabaseProxyConfigured();
       
       if (isProxyConfigured) {
-        // Use the secure proxy client
-        console.log(`Creating ProxyClient for ${provider}`);
-        return new ProxyClient(provider);
+        // Use the secure proxy client, but with fallback capability
+        console.log(`Creating ProxyClient for ${provider} with fallback capability`);
+        return new FallbackProxyClient(provider, keyData);
       } else {
         console.warn(`Supabase proxy not properly configured, falling back to direct client for ${provider}`);
       }
@@ -691,9 +699,9 @@ export class ModelShiftAIClientFactory {
     
     if (supabaseUrl && supabaseAnonKey && 
         !supabaseUrl.includes('demo') && !supabaseAnonKey.includes('demo')) {
-      // Use the secure proxy client
-      console.log(`Creating ProxyClient for ${provider}`);
-      return new ProxyClient(provider);
+      // Use the secure proxy client with fallback capability
+      console.log(`Creating ProxyClient for ${provider} with fallback capability`);
+      return new FallbackProxyClient(provider, keyData);
     } else {
       // Fallback to legacy direct client for development/demo
       console.warn(`Supabase not configured, falling back to direct client for ${provider}`);
@@ -735,9 +743,10 @@ export class ModelShiftAIClientFactory {
     
     if (supabaseUrl && supabaseAnonKey && 
         !supabaseUrl.includes('demo') && !supabaseAnonKey.includes('demo')) {
-      // Use the secure proxy client
-      return new ProxyClient(
+      // Use the secure proxy client with fallback capability
+      return new FallbackProxyClient(
         serializedConfig.providerId,
+        serializedConfig.keyData,
         serializedConfig.model,
         serializedConfig.parameters
       );
@@ -775,5 +784,73 @@ export class ModelShiftAIClientFactory {
 
       return new ConfigurableClient(serializedConfig.keyData, customConfig);
     }
+  }
+}
+
+// New Fallback Proxy Client that tries proxy first, then falls back to direct mode
+export class FallbackProxyClient implements ModelShiftAIClient {
+  private proxyClient: ProxyClient;
+  private directClient?: ConfigurableClient;
+
+  constructor(
+    private readonly providerId: string,
+    private readonly keyData?: Record<string, string>,
+    private readonly customModel?: string,
+    private readonly customParameters?: Record<string, any>
+  ) {
+    this.proxyClient = new ProxyClient(providerId, customModel, customParameters);
+    
+    // Only create direct client if we have key data
+    if (keyData) {
+      const config = providerConfigs[providerId];
+      if (config) {
+        this.directClient = new ConfigurableClient(keyData, config);
+      }
+    }
+  }
+
+  async generate(prompt: string): Promise<string> {
+    try {
+      // First, try the proxy client
+      console.log(`Attempting proxy mode for ${this.providerId}`);
+      return await this.proxyClient.generate(prompt);
+    } catch (error: any) {
+      console.warn(`Proxy mode failed for ${this.providerId}:`, error.message);
+      
+      // Check if this is a missing API key error and we have local keys
+      if (error.code === 'MISSING_SERVER_API_KEY' && this.directClient) {
+        console.log(`Falling back to direct mode for ${this.providerId} using local API keys`);
+        try {
+          return await this.directClient.generate(prompt);
+        } catch (directError: any) {
+          console.error(`Direct mode also failed for ${this.providerId}:`, directError.message);
+          // Throw the direct error since it's more specific to the user's configuration
+          throw directError;
+        }
+      }
+      
+      // If we don't have local keys, provide helpful error message
+      if (error.code === 'MISSING_SERVER_API_KEY' && !this.directClient) {
+        const providerName = this.getProviderDisplayName();
+        throw new Error(
+          `${providerName} is not configured. You have two options:\n\n` +
+          `1. Configure server-side API keys: Ask your administrator to set up the ${providerName} API key in Supabase Edge Function secrets using the "Manage Server Secrets" feature.\n\n` +
+          `2. Configure local API keys: Go to the "API Keys" section and add your ${providerName} API key to use direct mode.`
+        );
+      }
+      
+      // For other errors, just re-throw
+      throw error;
+    }
+  }
+
+  private getProviderDisplayName(): string {
+    const providerNames: Record<string, string> = {
+      'openai': 'OpenAI',
+      'gemini': 'Google Gemini',
+      'claude': 'Anthropic Claude',
+      'ibm': 'IBM WatsonX'
+    };
+    return providerNames[this.providerId] || this.providerId;
   }
 }

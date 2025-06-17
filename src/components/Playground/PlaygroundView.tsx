@@ -370,7 +370,7 @@ export function PlaygroundView() {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       const latency = Date.now() - requestStart;
       
-      // Enhanced error handling for API key issues
+      // Enhanced error handling for API key issues and CORS
       let userFriendlyError = errorMessage;
       if (errorMessage.includes('invalid_api_key') || errorMessage.includes('Incorrect API key')) {
         const providerName = providers.find(p => p.id === providerId)?.displayName || providerId;
@@ -379,7 +379,7 @@ export function PlaygroundView() {
         const providerName = providers.find(p => p.id === providerId)?.displayName || providerId;
         userFriendlyError = `Authentication failed for ${providerName}. Please verify your API credentials.`;
       } else if (errorMessage.includes('Failed to fetch') || errorMessage.includes('CORS')) {
-        userFriendlyError = `Network error: Unable to connect to ${providerId}. This may be due to CORS restrictions in the development environment.`;
+        userFriendlyError = `Network error: Unable to connect to ${providerId}. This may be due to CORS restrictions. Please ensure the development server proxy is configured correctly.`;
       } else if (errorMessage.includes('not set in Supabase secrets') || errorMessage.includes('not configured on the server')) {
         const providerName = providers.find(p => p.id === providerId)?.displayName || providerId;
         userFriendlyError = `${providerName} API key is not configured on the server. The server administrator needs to configure the API key in Supabase Edge Function secrets. Alternatively, you can configure local API keys in the API Keys section to use direct mode.`;
@@ -407,7 +407,7 @@ export function PlaygroundView() {
         responseLength: 0,
         success: false,
         errorType: errorMessage.includes('401') ? 'authentication' : 
-                   errorMessage.includes('network') ? 'network' : 
+                   errorMessage.includes('network') || errorMessage.includes('CORS') ? 'network' : 
                    errorMessage.includes('not set in Supabase secrets') || errorMessage.includes('not configured on the server') ? 'server_config' : 'unknown',
         metrics: {
           latency,
@@ -446,6 +446,9 @@ export function PlaygroundView() {
       } else if (errorMessage.includes('not set in Supabase secrets') || errorMessage.includes('not configured on the server')) {
         const providerName = providers.find(p => p.id === providerId)?.displayName || providerId;
         toast.error(`${providerName}: Server API key not configured. The administrator needs to configure the API key in Supabase Edge Function secrets, or you can add local API keys in the API Keys section.`, { duration: 8000 });
+      } else if (errorMessage.includes('Failed to fetch') || errorMessage.includes('CORS')) {
+        const providerName = providers.find(p => p.id === providerId)?.displayName || providerId;
+        toast.error(`${providerName}: Network/CORS error. Please check the development server proxy configuration.`, { duration: 6000 });
       }
     }
   };
@@ -579,17 +582,18 @@ export function PlaygroundView() {
             <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
             <div>
               <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-1">
-                Development Environment Notice
+                Development Environment - CORS Proxy Active
               </h3>
               <p className="text-sm text-blue-700 dark:text-blue-300 mb-2">
-                You're running in a development environment. API calls to external services may be blocked due to CORS restrictions.
+                You're running in a development environment. API calls to external services are being routed through the Vite development proxy to bypass CORS restrictions.
               </p>
               <div className="text-xs text-blue-600 dark:text-blue-400">
-                <p className="font-medium mb-1">For production deployment:</p>
+                <p className="font-medium mb-1">Proxy routes configured:</p>
                 <ul className="list-disc list-inside space-y-1">
-                  <li>Deploy to a production server with proper CORS configuration</li>
-                  <li>Use a backend proxy to handle API calls</li>
-                  <li>Implement server-side API routes for external service calls</li>
+                  <li>/api/openai → OpenAI API</li>
+                  <li>/api/anthropic → Anthropic Claude API</li>
+                  <li>/api/gemini → Google Gemini API</li>
+                  <li>/api/ibm → IBM WatsonX API</li>
                 </ul>
               </div>
             </div>

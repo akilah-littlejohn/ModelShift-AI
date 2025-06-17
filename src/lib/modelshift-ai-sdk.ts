@@ -193,18 +193,21 @@ export class ProxyClient implements ModelShiftAIClient {
   }
 }
 
-// Legacy ConfigurableClient for backward compatibility (now deprecated)
+// Enhanced ConfigurableClient with better CORS handling
 export class ConfigurableClient implements ModelShiftAIClient {
   constructor(private readonly keyData: Record<string, string>, private readonly config: ProviderConfig) {}
 
   async generate(prompt: string): Promise<string> {
-    console.warn('ConfigurableClient is deprecated. Please use ProxyClient for enhanced security.');
+    console.log('Using ConfigurableClient for direct API calls');
     
     try {
       const originalEndpoint = this.getEndpoint();
       const endpoint = this.getProxyUrl(originalEndpoint);
       const headers = this.buildHeaders();
       const body = this.config.buildRequestBody(prompt, this.keyData);
+
+      console.log(`Making request to: ${endpoint}`);
+      console.log('Request headers:', headers);
 
       // Enhanced error handling for WebContainer/CORS issues
       const response = await fetch(endpoint, {
@@ -262,8 +265,10 @@ export class ConfigurableClient implements ModelShiftAIClient {
         if (error.message === 'Failed to fetch') {
           if (isDevelopment()) {
             throw new Error(
-              'Network request failed. The development proxy may not be configured correctly. ' +
-              'Please ensure the Vite development server is running with proxy configuration.'
+              'Network request failed. This is likely due to CORS restrictions. ' +
+              'The development proxy should handle this automatically. ' +
+              'Please ensure the Vite development server is running correctly. ' +
+              'If the issue persists, try restarting the development server.'
             );
           } else {
             throw new Error(
@@ -304,31 +309,42 @@ export class ConfigurableClient implements ModelShiftAIClient {
     };
   }
 
-  // Helper function to convert external URLs to proxy URLs in development
+  // Enhanced proxy URL mapping for development CORS bypass
   private getProxyUrl(originalUrl: string): string {
     if (!isDevelopment()) {
       return originalUrl;
     }
 
+    console.log(`Converting URL for development proxy: ${originalUrl}`);
+
     // Map external API URLs to proxy paths
     if (originalUrl.includes('api.openai.com')) {
-      return originalUrl.replace('https://api.openai.com', '/api/openai');
+      const proxyUrl = originalUrl.replace('https://api.openai.com', '/api/openai');
+      console.log(`OpenAI proxy URL: ${proxyUrl}`);
+      return proxyUrl;
     }
     if (originalUrl.includes('api.anthropic.com')) {
-      return originalUrl.replace('https://api.anthropic.com', '/api/anthropic');
+      const proxyUrl = originalUrl.replace('https://api.anthropic.com', '/api/anthropic');
+      console.log(`Anthropic proxy URL: ${proxyUrl}`);
+      return proxyUrl;
     }
     if (originalUrl.includes('generativelanguage.googleapis.com')) {
-      return originalUrl.replace('https://generativelanguage.googleapis.com', '/api/gemini');
+      const proxyUrl = originalUrl.replace('https://generativelanguage.googleapis.com', '/api/gemini');
+      console.log(`Gemini proxy URL: ${proxyUrl}`);
+      return proxyUrl;
     }
     if (originalUrl.includes('us-south.ml.cloud.ibm.com')) {
-      return originalUrl.replace('https://us-south.ml.cloud.ibm.com', '/api/ibm');
+      const proxyUrl = originalUrl.replace('https://us-south.ml.cloud.ibm.com', '/api/ibm');
+      console.log(`IBM proxy URL: ${proxyUrl}`);
+      return proxyUrl;
     }
 
+    console.log(`No proxy mapping found, using original URL: ${originalUrl}`);
     return originalUrl;
   }
 }
 
-// New Data-Driven Configurable Client
+// Data-Driven Configurable Client with enhanced CORS handling
 export class DataDrivenClient implements ModelShiftAIClient {
   constructor(
     private readonly keyData: Record<string, string>, 
@@ -338,13 +354,15 @@ export class DataDrivenClient implements ModelShiftAIClient {
   ) {}
 
   async generate(prompt: string): Promise<string> {
-    console.warn('DataDrivenClient is deprecated. Please use ProxyClient for enhanced security.');
+    console.log('Using DataDrivenClient for direct API calls');
     
     try {
       const originalEndpoint = this.buildEndpoint();
       const endpoint = this.getProxyUrl(originalEndpoint);
       const headers = this.buildHeaders();
       const body = this.buildRequestBody(prompt);
+
+      console.log(`Making request to: ${endpoint}`);
 
       const response = await fetch(endpoint, {
         method: this.apiConfig.method,
@@ -405,8 +423,9 @@ export class DataDrivenClient implements ModelShiftAIClient {
       if (error instanceof TypeError && error.message === 'Failed to fetch') {
         if (isDevelopment()) {
           throw new Error(
-            'Network request failed. The development proxy may not be configured correctly. ' +
-            'Please ensure the Vite development server is running with proxy configuration.'
+            'Network request failed. This is likely due to CORS restrictions. ' +
+            'The development proxy should handle this automatically. ' +
+            'Please ensure the Vite development server is running correctly.'
           );
         } else {
           throw new Error(
@@ -475,7 +494,7 @@ export class DataDrivenClient implements ModelShiftAIClient {
     return body;
   }
 
-  // Helper function to convert external URLs to proxy URLs in development
+  // Enhanced proxy URL mapping for development CORS bypass
   private getProxyUrl(originalUrl: string): string {
     if (!isDevelopment()) {
       return originalUrl;

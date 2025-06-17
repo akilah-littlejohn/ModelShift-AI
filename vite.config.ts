@@ -19,8 +19,79 @@ export default defineConfig({
         headers: {
           'Origin': 'https://owzbrgcwyuugzjafadjy.supabase.co'
         }
+      },
+      // Proxy for OpenAI API (for development CORS bypass)
+      '/api/openai': {
+        target: 'https://api.openai.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/openai/, ''),
+        secure: true,
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('OpenAI proxy error', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('Sending Request to OpenAI:', req.method, req.url);
+          });
+          proxy.on('proxyRes', (proxyRes, req, _res) => {
+            console.log('Received Response from OpenAI:', proxyRes.statusCode, req.url);
+          });
+        }
+      },
+      // Proxy for Anthropic Claude API
+      '/api/anthropic': {
+        target: 'https://api.anthropic.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/anthropic/, ''),
+        secure: true,
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('Anthropic proxy error', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('Sending Request to Anthropic:', req.method, req.url);
+          });
+          proxy.on('proxyRes', (proxyRes, req, _res) => {
+            console.log('Received Response from Anthropic:', proxyRes.statusCode, req.url);
+          });
+        }
+      },
+      // Proxy for Google Gemini API
+      '/api/gemini': {
+        target: 'https://generativelanguage.googleapis.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/gemini/, ''),
+        secure: true,
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('Gemini proxy error', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('Sending Request to Gemini:', req.method, req.url);
+          });
+          proxy.on('proxyRes', (proxyRes, req, _res) => {
+            console.log('Received Response from Gemini:', proxyRes.statusCode, req.url);
+          });
+        }
+      },
+      // Proxy for IBM WatsonX API
+      '/api/ibm': {
+        target: 'https://us-south.ml.cloud.ibm.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/ibm/, ''),
+        secure: true,
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('IBM proxy error', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('Sending Request to IBM:', req.method, req.url);
+          });
+          proxy.on('proxyRes', (proxyRes, req, _res) => {
+            console.log('Received Response from IBM:', proxyRes.statusCode, req.url);
+          });
+        }
       }
-      // Note: Removed AI provider proxies as they're now handled by the Supabase Edge Function
     }
   }
 });

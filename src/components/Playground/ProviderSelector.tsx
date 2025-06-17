@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Check, AlertCircle } from 'lucide-react';
 import { providers } from '../../data/providers';
 import { keyVault } from '../../lib/encryption';
+import type { Provider } from '../../types';
 
 interface ProviderSelectorProps {
   selected: string[];
@@ -9,6 +10,24 @@ interface ProviderSelectorProps {
 }
 
 export function ProviderSelector({ selected, onChange }: ProviderSelectorProps) {
+  const [customProviders, setCustomProviders] = useState<Provider[]>([]);
+
+  useEffect(() => {
+    loadCustomProviders();
+  }, []);
+
+  const loadCustomProviders = () => {
+    try {
+      const stored = localStorage.getItem('modelshift-custom-providers');
+      if (stored) {
+        const customProvs = JSON.parse(stored);
+        setCustomProviders(customProvs);
+      }
+    } catch (error) {
+      console.error('Failed to load custom providers:', error);
+    }
+  };
+
   const toggleProvider = (providerId: string) => {
     if (selected.includes(providerId)) {
       onChange(selected.filter(id => id !== providerId));
@@ -21,7 +40,8 @@ export function ProviderSelector({ selected, onChange }: ProviderSelectorProps) 
     const keyData = keyVault.retrieveDefault(providerId);
     if (!keyData) return false;
 
-    const provider = providers.find(p => p.id === providerId);
+    const allProviders = [...providers, ...customProviders];
+    const provider = allProviders.find(p => p.id === providerId);
     if (!provider) return false;
 
     // Check if all required fields are present
@@ -30,11 +50,15 @@ export function ProviderSelector({ selected, onChange }: ProviderSelectorProps) 
       .every(req => keyData[req.name] && keyData[req.name].trim().length > 0);
   };
 
+  // Combine built-in and custom providers
+  const allProviders = [...providers, ...customProviders];
+
   return (
     <div className="grid grid-cols-2 gap-3">
-      {providers.map((provider) => {
+      {allProviders.map((provider) => {
         const isSelected = selected.includes(provider.id);
         const hasCredentials = hasValidCredentials(provider.id);
+        const isCustom = customProviders.some(p => p.id === provider.id);
         
         return (
           <div
@@ -60,9 +84,16 @@ export function ProviderSelector({ selected, onChange }: ProviderSelectorProps) 
               <div className="flex items-center space-x-3 mb-2">
                 <span className="text-2xl">{provider.icon}</span>
                 <div>
-                  <h4 className="font-semibold text-neutral-900 dark:text-white">
-                    {provider.displayName}
-                  </h4>
+                  <div className="flex items-center space-x-2">
+                    <h4 className="font-semibold text-neutral-900 dark:text-white">
+                      {provider.displayName}
+                    </h4>
+                    {isCustom && (
+                      <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-xs font-medium">
+                        Custom
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-neutral-500 dark:text-neutral-400">
                     Max: {provider.capabilities.maxTokens} tokens
                   </p>

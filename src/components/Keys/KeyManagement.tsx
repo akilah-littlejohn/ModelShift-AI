@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Key, Eye, EyeOff, Trash2, Shield, AlertTriangle, Code, Upload, Download, Edit } from 'lucide-react';
+import { Plus, Key, Eye, EyeOff, Trash2, Shield, AlertTriangle, Code, Upload, Download, Edit, Settings } from 'lucide-react';
 import { providers } from '../../data/providers';
 import { keyVault } from '../../lib/encryption';
 import { ConfigurationGenerator } from './ConfigurationGenerator';
 import { ConfigurationExporter } from './ConfigurationExporter';
 import { ConfigurationImporter } from './ConfigurationImporter';
-import type { APIKey } from '../../types';
+import { CustomProviderEditor } from './CustomProviderEditor';
+import type { APIKey, Provider } from '../../types';
 import toast from 'react-hot-toast';
 
 interface ProviderKeyGroup {
@@ -19,21 +20,36 @@ interface ProviderKeyGroup {
 
 export function KeyManagement() {
   const [keyGroups, setKeyGroups] = useState<ProviderKeyGroup[]>([]);
+  const [customProviders, setCustomProviders] = useState<Provider[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState<string | null>(null);
   const [showExportModal, setShowExportModal] = useState<string | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showCustomProviderModal, setShowCustomProviderModal] = useState(false);
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const [editingKey, setEditingKey] = useState<{provider: string, keyId: string, keyData: Record<string, string>} | null>(null);
 
   useEffect(() => {
     loadKeys();
+    loadCustomProviders();
   }, []);
 
   const loadKeys = () => {
     const groups: ProviderKeyGroup[] = [];
     
+    // Load keys for built-in providers
     providers.forEach(provider => {
+      const providerKeys = keyVault.listKeysForProvider(provider.id);
+      if (providerKeys.length > 0) {
+        groups.push({
+          provider: provider.id,
+          keys: providerKeys
+        });
+      }
+    });
+
+    // Load keys for custom providers
+    customProviders.forEach(provider => {
       const providerKeys = keyVault.listKeysForProvider(provider.id);
       if (providerKeys.length > 0) {
         groups.push({
@@ -44,6 +60,52 @@ export function KeyManagement() {
     });
     
     setKeyGroups(groups);
+  };
+
+  const loadCustomProviders = () => {
+    try {
+      const stored = localStorage.getItem('modelshift-custom-providers');
+      if (stored) {
+        const customProvs = JSON.parse(stored);
+        setCustomProviders(customProvs);
+      }
+    } catch (error) {
+      console.error('Failed to load custom providers:', error);
+    }
+  };
+
+  const saveCustomProviders = (providers: Provider[]) => {
+    try {
+      localStorage.setItem('modelshift-custom-providers', JSON.stringify(providers));
+      setCustomProviders(providers);
+    } catch (error) {
+      console.error('Failed to save custom providers:', error);
+    }
+  };
+
+  const handleSaveCustomProvider = (provider: Provider) => {
+    const updatedProviders = [...customProviders, provider];
+    saveCustomProviders(updatedProviders);
+    loadKeys(); // Reload keys to include the new provider
+    setShowCustomProviderModal(false);
+    toast.success('Custom provider added successfully!');
+  };
+
+  const deleteCustomProvider = (providerId: string) => {
+    if (window.confirm('Are you sure you want to delete this custom provider? This will also remove all associated API keys.')) {
+      // Remove the provider
+      const updatedProviders = customProviders.filter(p => p.id !== providerId);
+      saveCustomProviders(updatedProviders);
+      
+      // Remove all keys for this provider
+      const providerKeys = keyVault.listKeysForProvider(providerId);
+      providerKeys.forEach(key => {
+        keyVault.remove(key.id);
+      });
+      
+      loadKeys();
+      toast.success('Custom provider deleted successfully');
+    }
   };
 
   const toggleKeyVisibility = (keyId: string) => {
@@ -73,6 +135,9 @@ export function KeyManagement() {
     setEditingKey({ provider, keyId, keyData });
     setShowAddModal(true);
   };
+
+  // Get all providers (built-in + custom)
+  const allProviders = [...providers, ...customProviders];
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-8">
@@ -107,6 +172,13 @@ export function KeyManagement() {
           Your API Keys
         </h2>
         <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setShowCustomProviderModal(true)}
+            className="flex items-center space-x-2 px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+          >
+            <Code className="w-4 h-4" />
+            <span>Custom Provider</span>
+          </button>
           <button
             onClick={() => setShowImportModal(true)}
             className="flex items-center space-x-2 px-3 py-2 bg-accent-500 text-white rounded-lg hover:bg-accent-600 transition-colors"
@@ -150,6 +222,13 @@ export function KeyManagement() {
                 <span>Add API Key</span>
               </button>
               <button
+                onClick={() => setShowCustomProviderModal(true)}
+                className="inline-flex items-center space-x-2 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+              >
+                <Code className="w-4 h-4" />
+                <span>Custom Provider</span>
+              </button>
+              <button
                 onClick={() => setShowImportModal(true)}
                 className="inline-flex items-center space-x-2 px-4 py-2 bg-accent-500 text-white rounded-lg hover:bg-accent-600 transition-colors"
               >
@@ -160,8 +239,10 @@ export function KeyManagement() {
           </div>
         ) : (
           keyGroups.map((group) => {
-            const provider = providers.find(p => p.id === group.provider);
+            const provider = allProviders.find(p => p.id === group.provider);
             if (!provider) return null;
+
+            const isCustomProvider = customProviders.some(p => p.id === provider.id);
 
             return (
               <div key={group.provider} className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 overflow-hidden">
@@ -171,9 +252,16 @@ export function KeyManagement() {
                     <div className="flex items-center space-x-3">
                       <span className="text-2xl">{provider.icon}</span>
                       <div>
-                        <h3 className="font-semibold text-neutral-900 dark:text-white">
-                          {provider.displayName}
-                        </h3>
+                        <div className="flex items-center space-x-2">
+                          <h3 className="font-semibold text-neutral-900 dark:text-white">
+                            {provider.displayName}
+                          </h3>
+                          {isCustomProvider && (
+                            <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-xs font-medium">
+                              Custom
+                            </span>
+                          )}
+                        </div>
                         <p className="text-sm text-neutral-600 dark:text-neutral-400">
                           {group.keys.length} key{group.keys.length !== 1 ? 's' : ''} configured
                         </p>
@@ -204,6 +292,15 @@ export function KeyManagement() {
                       >
                         <Plus className="w-4 h-4" />
                       </button>
+                      {isCustomProvider && (
+                        <button
+                          onClick={() => deleteCustomProvider(group.provider)}
+                          className="p-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                          title="Delete custom provider"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -294,6 +391,7 @@ export function KeyManagement() {
       {showAddModal && (
         <AddKeyModal
           editingKey={editingKey}
+          allProviders={allProviders}
           onClose={() => {
             setShowAddModal(false);
             setEditingKey(null);
@@ -332,22 +430,31 @@ export function KeyManagement() {
           }}
         />
       )}
+
+      {/* Custom Provider Editor Modal */}
+      {showCustomProviderModal && (
+        <CustomProviderEditor
+          onClose={() => setShowCustomProviderModal(false)}
+          onSave={handleSaveCustomProvider}
+        />
+      )}
     </div>
   );
 }
 
 interface AddKeyModalProps {
   editingKey?: {provider: string, keyId: string, keyData: Record<string, string>} | null;
+  allProviders: Provider[];
   onClose: () => void;
   onAdd: () => void;
 }
 
-function AddKeyModal({ editingKey, onClose, onAdd }: AddKeyModalProps) {
+function AddKeyModal({ editingKey, allProviders, onClose, onAdd }: AddKeyModalProps) {
   const [selectedProvider, setSelectedProvider] = useState(editingKey?.provider || '');
   const [keyFieldValues, setKeyFieldValues] = useState<Record<string, string>>(editingKey?.keyData || {});
   const [keyName, setKeyName] = useState('');
 
-  const selectedProviderData = providers.find(p => p.id === selectedProvider);
+  const selectedProviderData = allProviders.find(p => p.id === selectedProvider);
 
   const handleFieldChange = (fieldName: string, value: string) => {
     setKeyFieldValues(prev => ({
@@ -430,7 +537,7 @@ function AddKeyModal({ editingKey, onClose, onAdd }: AddKeyModalProps) {
                 disabled={!!editingKey}
               >
                 <option value="">Select a provider</option>
-                {providers.map((provider) => (
+                {allProviders.map((provider) => (
                   <option key={provider.id} value={provider.id}>
                     {provider.displayName}
                   </option>

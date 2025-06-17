@@ -106,38 +106,86 @@ export class DynamicProxyService {
         hasApiKeys: Object.keys(keyData).length > 0
       });
 
-      // Make the authenticated request to the dynamic Edge Function
-      const { data, error } = await supabase.functions.invoke('dynamic-ai-proxy', {
+      // Try dynamic-ai-proxy first, fallback to ai-proxy
+      let functionName = 'dynamic-ai-proxy';
+      let { data, error } = await supabase.functions.invoke(functionName, {
         body: requestBody,
         headers: {
           'Content-Type': 'application/json'
         }
       });
 
+      // If dynamic-ai-proxy fails, try the standard ai-proxy as fallback
+      if (error && error.message?.includes('Function not found')) {
+        console.log('Dynamic AI proxy not found, falling back to standard ai-proxy');
+        functionName = 'ai-proxy';
+        
+        // Convert to standard proxy format
+        const standardRequest = {
+          providerId: provider.id,
+          prompt,
+          model: options.model,
+          parameters: options.parameters,
+          agentId: options.agentId,
+          userId: options.userId || session.user.id
+        };
+
+        const fallbackResult = await supabase.functions.invoke(functionName, {
+          body: standardRequest,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      }
+
       const latency = Date.now() - startTime;
 
       if (error) {
-        console.error('Dynamic Edge Function invocation error:', error);
+        console.error(`${functionName} Edge Function invocation error:`, error);
         
-        // Extract specific error message from Edge Function response context
+        // Enhanced error extraction with better context handling
         let specificError = 'Dynamic proxy service error';
         
-        if (error.context) {
-          // Try to extract error from context
-          if (typeof error.context === 'string') {
-            try {
-              const contextData = JSON.parse(error.context);
-              specificError = contextData.error || contextData.message || specificError;
-            } catch {
-              specificError = error.context;
-            }
-          } else if (error.context.error) {
-            specificError = error.context.error;
-          } else if (error.context.message) {
-            specificError = error.context.message;
+        // Check for specific error patterns
+        if (error.message) {
+          if (error.message.includes('Function not found')) {
+            specificError = 'Edge Function not deployed. Please ensure the dynamic-ai-proxy function is deployed to Supabase.';
+          } else if (error.message.includes('Invalid API key') || error.message.includes('401')) {
+            specificError = `Invalid API key for ${provider.displayName}. Please check your API credentials.`;
+          } else if (error.message.includes('Rate limit') || error.message.includes('429')) {
+            specificError = `Rate limit exceeded for ${provider.displayName}. Please try again later.`;
+          } else if (error.message.includes('not set in Supabase secrets')) {
+            specificError = `${provider.displayName} API key not configured on server. Please configure API keys in Supabase Edge Function secrets or use local API keys.`;
+          } else if (error.message !== 'Edge Function returned a non-2xx status code') {
+            specificError = error.message;
           }
-        } else if (error.message && error.message !== 'Edge Function returned a non-2xx status code') {
-          specificError = error.message;
+        }
+
+        // Try to extract from context if available
+        if (error.context) {
+          try {
+            let contextError = null;
+            
+            if (typeof error.context === 'string') {
+              try {
+                const contextData = JSON.parse(error.context);
+                contextError = contextData.error || contextData.message;
+              } catch {
+                contextError = error.context;
+              }
+            } else if (typeof error.context === 'object') {
+              contextError = error.context.error || error.context.message;
+            }
+            
+            if (contextError) {
+              specificError = contextError;
+            }
+          } catch (parseError) {
+            console.warn('Could not parse error context:', parseError);
+          }
         }
         
         throw new Error(specificError);
@@ -166,7 +214,8 @@ export class DynamicProxyService {
           requestId: data.metadata?.requestId,
           timestamp: new Date().toISOString(),
           authenticated: true,
-          dynamic_provider: true
+          dynamic_provider: true,
+          function_used: functionName
         }
       };
 
@@ -174,7 +223,8 @@ export class DynamicProxyService {
         providerId,
         latency,
         tokens: response.metrics?.tokens,
-        cost: response.metrics?.cost
+        cost: response.metrics?.cost,
+        functionUsed: functionName
       });
 
       return response;
@@ -303,24 +353,7 @@ export class DynamicProxyService {
         };
       }
 
-      // Test with a known provider
-      const testProvider = providers[0]; // Use first available provider
-      if (!testProvider) {
-        return {
-          available: false,
-          authenticated: true,
-          supportedProviders: [],
-          errors: ['No providers configured']
-        };
-      }
-
-      // Make a test call
-      const testResponse = await this.callProvider(
-        testProvider.id,
-        'test',
-        { model: testProvider.apiConfig.defaultModel }
-      );
-
+      // Get providers that have API keys configured
       const supportedProviders = providers
         .filter(p => {
           const keyData = keyVault.retrieveDefault(p.id);
@@ -328,12 +361,50 @@ export class DynamicProxyService {
         })
         .map(p => p.id);
 
-      return {
-        available: true,
-        authenticated: true,
-        supportedProviders,
-        errors: testResponse.success ? [] : [testResponse.error || 'Test request failed']
-      };
+      if (supportedProviders.length === 0) {
+        return {
+          available: false,
+          authenticated: true,
+          supportedProviders: [],
+          errors: ['No providers configured with API keys']
+        };
+      }
+
+      // Test with the first available provider
+      const testProviderId = supportedProviders[0];
+      const testProvider = providers.find(p => p.id === testProviderId);
+      
+      if (!testProvider) {
+        return {
+          available: false,
+          authenticated: true,
+          supportedProviders,
+          errors: ['Test provider not found']
+        };
+      }
+
+      // Make a minimal test call
+      try {
+        const testResponse = await this.callProvider(
+          testProvider.id,
+          'test',
+          { model: testProvider.apiConfig.defaultModel }
+        );
+
+        return {
+          available: true,
+          authenticated: true,
+          supportedProviders,
+          errors: testResponse.success ? [] : [testResponse.error || 'Test request failed']
+        };
+      } catch (testError) {
+        return {
+          available: false,
+          authenticated: true,
+          supportedProviders,
+          errors: [testError instanceof Error ? testError.message : 'Test request failed']
+        };
+      }
 
     } catch (error) {
       return {

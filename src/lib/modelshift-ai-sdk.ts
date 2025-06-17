@@ -1,6 +1,7 @@
 // ModelShift AI Provider SDK Integration
 import { setValueAtPath, getValueAtPath, mergeAtPath } from './jsonPathUtils';
 import { ProxyService } from './api/ProxyService';
+import { DynamicProxyService } from './api/DynamicProxyService';
 import type { ApiConfiguration } from '../types';
 
 export interface ModelShiftAIClient {
@@ -35,16 +36,69 @@ async function isSupabaseProxyConfigured(): Promise<boolean> {
   }
 
   try {
-    // Use the ProxyService to check health
-    const health = await ProxyService.checkProxyHealth();
+    // Use the DynamicProxyService to check health
+    const health = await DynamicProxyService.checkProxyHealth();
     return health.available && health.authenticated;
   } catch (error) {
-    console.warn('Supabase proxy health check failed:', error);
+    console.warn('Supabase dynamic proxy health check failed:', error);
     return false;
   }
 }
 
-// Enhanced Proxy Client that uses the authenticated ProxyService
+// Enhanced Dynamic Proxy Client that uses the new DynamicProxyService
+export class DynamicProxyClient implements ModelShiftAIClient {
+  constructor(
+    private readonly providerId: string,
+    private readonly customModel?: string,
+    private readonly customParameters?: Record<string, any>,
+    private readonly agentId?: string
+  ) {}
+
+  async generate(prompt: string): Promise<string> {
+    try {
+      console.log(`DynamicProxyClient: Making authenticated request to ${this.providerId}`);
+
+      const response = await DynamicProxyService.callProvider(
+        this.providerId,
+        prompt,
+        {
+          model: this.customModel,
+          parameters: this.customParameters,
+          agentId: this.agentId
+        }
+      );
+
+      if (!response.success) {
+        throw new Error(response.error || 'Dynamic proxy request failed');
+      }
+
+      return response.response || 'No response';
+
+    } catch (error) {
+      console.error('Error during DynamicProxyClient.generate():', error);
+      
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        throw new Error(
+          'Network request failed. Please check your internet connection and Supabase configuration.'
+        );
+      }
+      
+      throw error;
+    }
+  }
+
+  private getProviderDisplayName(): string {
+    const providerNames: Record<string, string> = {
+      'openai': 'OpenAI',
+      'gemini': 'Google Gemini',
+      'claude': 'Anthropic Claude',
+      'ibm': 'IBM WatsonX'
+    };
+    return providerNames[this.providerId] || this.providerId;
+  }
+}
+
+// Legacy Proxy Client (for backward compatibility)
 export class ProxyClient implements ModelShiftAIClient {
   constructor(
     private readonly providerId: string,
@@ -91,16 +145,6 @@ export class ProxyClient implements ModelShiftAIClient {
       
       throw error;
     }
-  }
-
-  private getProviderDisplayName(): string {
-    const providerNames: Record<string, string> = {
-      'openai': 'OpenAI',
-      'gemini': 'Google Gemini',
-      'claude': 'Anthropic Claude',
-      'ibm': 'IBM WatsonX'
-    };
-    return providerNames[this.providerId] || this.providerId;
   }
 }
 
@@ -560,7 +604,7 @@ Classify the input into one of the categories.`;
 
 // Client Factory
 export class ModelShiftAIClientFactory {
-  // Enhanced primary method using the secure proxy with fallback
+  // Enhanced primary method using the secure dynamic proxy with fallback
   static async create(provider: string, keyData?: Record<string, string>, agentId?: string): Promise<ModelShiftAIClient> {
     // Check if Supabase is configured for proxy mode
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -573,11 +617,11 @@ export class ModelShiftAIClientFactory {
       const isProxyConfigured = await isSupabaseProxyConfigured();
       
       if (isProxyConfigured) {
-        // Use the secure proxy client
-        console.log(`Creating authenticated ProxyClient for ${provider}`);
-        return new ProxyClient(provider, undefined, undefined, agentId);
+        // Use the new dynamic proxy client
+        console.log(`Creating DynamicProxyClient for ${provider}`);
+        return new DynamicProxyClient(provider, undefined, undefined, agentId);
       } else {
-        console.warn(`Supabase proxy not properly configured, falling back to direct client for ${provider}`);
+        console.warn(`Supabase dynamic proxy not properly configured, falling back to direct client for ${provider}`);
       }
     } else {
       console.warn(`Supabase not configured, falling back to direct client for ${provider}`);
@@ -602,9 +646,9 @@ export class ModelShiftAIClientFactory {
     
     if (supabaseUrl && supabaseAnonKey && 
         !supabaseUrl.includes('demo') && !supabaseAnonKey.includes('demo')) {
-      // Use the secure proxy client
-      console.log(`Creating authenticated ProxyClient for ${provider}`);
-      return new ProxyClient(provider, undefined, undefined, agentId);
+      // Use the new dynamic proxy client
+      console.log(`Creating DynamicProxyClient for ${provider}`);
+      return new DynamicProxyClient(provider, undefined, undefined, agentId);
     } else {
       // Fallback to legacy direct client for development/demo
       console.warn(`Supabase not configured, falling back to direct client for ${provider}`);
@@ -646,8 +690,8 @@ export class ModelShiftAIClientFactory {
     
     if (supabaseUrl && supabaseAnonKey && 
         !supabaseUrl.includes('demo') && !supabaseAnonKey.includes('demo')) {
-      // Use the secure proxy client
-      return new ProxyClient(
+      // Use the new dynamic proxy client
+      return new DynamicProxyClient(
         serializedConfig.providerId,
         serializedConfig.model,
         serializedConfig.parameters,

@@ -8,7 +8,8 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 console.log('Supabase config:', { 
   hasUrl: !!supabaseUrl, 
   hasKey: !!supabaseAnonKey,
-  url: supabaseUrl ? `${supabaseUrl.substring(0, 20)}...` : 'none'
+  url: supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : 'none',
+  isDemo: supabaseUrl.includes('demo') || supabaseAnonKey.includes('demo')
 });
 
 // Validate environment variables
@@ -33,6 +34,7 @@ try {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,
+        flowType: 'pkce'
       },
       global: {
         headers: {
@@ -76,6 +78,27 @@ try {
                   id: 'mock-user-id',
                   email: email,
                   user_metadata: { name: email.split('@')[0] }
+                }
+              }
+            }, 
+            error: null 
+          });
+        },
+        signUp: ({ email, password, options }: { email: string, password: string, options?: any }) => {
+          console.log('Mock signUp called for:', email);
+          return Promise.resolve({ 
+            data: { 
+              user: {
+                id: 'mock-user-id',
+                email: email,
+                user_metadata: options?.data || { name: email.split('@')[0] }
+              },
+              session: {
+                access_token: 'mock-token',
+                user: {
+                  id: 'mock-user-id',
+                  email: email,
+                  user_metadata: options?.data || { name: email.split('@')[0] }
                 }
               }
             }, 
@@ -186,6 +209,7 @@ try {
     auth: {
       getSession: () => Promise.resolve({ data: { session: null }, error: null }),
       signInWithPassword: () => Promise.resolve({ data: null, error: new Error('Supabase client error') }),
+      signUp: () => Promise.resolve({ data: null, error: new Error('Supabase client error') }),
       signOut: () => Promise.resolve({ error: null }),
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } })
     },

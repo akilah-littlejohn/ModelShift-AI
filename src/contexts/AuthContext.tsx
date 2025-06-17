@@ -26,9 +26,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
         const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
         
+        console.log('Initializing auth with:', { 
+          hasUrl: !!supabaseUrl, 
+          hasKey: !!supabaseAnonKey,
+          isDemo: supabaseUrl?.includes('demo') || supabaseAnonKey?.includes('demo')
+        });
+        
         if (!supabaseUrl || !supabaseAnonKey || 
             supabaseUrl.includes('demo') || supabaseAnonKey.includes('demo')) {
-          console.log('Supabase not configured, using mock authentication');
+          console.log('Supabase not configured properly, using mock authentication');
           
           // Create a mock user for demo purposes
           const mockUser: AppUser = {
@@ -43,44 +49,83 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           };
           
           if (mounted) {
+            console.log('Setting mock user');
             setUser(mockUser);
             setIsLoading(false);
           }
           return;
         }
 
-        // Try to get the current session
-        try {
-          const { data: { session }, error } = await supabase.auth.getSession();
-          
-          if (error) {
-            console.error('Error getting session:', error);
-            if (mounted) {
-              setIsLoading(false);
-            }
-            return;
-          }
+        // Try to get the current session with timeout
+        console.log('Attempting to get Supabase session...');
+        
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Session timeout')), 5000)
+        );
+        
+        const { data: { session }, error } = await Promise.race([
+          sessionPromise,
+          timeoutPromise
+        ]) as any;
+        
+        if (error) {
+          console.error('Error getting session:', error);
+          throw error;
+        }
 
-          if (session?.user && mounted) {
-            await handleUserSession(session.user);
-          } else if (mounted) {
-            setIsLoading(false);
-          }
-        } catch (sessionError) {
-          console.error('Session error:', sessionError);
-          if (mounted) {
-            setIsLoading(false);
-          }
+        console.log('Session result:', { hasSession: !!session, userEmail: session?.user?.email });
+
+        if (session?.user && mounted) {
+          await handleUserSession(session.user);
+        } else if (mounted) {
+          console.log('No session found, user not logged in');
+          setIsLoading(false);
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
+        
+        // Fallback to mock user on any error
         if (mounted) {
+          console.log('Falling back to mock user due to error');
+          const mockUser: AppUser = {
+            id: 'demo-user-123',
+            email: 'demo@modelshift.ai',
+            name: 'Demo User',
+            plan: 'free',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            usage_limit: 100,
+            usage_count: 0
+          };
+          setUser(mockUser);
           setIsLoading(false);
         }
       }
     };
 
-    initializeAuth();
+    // Add a maximum timeout for the entire initialization
+    const initTimeout = setTimeout(() => {
+      if (mounted && isLoading) {
+        console.warn('Auth initialization timed out, using mock user');
+        const mockUser: AppUser = {
+          id: 'demo-user-123',
+          email: 'demo@modelshift.ai',
+          name: 'Demo User',
+          plan: 'free',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          usage_limit: 100,
+          usage_count: 0
+        };
+        setUser(mockUser);
+        setIsLoading(false);
+      }
+    }, 10000); // 10 second timeout
+
+    initializeAuth().finally(() => {
+      clearTimeout(initTimeout);
+    });
 
     // Listen for auth changes only if Supabase is configured
     let subscription: any = null;
@@ -115,6 +160,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted = false;
+      clearTimeout(initTimeout);
       if (subscription) {
         subscription.unsubscribe();
       }
@@ -125,15 +171,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('Handling user session for:', supabaseUser.email);
       
-      // Check if user exists in our users table
+      // Try to get user from database with timeout
+      const userPromise = supabase
+        .from('users')
+        .select('*')
+        .eq('id', supabaseUser.id)
+        .single();
+        
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Database timeout')), 3000)
+      );
+
       let appUser: AppUser;
 
       try {
-        const { data: existingUser, error } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', supabaseUser.id)
-          .single();
+        const { data: existingUser, error } = await Promise.race([
+          userPromise,
+          timeoutPromise
+        ]) as any;
 
         if (error && error.code === 'PGRST116') {
           // User doesn't exist, create new user record
@@ -158,47 +213,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               .single();
 
             if (createError) {
-              console.error('Error creating user:', createError);
-              // Create a fallback user object
-              appUser = {
-                ...newUserData,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              };
+              throw createError;
             } else {
               appUser = createdUser;
             }
           } catch (createError) {
-            console.error('Database create error:', createError);
+            console.error('Error creating user:', createError);
+            // Create fallback user object
             appUser = {
               ...newUserData,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
             };
           }
-
-          console.log('Successfully created user:', appUser.email);
         } else if (error) {
-          console.error('Error fetching user:', error);
-          // Create a fallback user object
-          appUser = {
-            id: supabaseUser.id,
-            email: supabaseUser.email || '',
-            name: supabaseUser.user_metadata?.name || 
-                  supabaseUser.user_metadata?.full_name || 
-                  supabaseUser.email?.split('@')[0] || 'User',
-            plan: 'free' as const,
-            usage_limit: 100,
-            usage_count: 0,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          };
+          throw error;
         } else {
           appUser = existingUser;
           console.log('Found existing user:', appUser.email);
         }
       } catch (dbError) {
-        console.error('Database error:', dbError);
+        console.error('Database error, creating fallback user:', dbError);
         // Create a fallback user object
         appUser = {
           id: supabaseUser.id,
@@ -214,6 +249,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
       }
 
+      console.log('Setting app user:', appUser.email);
       setUser(appUser);
     } catch (error) {
       console.error('Error handling user session:', error);

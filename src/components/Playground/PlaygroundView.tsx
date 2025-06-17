@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Play, Zap, Clock, DollarSign, AlertTriangle, Info, Key, Users, Swords, Settings } from 'lucide-react';
+import { Play, Zap, Clock, DollarSign, AlertTriangle, Info, Key, Users, Swords, Settings, CheckCircle, XCircle } from 'lucide-react';
 import { ProviderSelector } from './ProviderSelector';
 import { AgentSelector } from './AgentSelector';
 import { ResponseComparison } from './ResponseComparison';
 import { providers } from '../../data/providers';
 import { AgentService } from '../../lib/agents';
 import { ModelShiftAIClientFactory } from '../../lib/modelshift-ai-sdk';
+import { ProxyService } from '../../lib/api/ProxyService';
 import { keyVault } from '../../lib/encryption';
 import { db } from '../../lib/supabase';
 import { supabase } from '../../lib/supabase';
@@ -37,6 +38,32 @@ export function PlaygroundView() {
   const [input, setInput] = useState('');
   const [results, setResults] = useState<ComparisonResult[]>([]);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [proxyHealth, setProxyHealth] = useState<{
+    available: boolean;
+    authenticated: boolean;
+    configuredProviders: string[];
+    errors: string[];
+  } | null>(null);
+
+  // Check proxy health on component mount
+  React.useEffect(() => {
+    checkProxyHealth();
+  }, []);
+
+  const checkProxyHealth = async () => {
+    try {
+      const health = await ProxyService.checkProxyHealth();
+      setProxyHealth(health);
+    } catch (error) {
+      console.error('Failed to check proxy health:', error);
+      setProxyHealth({
+        available: false,
+        authenticated: false,
+        configuredProviders: [],
+        errors: ['Failed to check proxy health']
+      });
+    }
+  };
 
   // Check if we have a real Supabase session for database operations
   const hasRealSupabaseSession = async () => {
@@ -229,6 +256,7 @@ export function PlaygroundView() {
         providersUsed: providersToCheck,
         successfulProviders: providerResponses.filter(r => r.success).map(r => r.provider),
         failedProviders: providerResponses.filter(r => !r.success).map(r => r.provider),
+        usingProxy: usingProxy,
         ...(isDebateMode && {
           sideAProviders: debateSideAConfig.selectedProviders,
           sideBProviders: debateSideBConfig.selectedProviders,
@@ -315,7 +343,7 @@ export function PlaygroundView() {
       }
 
       // Create client and generate response
-      const client = ModelShiftAIClientFactory.createSync(providerId, keyData || undefined);
+      const client = ModelShiftAIClientFactory.createSync(providerId, keyData || undefined, agentId);
       const response = await client.generate(prompt);
       
       const latency = Date.now() - requestStart;
@@ -529,53 +557,71 @@ export function PlaygroundView() {
         </div>
       )}
 
-      {/* Mode Toggle */}
-      <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-3">
-            <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">
-              Playground Mode
-            </h3>
-            <div className="flex items-center space-x-2">
-              <Users className={`w-5 h-5 ${!isDebateMode ? 'text-primary-500' : 'text-neutral-400'}`} />
+      {/* Proxy Health Status */}
+      {proxyHealth && usingProxy && (
+        <div className={`border rounded-lg p-4 ${
+          proxyHealth.available && proxyHealth.authenticated
+            ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+            : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+        }`}>
+          <div className="flex items-start space-x-3">
+            {proxyHealth.available && proxyHealth.authenticated ? (
+              <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+            ) : (
+              <XCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+            )}
+            <div className="flex-1">
+              <h3 className={`font-medium mb-1 ${
+                proxyHealth.available && proxyHealth.authenticated
+                  ? 'text-green-900 dark:text-green-100'
+                  : 'text-red-900 dark:text-red-100'
+              }`}>
+                {proxyHealth.available && proxyHealth.authenticated 
+                  ? 'Authenticated Proxy Service Active'
+                  : 'Proxy Service Issues Detected'
+                }
+              </h3>
+              <p className={`text-sm mb-2 ${
+                proxyHealth.available && proxyHealth.authenticated
+                  ? 'text-green-700 dark:text-green-300'
+                  : 'text-red-700 dark:text-red-300'
+              }`}>
+                {proxyHealth.available && proxyHealth.authenticated
+                  ? `API calls are being routed through the authenticated proxy service. ${proxyHealth.configuredProviders.length} provider(s) configured.`
+                  : 'There are issues with the proxy service configuration.'
+                }
+              </p>
+              
+              {proxyHealth.configuredProviders.length > 0 && (
+                <div className="text-xs mb-2">
+                  <span className="font-medium">Configured providers: </span>
+                  <span className="text-green-600 dark:text-green-400">
+                    {proxyHealth.configuredProviders.join(', ')}
+                  </span>
+                </div>
+              )}
+              
+              {proxyHealth.errors.length > 0 && (
+                <div className="text-xs">
+                  <span className="font-medium">Issues: </span>
+                  <ul className="list-disc list-inside mt-1 space-y-1">
+                    {proxyHealth.errors.map((error, index) => (
+                      <li key={index} className="text-red-600 dark:text-red-400">{error}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
               <button
-                onClick={() => setIsDebateMode(!isDebateMode)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  isDebateMode 
-                    ? 'bg-orange-600' 
-                    : 'bg-primary-600'
-                }`}
+                onClick={checkProxyHealth}
+                className="mt-2 text-xs px-2 py-1 bg-white dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded hover:bg-neutral-50 dark:hover:bg-neutral-600 transition-colors"
               >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    isDebateMode ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
+                Refresh Status
               </button>
-              <Swords className={`w-5 h-5 ${isDebateMode ? 'text-orange-500' : 'text-neutral-400'}`} />
             </div>
-          </div>
-          <div className="text-sm text-neutral-600 dark:text-neutral-400">
-            {isDebateMode ? 'Debate Mode: Compare two different AI configurations' : 'Standard Mode: Compare multiple providers'}
           </div>
         </div>
-
-        {isDebateMode && (
-          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
-            <div className="flex items-start space-x-3">
-              <Swords className="w-5 h-5 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-medium text-orange-900 dark:text-orange-100 mb-1">
-                  Debate Mode Active
-                </h4>
-                <p className="text-sm text-orange-700 dark:text-orange-300">
-                  Configure two different AI setups to compare their responses side-by-side. Perfect for testing different approaches or comparing provider capabilities.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Server Configuration Notice */}
       {usingProxy && (
@@ -584,10 +630,10 @@ export function PlaygroundView() {
             <Info className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
             <div>
               <h3 className="font-medium text-green-900 dark:text-green-100 mb-1">
-                Using Secure Proxy Mode
+                Using Authenticated Proxy Mode
               </h3>
               <p className="text-sm text-green-700 dark:text-green-300 mb-2">
-                API calls are being routed through a secure server proxy. If you encounter API key errors, the server administrator needs to configure the API keys in Supabase Edge Function secrets.
+                API calls are being routed through a secure authenticated server proxy. If you encounter API key errors, the server administrator needs to configure the API keys in Supabase Edge Function secrets.
               </p>
               <div className="text-xs text-green-600 dark:text-green-400">
                 <p className="font-medium mb-1">Required server secrets:</p>
@@ -651,6 +697,54 @@ export function PlaygroundView() {
           </div>
         </div>
       )}
+
+      {/* Mode Toggle */}
+      <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-3">
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">
+              Playground Mode
+            </h3>
+            <div className="flex items-center space-x-2">
+              <Users className={`w-5 h-5 ${!isDebateMode ? 'text-primary-500' : 'text-neutral-400'}`} />
+              <button
+                onClick={() => setIsDebateMode(!isDebateMode)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  isDebateMode 
+                    ? 'bg-orange-600' 
+                    : 'bg-primary-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    isDebateMode ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <Swords className={`w-5 h-5 ${isDebateMode ? 'text-orange-500' : 'text-neutral-400'}`} />
+            </div>
+          </div>
+          <div className="text-sm text-neutral-600 dark:text-neutral-400">
+            {isDebateMode ? 'Debate Mode: Compare two different AI configurations' : 'Standard Mode: Compare multiple providers'}
+          </div>
+        </div>
+
+        {isDebateMode && (
+          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
+            <div className="flex items-start space-x-3">
+              <Swords className="w-5 h-5 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-medium text-orange-900 dark:text-orange-100 mb-1">
+                  Debate Mode Active
+                </h4>
+                <p className="text-sm text-orange-700 dark:text-orange-300">
+                  Configure two different AI setups to compare their responses side-by-side. Perfect for testing different approaches or comparing provider capabilities.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Configuration Panel */}
       <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6">

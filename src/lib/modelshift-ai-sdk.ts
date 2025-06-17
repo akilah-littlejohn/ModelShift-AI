@@ -1,5 +1,6 @@
 // ModelShift AI Provider SDK Integration
 import { setValueAtPath, getValueAtPath, mergeAtPath } from './jsonPathUtils';
+import { ProxyService } from './api/ProxyService';
 import type { ApiConfiguration } from '../types';
 
 export interface ModelShiftAIClient {
@@ -33,142 +34,52 @@ async function isSupabaseProxyConfigured(): Promise<boolean> {
     return false;
   }
 
-  // Test if the edge function is accessible
   try {
-    const testResponse = await fetch(`${supabaseUrl}/functions/v1/ai-proxy`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-        'apikey': supabaseAnonKey
-      },
-      body: JSON.stringify({
-        providerId: 'test',
-        prompt: 'test'
-      })
-    });
-
-    // If we get a 404, the function doesn't exist
-    if (testResponse.status === 404) {
-      return false;
-    }
-
-    // If we get a 400 with "Unsupported provider: test", the function exists but API keys might be missing
-    // This is actually a good sign - the function is working
-    if (testResponse.status === 400) {
-      try {
-        const errorData = await testResponse.json();
-        if (errorData.error && errorData.error.includes('Unsupported provider: test')) {
-          return true; // Function exists and is working
-        }
-      } catch (e) {
-        // If we can't parse the error, assume function exists
-        return true;
-      }
-    }
-
-    // Any other response means the function exists
-    return true;
+    // Use the ProxyService to check health
+    const health = await ProxyService.checkProxyHealth();
+    return health.available && health.authenticated;
   } catch (error) {
-    console.warn('Supabase proxy test failed:', error);
+    console.warn('Supabase proxy health check failed:', error);
     return false;
   }
 }
 
-// New Proxy Client that uses the Supabase Edge Function
+// Enhanced Proxy Client that uses the authenticated ProxyService
 export class ProxyClient implements ModelShiftAIClient {
   constructor(
     private readonly providerId: string,
     private readonly customModel?: string,
-    private readonly customParameters?: Record<string, any>
+    private readonly customParameters?: Record<string, any>,
+    private readonly agentId?: string
   ) {}
 
   async generate(prompt: string): Promise<string> {
     try {
-      // Get Supabase URL and anon key from environment
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      
-      if (!supabaseUrl || !supabaseAnonKey) {
-        throw new Error('Supabase configuration missing. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.');
-      }
+      console.log(`ProxyClient: Making authenticated request to ${this.providerId}`);
 
-      // Construct the Edge Function URL
-      const edgeFunctionUrl = `${supabaseUrl}/functions/v1/ai-proxy`;
-
-      // Prepare request body
-      const requestBody = {
+      const response = await ProxyService.callProvider({
         providerId: this.providerId,
         prompt,
         model: this.customModel,
-        parameters: this.customParameters
-      };
-
-      // Make request to Edge Function
-      const response = await fetch(edgeFunctionUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseAnonKey}`,
-          'apikey': supabaseAnonKey
-        },
-        body: JSON.stringify(requestBody)
+        parameters: this.customParameters,
+        agentId: this.agentId
       });
 
-      if (!response.ok) {
-        let errorText = '';
-        let errorData = null;
-        try {
-          errorData = await response.json();
-          errorText = errorData.error || `HTTP ${response.status}`;
-        } catch (e) {
-          errorText = `HTTP ${response.status}`;
-        }
-        
-        console.error(`Edge Function request failed: ${response.status} - ${errorText}`);
-        
-        // Enhanced error handling for missing API keys
-        if (errorText.includes('not set in Supabase secrets')) {
-          const providerName = this.getProviderDisplayName();
-          throw new Error(
-            `${providerName} API key is not configured on the server. ` +
-            `The server administrator needs to configure the API key in Supabase Edge Function secrets. ` +
-            `Alternatively, you can configure local API keys in the API Keys section to use direct mode.`
-          );
-        }
-        
-        // Handle other common server-side errors
-        if (response.status === 401) {
-          throw new Error(`Authentication failed: Invalid API key configuration on server`);
-        } else if (response.status === 403) {
-          throw new Error(`Access forbidden: API key permissions issue on server`);
-        } else if (response.status === 404) {
-          throw new Error(`AI proxy service not found: Edge function may not be deployed`);
-        } else if (response.status === 429) {
-          throw new Error(`Rate limit exceeded: Too many requests to ${this.getProviderDisplayName()}`);
-        } else if (response.status >= 500) {
-          throw new Error(`Server error: The AI proxy service is temporarily unavailable`);
-        }
-        
-        throw new Error(`AI proxy request failed: ${errorText}`);
+      // Log the usage for analytics
+      await ProxyService.logProxyUsage({
+        providerId: this.providerId,
+        prompt,
+        model: this.customModel,
+        parameters: this.customParameters,
+        agentId: this.agentId
+      }, response);
+
+      if (!response.success) {
+        throw new Error(response.error || 'Proxy request failed');
       }
 
-      const data = await response.json();
-      
-      if (!data.success) {
-        // Handle structured error responses from the Edge Function
-        if (data.error && data.error.includes('not set in Supabase secrets')) {
-          const providerName = this.getProviderDisplayName();
-          throw new Error(
-            `${providerName} API key is not configured on the server. ` +
-            `The server administrator needs to configure the API key in Supabase Edge Function secrets. ` +
-            `Alternatively, you can configure local API keys in the API Keys section to use direct mode.`
-          );
-        }
-        throw new Error(data.error || 'AI proxy request failed');
-      }
+      return response.response || 'No response';
 
-      return data.response || 'No response';
     } catch (error) {
       console.error('Error during ProxyClient.generate():', error);
       
@@ -649,8 +560,8 @@ Classify the input into one of the categories.`;
 
 // Client Factory
 export class ModelShiftAIClientFactory {
-  // NEW: Primary method using the secure proxy with fallback
-  static async create(provider: string, keyData?: Record<string, string>): Promise<ModelShiftAIClient> {
+  // Enhanced primary method using the secure proxy with fallback
+  static async create(provider: string, keyData?: Record<string, string>, agentId?: string): Promise<ModelShiftAIClient> {
     // Check if Supabase is configured for proxy mode
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -663,8 +574,8 @@ export class ModelShiftAIClientFactory {
       
       if (isProxyConfigured) {
         // Use the secure proxy client
-        console.log(`Creating ProxyClient for ${provider}`);
-        return new ProxyClient(provider);
+        console.log(`Creating authenticated ProxyClient for ${provider}`);
+        return new ProxyClient(provider, undefined, undefined, agentId);
       } else {
         console.warn(`Supabase proxy not properly configured, falling back to direct client for ${provider}`);
       }
@@ -684,7 +595,7 @@ export class ModelShiftAIClientFactory {
   }
 
   // Synchronous version for backward compatibility
-  static createSync(provider: string, keyData?: Record<string, string>): ModelShiftAIClient {
+  static createSync(provider: string, keyData?: Record<string, string>, agentId?: string): ModelShiftAIClient {
     // Check if Supabase is configured for proxy mode
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -692,8 +603,8 @@ export class ModelShiftAIClientFactory {
     if (supabaseUrl && supabaseAnonKey && 
         !supabaseUrl.includes('demo') && !supabaseAnonKey.includes('demo')) {
       // Use the secure proxy client
-      console.log(`Creating ProxyClient for ${provider}`);
-      return new ProxyClient(provider);
+      console.log(`Creating authenticated ProxyClient for ${provider}`);
+      return new ProxyClient(provider, undefined, undefined, agentId);
     } else {
       // Fallback to legacy direct client for development/demo
       console.warn(`Supabase not configured, falling back to direct client for ${provider}`);
@@ -739,7 +650,8 @@ export class ModelShiftAIClientFactory {
       return new ProxyClient(
         serializedConfig.providerId,
         serializedConfig.model,
-        serializedConfig.parameters
+        serializedConfig.parameters,
+        serializedConfig.agentId
       );
     } else {
       // Fallback to legacy client

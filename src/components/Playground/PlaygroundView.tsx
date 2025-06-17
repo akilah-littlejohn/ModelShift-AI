@@ -48,6 +48,14 @@ export function PlaygroundView() {
     }
   };
 
+  // Check if we're using proxy mode or direct mode
+  const isUsingProxy = () => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    return supabaseUrl && supabaseAnonKey && 
+           !supabaseUrl.includes('demo') && !supabaseAnonKey.includes('demo');
+  };
+
   const handleExecute = async () => {
     if (!input.trim()) {
       toast.error('Please enter some input text');
@@ -75,13 +83,10 @@ export function PlaygroundView() {
       }
     }
 
-    // Check if API keys are configured for selected providers (only for legacy mode)
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    const isUsingProxy = supabaseUrl && supabaseAnonKey && 
-                       !supabaseUrl.includes('demo') && !supabaseAnonKey.includes('demo');
+    // Check if API keys are configured for selected providers (only for direct mode)
+    const usingProxy = isUsingProxy();
 
-    if (!isUsingProxy) {
+    if (!usingProxy) {
       const missingKeys = providersToCheck.filter(providerId => {
         const keyData = keyVault.retrieveDefault(providerId);
         return !keyData || Object.keys(keyData).length === 0;
@@ -278,14 +283,11 @@ export function PlaygroundView() {
         }
       }
 
-      // Check if API key exists for legacy mode
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const isUsingProxy = supabaseUrl && supabaseAnonKey && 
-                         !supabaseUrl.includes('demo') && !supabaseAnonKey.includes('demo');
-
+      // Get API key data for direct mode
       let keyData = null;
-      if (!isUsingProxy) {
+      const usingProxy = isUsingProxy();
+      
+      if (!usingProxy) {
         keyData = keyVault.retrieveDefault(providerId);
         if (!keyData || Object.keys(keyData).length === 0) {
           throw new Error(`API credentials not found for ${providerId}. Please add them in the API Keys section.`);
@@ -305,7 +307,7 @@ export function PlaygroundView() {
       }
 
       // Create client and generate response
-      const client = ModelShiftAIClientFactory.create(providerId, keyData || undefined);
+      const client = ModelShiftAIClientFactory.createSync(providerId, keyData || undefined);
       const response = await client.generate(prompt);
       
       const latency = Date.now() - requestStart;
@@ -343,6 +345,7 @@ export function PlaygroundView() {
           originalInput: input,
           agentUsed: agentId || 'direct',
           mode: isDebateMode ? 'debate' : 'standard',
+          usingProxy,
           ...(sideId && { debateSide: sideId })
         }
       });
@@ -377,6 +380,9 @@ export function PlaygroundView() {
         userFriendlyError = `Authentication failed for ${providerName}. Please verify your API credentials.`;
       } else if (errorMessage.includes('Failed to fetch') || errorMessage.includes('CORS')) {
         userFriendlyError = `Network error: Unable to connect to ${providerId}. This may be due to CORS restrictions in the development environment.`;
+      } else if (errorMessage.includes('not set in Supabase secrets')) {
+        const providerName = providers.find(p => p.id === providerId)?.displayName || providerId;
+        userFriendlyError = `${providerName} API key is not configured on the server. Please configure local API keys in the API Keys section to use direct mode.`;
       }
       
       // Store failed response for analytics
@@ -401,7 +407,8 @@ export function PlaygroundView() {
         responseLength: 0,
         success: false,
         errorType: errorMessage.includes('401') ? 'authentication' : 
-                   errorMessage.includes('network') ? 'network' : 'unknown',
+                   errorMessage.includes('network') ? 'network' : 
+                   errorMessage.includes('not set in Supabase secrets') ? 'server_config' : 'unknown',
         metrics: {
           latency,
           tokens: 0,
@@ -412,6 +419,7 @@ export function PlaygroundView() {
           agentUsed: agentId || 'direct',
           errorMessage: userFriendlyError,
           mode: isDebateMode ? 'debate' : 'standard',
+          usingProxy: isUsingProxy(),
           ...(sideId && { debateSide: sideId })
         }
       });
@@ -435,6 +443,9 @@ export function PlaygroundView() {
       if (errorMessage.includes('invalid_api_key') || errorMessage.includes('Incorrect API key') || errorMessage.includes('401')) {
         const providerName = providers.find(p => p.id === providerId)?.displayName || providerId;
         toast.error(`${providerName}: Invalid API key. Please update your credentials.`, { duration: 5000 });
+      } else if (errorMessage.includes('not set in Supabase secrets')) {
+        const providerName = providers.find(p => p.id === providerId)?.displayName || providerId;
+        toast.error(`${providerName}: Server API key not configured. Please add local API keys in the API Keys section.`, { duration: 7000 });
       }
     }
   };
@@ -446,14 +457,11 @@ export function PlaygroundView() {
                                    window.location.hostname.includes('webcontainer') ||
                                    window.location.hostname.includes('stackblitz');
 
-  // Check for missing API keys (only for legacy mode)
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  const isUsingProxy = supabaseUrl && supabaseAnonKey && 
-                     !supabaseUrl.includes('demo') && !supabaseAnonKey.includes('demo');
-
+  // Check for missing API keys (only for direct mode)
+  const usingProxy = isUsingProxy();
   let missingApiKeys: string[] = [];
-  if (!isUsingProxy) {
+  
+  if (!usingProxy) {
     const providersToCheck = isDebateMode 
       ? [...debateSideAConfig.selectedProviders, ...debateSideBConfig.selectedProviders]
       : selectedProviders;
@@ -524,8 +532,25 @@ export function PlaygroundView() {
         )}
       </div>
 
+      {/* Server Configuration Notice */}
+      {usingProxy && (
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <Info className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-medium text-green-900 dark:text-green-100 mb-1">
+                Using Secure Proxy Mode
+              </h3>
+              <p className="text-sm text-green-700 dark:text-green-300">
+                API calls are being routed through a secure server proxy. If you encounter API key errors, the server administrator needs to configure the API keys in Supabase Edge Function secrets.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Missing API Keys Warning */}
-      {!isUsingProxy && missingApiKeys.length > 0 && (
+      {!usingProxy && missingApiKeys.length > 0 && (
         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
           <div className="flex items-start space-x-3">
             <Key className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
@@ -548,7 +573,7 @@ export function PlaygroundView() {
       )}
 
       {/* Development Environment Notice */}
-      {isDevelopmentEnvironment && !isUsingProxy && (
+      {isDevelopmentEnvironment && !usingProxy && (
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
           <div className="flex items-start space-x-3">
             <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
@@ -763,7 +788,7 @@ export function PlaygroundView() {
                   ? (debateSideAConfig.selectedProviders.length === 0 || debateSideBConfig.selectedProviders.length === 0)
                   : selectedProviders.length === 0
                 ) ||
-                (!isUsingProxy && missingApiKeys.length > 0)
+                (!usingProxy && missingApiKeys.length > 0)
               }
               className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-primary-500 to-secondary-500 text-white rounded-lg font-medium hover:from-primary-600 hover:to-secondary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
             >

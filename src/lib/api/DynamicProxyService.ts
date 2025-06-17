@@ -3,20 +3,6 @@ import { providers } from '../../data/providers';
 import { keyVault } from '../encryption';
 import type { Provider } from '../../types';
 
-export interface DynamicProxyRequest {
-  providerConfig: {
-    id: string;
-    name: string;
-    apiConfig: any; // The full API configuration from the provider
-  };
-  prompt: string;
-  model?: string;
-  parameters?: Record<string, any>;
-  agentId?: string;
-  userId?: string;
-  apiKeys: Record<string, string>;
-}
-
 export interface DynamicProxyResponse {
   success: boolean;
   response?: string;
@@ -32,11 +18,9 @@ export interface DynamicProxyResponse {
 }
 
 export class DynamicProxyService {
-  private static readonly EDGE_FUNCTION_URL = '/functions/v1/dynamic-ai-proxy';
-  
   /**
-   * Make a dynamic API call through the enhanced Edge Function
-   * This supports ANY provider configuration without hardcoding
+   * Make a dynamic API call through the existing ai-proxy Edge Function
+   * This works with the current deployed infrastructure
    */
   static async callProvider(
     providerId: string,
@@ -68,83 +52,46 @@ export class DynamicProxyService {
         throw new Error(`Provider '${providerId}' not found in configuration`);
       }
 
-      // Get API keys for the provider
-      const keyData = keyVault.retrieveDefault(providerId);
-      if (!keyData || Object.keys(keyData).length === 0) {
-        throw new Error(`No API keys found for provider '${providerId}'. Please configure API keys in the API Keys section.`);
-      }
-
-      // Validate required keys
-      const missingKeys = provider.keyRequirements
-        .filter(req => req.required && (!keyData[req.name] || !keyData[req.name].trim()))
-        .map(req => req.label);
+      // Check if we should use proxy mode or direct mode
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       
-      if (missingKeys.length > 0) {
-        throw new Error(`Missing required API keys for ${provider.displayName}: ${missingKeys.join(', ')}`);
+      const shouldUseProxy = supabaseUrl && supabaseAnonKey && 
+                            !supabaseUrl.includes('demo') && !supabaseAnonKey.includes('demo');
+
+      if (!shouldUseProxy) {
+        throw new Error('Supabase proxy not configured. Please configure your environment variables or use local API keys.');
       }
 
-      // Prepare the dynamic request
-      const requestBody: DynamicProxyRequest = {
-        providerConfig: {
-          id: provider.id,
-          name: provider.displayName,
-          apiConfig: provider.apiConfig
-        },
+      // Prepare the standard proxy request (compatible with existing ai-proxy function)
+      const requestBody = {
+        providerId: provider.id,
         prompt,
-        model: options.model,
-        parameters: options.parameters,
+        model: options.model || provider.apiConfig.defaultModel,
+        parameters: options.parameters || provider.apiConfig.defaultParameters,
         agentId: options.agentId,
-        userId: options.userId || session.user.id,
-        apiKeys: keyData
+        userId: options.userId || session.user.id
       };
 
-      console.log(`Making dynamic proxy request to ${provider.displayName}:`, {
+      console.log(`Making proxy request to ${provider.displayName} via ai-proxy:`, {
         providerId,
-        model: options.model,
+        model: requestBody.model,
         promptLength: prompt.length,
-        userId: requestBody.userId,
-        hasApiKeys: Object.keys(keyData).length > 0
+        userId: requestBody.userId
       });
 
-      // Try dynamic-ai-proxy first, fallback to ai-proxy
-      let functionName = 'dynamic-ai-proxy';
-      let { data, error } = await supabase.functions.invoke(functionName, {
+      // Call the existing ai-proxy Edge Function
+      const { data, error } = await supabase.functions.invoke('ai-proxy', {
         body: requestBody,
         headers: {
           'Content-Type': 'application/json'
         }
       });
 
-      // If dynamic-ai-proxy fails, try the standard ai-proxy as fallback
-      if (error && error.message?.includes('Function not found')) {
-        console.log('Dynamic AI proxy not found, falling back to standard ai-proxy');
-        functionName = 'ai-proxy';
-        
-        // Convert to standard proxy format
-        const standardRequest = {
-          providerId: provider.id,
-          prompt,
-          model: options.model,
-          parameters: options.parameters,
-          agentId: options.agentId,
-          userId: options.userId || session.user.id
-        };
-
-        const fallbackResult = await supabase.functions.invoke(functionName, {
-          body: standardRequest,
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        });
-
-        data = fallbackResult.data;
-        error = fallbackResult.error;
-      }
-
       const latency = Date.now() - startTime;
 
       if (error) {
-        console.error(`${functionName} Edge Function invocation error:`, error);
+        console.error('ai-proxy Edge Function invocation error:', error);
         
         // Enhanced error extraction with better context handling
         let specificError = 'Dynamic proxy service error';
@@ -152,13 +99,21 @@ export class DynamicProxyService {
         // Check for specific error patterns
         if (error.message) {
           if (error.message.includes('Function not found')) {
-            specificError = 'Edge Function not deployed. Please ensure the dynamic-ai-proxy function is deployed to Supabase.';
+            specificError = 'ai-proxy Edge Function not found. Please ensure the ai-proxy function is deployed to Supabase.';
           } else if (error.message.includes('Invalid API key') || error.message.includes('401')) {
-            specificError = `Invalid API key for ${provider.displayName}. Please check your API credentials.`;
+            specificError = `Invalid API key for ${provider.displayName}. Please check your server API key configuration in Supabase secrets.`;
           } else if (error.message.includes('Rate limit') || error.message.includes('429')) {
             specificError = `Rate limit exceeded for ${provider.displayName}. Please try again later.`;
           } else if (error.message.includes('not set in Supabase secrets')) {
-            specificError = `${provider.displayName} API key not configured on server. Please configure API keys in Supabase Edge Function secrets or use local API keys.`;
+            specificError = `${provider.displayName} API key not configured on server. Please configure the required API key in Supabase Edge Function secrets.`;
+          } else if (error.message.includes('OPENAI_API_KEY not set')) {
+            specificError = 'OpenAI API key not configured on server. Please set OPENAI_API_KEY in Supabase Edge Function secrets.';
+          } else if (error.message.includes('GEMINI_API_KEY not set')) {
+            specificError = 'Google Gemini API key not configured on server. Please set GEMINI_API_KEY in Supabase Edge Function secrets.';
+          } else if (error.message.includes('ANTHROPIC_API_KEY not set')) {
+            specificError = 'Anthropic Claude API key not configured on server. Please set ANTHROPIC_API_KEY in Supabase Edge Function secrets.';
+          } else if (error.message.includes('IBM_API_KEY not set')) {
+            specificError = 'IBM WatsonX API key not configured on server. Please set IBM_API_KEY and IBM_PROJECT_ID in Supabase Edge Function secrets.';
           } else if (error.message !== 'Edge Function returned a non-2xx status code') {
             specificError = error.message;
           }
@@ -192,12 +147,31 @@ export class DynamicProxyService {
       }
 
       if (!data) {
-        throw new Error('No response data from dynamic proxy service');
+        throw new Error('No response data from proxy service');
       }
 
       if (!data.success) {
-        console.error('Dynamic proxy service returned error:', data.error);
-        throw new Error(data.error || 'Dynamic proxy service request failed');
+        console.error('Proxy service returned error:', data.error);
+        
+        // Enhanced error handling for specific server-side errors
+        let errorMessage = data.error || 'Proxy service request failed';
+        
+        if (errorMessage.includes('not set in Supabase secrets')) {
+          const providerName = provider.displayName;
+          if (errorMessage.includes('OPENAI_API_KEY')) {
+            errorMessage = `OpenAI API key not configured on server. Please set OPENAI_API_KEY in Supabase Edge Function secrets.`;
+          } else if (errorMessage.includes('GEMINI_API_KEY')) {
+            errorMessage = `Google Gemini API key not configured on server. Please set GEMINI_API_KEY in Supabase Edge Function secrets.`;
+          } else if (errorMessage.includes('ANTHROPIC_API_KEY')) {
+            errorMessage = `Anthropic Claude API key not configured on server. Please set ANTHROPIC_API_KEY in Supabase Edge Function secrets.`;
+          } else if (errorMessage.includes('IBM_API_KEY')) {
+            errorMessage = `IBM WatsonX API keys not configured on server. Please set IBM_API_KEY and IBM_PROJECT_ID in Supabase Edge Function secrets.`;
+          } else {
+            errorMessage = `${providerName} API key not configured on server. Please configure the required API keys in Supabase Edge Function secrets.`;
+          }
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const response: DynamicProxyResponse = {
@@ -211,20 +185,20 @@ export class DynamicProxyService {
           cost: data.metrics?.cost || this.estimateCost(providerId, data.metrics?.tokens || 0)
         },
         metadata: {
-          requestId: data.metadata?.requestId,
+          requestId: data.metadata?.requestId || data.requestId,
           timestamp: new Date().toISOString(),
           authenticated: true,
-          dynamic_provider: true,
-          function_used: functionName
+          proxy_mode: true,
+          function_used: 'ai-proxy'
         }
       };
 
-      console.log(`Dynamic proxy request completed successfully:`, {
+      console.log(`Proxy request completed successfully:`, {
         providerId,
         latency,
         tokens: response.metrics?.tokens,
         cost: response.metrics?.cost,
-        functionUsed: functionName
+        functionUsed: 'ai-proxy'
       });
 
       return response;
@@ -248,96 +222,19 @@ export class DynamicProxyService {
         metadata: {
           timestamp: new Date().toISOString(),
           authenticated: false,
-          dynamic_provider: true
+          proxy_mode: true
         }
       };
     }
   }
 
   /**
-   * Add a new provider configuration dynamically
-   * This allows users to add ANY provider without backend changes
-   */
-  static async addCustomProvider(
-    providerConfig: Provider,
-    apiKeys: Record<string, string>
-  ): Promise<{ success: boolean; error?: string }> {
-    try {
-      // Validate the provider configuration
-      const validation = this.validateProviderConfig(providerConfig);
-      if (!validation.isValid) {
-        throw new Error(`Invalid provider configuration: ${validation.errors.join(', ')}`);
-      }
-
-      // Test the provider with a simple request
-      const testResponse = await this.callProvider(
-        providerConfig.id,
-        'Hello, this is a test. Please respond with "OK".',
-        { model: providerConfig.apiConfig.defaultModel }
-      );
-
-      if (!testResponse.success) {
-        throw new Error(`Provider test failed: ${testResponse.error}`);
-      }
-
-      // Store the provider configuration (you could save this to a database)
-      // For now, we'll just add it to the runtime providers list
-      const existingProviderIndex = providers.findIndex(p => p.id === providerConfig.id);
-      if (existingProviderIndex >= 0) {
-        providers[existingProviderIndex] = providerConfig;
-      } else {
-        providers.push(providerConfig);
-      }
-
-      // Store the API keys
-      keyVault.store(providerConfig.id, apiKeys);
-
-      return { success: true };
-
-    } catch (error) {
-      console.error('Error adding custom provider:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error adding provider'
-      };
-    }
-  }
-
-  /**
-   * Validate a provider configuration
-   */
-  static validateProviderConfig(config: Provider): { isValid: boolean; errors: string[] } {
-    const errors: string[] = [];
-
-    // Required fields
-    if (!config.id) errors.push('Provider ID is required');
-    if (!config.name) errors.push('Provider name is required');
-    if (!config.displayName) errors.push('Provider display name is required');
-    if (!config.apiConfig) errors.push('API configuration is required');
-
-    // API config validation
-    if (config.apiConfig) {
-      if (!config.apiConfig.baseUrl) errors.push('Base URL is required');
-      if (!config.apiConfig.endpointPath) errors.push('Endpoint path is required');
-      if (!config.apiConfig.method) errors.push('HTTP method is required');
-      if (!config.apiConfig.requestBodyStructure) errors.push('Request body structure is required');
-      if (!config.apiConfig.promptJsonPath) errors.push('Prompt JSON path is required');
-      if (!config.apiConfig.responseJsonPath) errors.push('Response JSON path is required');
-    }
-
-    return {
-      isValid: errors.length === 0,
-      errors
-    };
-  }
-
-  /**
-   * Check if the dynamic proxy service is available
+   * Check if the proxy service is available and properly configured
    */
   static async checkProxyHealth(): Promise<{
     available: boolean;
     authenticated: boolean;
-    supportedProviders: string[];
+    configuredProviders: string[];
     errors: string[];
   }> {
     try {
@@ -348,61 +245,61 @@ export class DynamicProxyService {
         return {
           available: false,
           authenticated: false,
-          supportedProviders: [],
+          configuredProviders: [],
           errors: ['No active session']
         };
       }
 
-      // Get providers that have API keys configured
-      const supportedProviders = providers
-        .filter(p => {
-          const keyData = keyVault.retrieveDefault(p.id);
-          return keyData && Object.keys(keyData).length > 0;
-        })
-        .map(p => p.id);
-
-      if (supportedProviders.length === 0) {
-        return {
-          available: false,
-          authenticated: true,
-          supportedProviders: [],
-          errors: ['No providers configured with API keys']
-        };
-      }
-
-      // Test with the first available provider
-      const testProviderId = supportedProviders[0];
-      const testProvider = providers.find(p => p.id === testProviderId);
+      // Check if Supabase is configured for proxy mode
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       
-      if (!testProvider) {
+      if (!supabaseUrl || !supabaseAnonKey || 
+          supabaseUrl.includes('demo') || supabaseAnonKey.includes('demo')) {
         return {
           available: false,
           authenticated: true,
-          supportedProviders,
-          errors: ['Test provider not found']
+          configuredProviders: [],
+          errors: ['Supabase not configured for proxy mode']
         };
       }
 
-      // Make a minimal test call
+      // Test the ai-proxy function with a health check
       try {
-        const testResponse = await this.callProvider(
-          testProvider.id,
-          'test',
-          { model: testProvider.apiConfig.defaultModel }
-        );
+        const { data, error } = await supabase.functions.invoke('ai-proxy', {
+          body: {
+            providerId: 'health-check',
+            prompt: 'test',
+            userId: session.user.id
+          }
+        });
+
+        if (error) {
+          return {
+            available: false,
+            authenticated: true,
+            configuredProviders: [],
+            errors: [error.message || 'ai-proxy function error']
+          };
+        }
+
+        // Parse the health check response
+        const configuredProviders = data?.configuredProviders || [];
+        const errors = data?.errors || [];
 
         return {
           available: true,
           authenticated: true,
-          supportedProviders,
-          errors: testResponse.success ? [] : [testResponse.error || 'Test request failed']
+          configuredProviders,
+          errors
         };
+
       } catch (testError) {
         return {
           available: false,
           authenticated: true,
-          supportedProviders,
-          errors: [testError instanceof Error ? testError.message : 'Test request failed']
+          configuredProviders: [],
+          errors: [testError instanceof Error ? testError.message : 'Health check failed']
         };
       }
 
@@ -410,20 +307,17 @@ export class DynamicProxyService {
       return {
         available: false,
         authenticated: false,
-        supportedProviders: [],
+        configuredProviders: [],
         errors: [error instanceof Error ? error.message : 'Unknown error']
       };
     }
   }
 
   /**
-   * Get all configured providers
+   * Get all available providers (those defined in the frontend configuration)
    */
-  static getConfiguredProviders(): Provider[] {
-    return providers.filter(provider => {
-      const keyData = keyVault.retrieveDefault(provider.id);
-      return keyData && Object.keys(keyData).length > 0;
-    });
+  static getAvailableProviders(): Provider[] {
+    return providers.filter(provider => provider.isAvailable);
   }
 
   /**
@@ -435,5 +329,18 @@ export class DynamicProxyService {
     
     const outputPricing = provider.capabilities.pricing.output;
     return (tokens * outputPricing) / 1000;
+  }
+
+  /**
+   * Get provider display name
+   */
+  private static getProviderDisplayName(providerId: string): string {
+    const names: Record<string, string> = {
+      openai: 'OpenAI',
+      gemini: 'Google Gemini',
+      claude: 'Anthropic Claude',
+      ibm: 'IBM WatsonX'
+    };
+    return names[providerId] || providerId;
   }
 }

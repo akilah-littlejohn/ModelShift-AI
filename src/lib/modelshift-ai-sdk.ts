@@ -33,7 +33,7 @@ async function isSupabaseProxyConfigured(): Promise<boolean> {
     return false;
   }
 
-  // Test if the edge function is accessible and properly configured
+  // Test if the edge function is accessible
   try {
     const testResponse = await fetch(`${supabaseUrl}/functions/v1/ai-proxy`, {
       method: 'POST',
@@ -48,9 +48,27 @@ async function isSupabaseProxyConfigured(): Promise<boolean> {
       })
     });
 
-    // If we get a response (even an error), the function exists
     // If we get a 404, the function doesn't exist
-    return testResponse.status !== 404;
+    if (testResponse.status === 404) {
+      return false;
+    }
+
+    // If we get a 400 with "Unsupported provider: test", the function exists but API keys might be missing
+    // This is actually a good sign - the function is working
+    if (testResponse.status === 400) {
+      try {
+        const errorData = await testResponse.json();
+        if (errorData.error && errorData.error.includes('Unsupported provider: test')) {
+          return true; // Function exists and is working
+        }
+      } catch (e) {
+        // If we can't parse the error, assume function exists
+        return true;
+      }
+    }
+
+    // Any other response means the function exists
+    return true;
   } catch (error) {
     console.warn('Supabase proxy test failed:', error);
     return false;
@@ -114,8 +132,8 @@ export class ProxyClient implements ModelShiftAIClient {
           const providerName = this.getProviderDisplayName();
           throw new Error(
             `${providerName} API key is not configured on the server. ` +
-            `Please contact the administrator to configure the API key in Supabase Edge Function secrets, ` +
-            `or configure local API keys in the API Keys section to use direct mode.`
+            `The server administrator needs to configure the API key in Supabase Edge Function secrets. ` +
+            `Alternatively, you can configure local API keys in the API Keys section to use direct mode.`
           );
         }
         
@@ -143,8 +161,8 @@ export class ProxyClient implements ModelShiftAIClient {
           const providerName = this.getProviderDisplayName();
           throw new Error(
             `${providerName} API key is not configured on the server. ` +
-            `Please contact the administrator to configure the API key in Supabase Edge Function secrets, ` +
-            `or configure local API keys in the API Keys section to use direct mode.`
+            `The server administrator needs to configure the API key in Supabase Edge Function secrets. ` +
+            `Alternatively, you can configure local API keys in the API Keys section to use direct mode.`
           );
         }
         throw new Error(data.error || 'AI proxy request failed');

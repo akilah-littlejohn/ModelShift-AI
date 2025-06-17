@@ -380,9 +380,9 @@ export function PlaygroundView() {
         userFriendlyError = `Authentication failed for ${providerName}. Please verify your API credentials.`;
       } else if (errorMessage.includes('Failed to fetch') || errorMessage.includes('CORS')) {
         userFriendlyError = `Network error: Unable to connect to ${providerId}. This may be due to CORS restrictions in the development environment.`;
-      } else if (errorMessage.includes('not set in Supabase secrets')) {
+      } else if (errorMessage.includes('not set in Supabase secrets') || errorMessage.includes('not configured on the server')) {
         const providerName = providers.find(p => p.id === providerId)?.displayName || providerId;
-        userFriendlyError = `${providerName} API key is not configured on the server. Please configure local API keys in the API Keys section to use direct mode.`;
+        userFriendlyError = `${providerName} API key is not configured on the server. The server administrator needs to configure the API key in Supabase Edge Function secrets. Alternatively, you can configure local API keys in the API Keys section to use direct mode.`;
       }
       
       // Store failed response for analytics
@@ -408,7 +408,7 @@ export function PlaygroundView() {
         success: false,
         errorType: errorMessage.includes('401') ? 'authentication' : 
                    errorMessage.includes('network') ? 'network' : 
-                   errorMessage.includes('not set in Supabase secrets') ? 'server_config' : 'unknown',
+                   errorMessage.includes('not set in Supabase secrets') || errorMessage.includes('not configured on the server') ? 'server_config' : 'unknown',
         metrics: {
           latency,
           tokens: 0,
@@ -443,9 +443,9 @@ export function PlaygroundView() {
       if (errorMessage.includes('invalid_api_key') || errorMessage.includes('Incorrect API key') || errorMessage.includes('401')) {
         const providerName = providers.find(p => p.id === providerId)?.displayName || providerId;
         toast.error(`${providerName}: Invalid API key. Please update your credentials.`, { duration: 5000 });
-      } else if (errorMessage.includes('not set in Supabase secrets')) {
+      } else if (errorMessage.includes('not set in Supabase secrets') || errorMessage.includes('not configured on the server')) {
         const providerName = providers.find(p => p.id === providerId)?.displayName || providerId;
-        toast.error(`${providerName}: Server API key not configured. Please add local API keys in the API Keys section.`, { duration: 7000 });
+        toast.error(`${providerName}: Server API key not configured. The administrator needs to configure the API key in Supabase Edge Function secrets, or you can add local API keys in the API Keys section.`, { duration: 8000 });
       }
     }
   };
@@ -592,6 +592,32 @@ export function PlaygroundView() {
                   <li>Implement server-side API routes for external service calls</li>
                 </ul>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Server API Key Configuration Notice */}
+      {usingProxy && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-medium text-amber-900 dark:text-amber-100 mb-1">
+                Server API Key Configuration Required
+              </h3>
+              <p className="text-sm text-amber-700 dark:text-amber-300 mb-2">
+                You're using proxy mode, but some API keys may not be configured on the server. If you encounter errors, the server administrator needs to configure the following API keys in Supabase Edge Function secrets:
+              </p>
+              <ul className="text-xs text-amber-600 dark:text-amber-400 list-disc list-inside space-y-1">
+                <li><code>OPENAI_API_KEY</code> - For OpenAI GPT models</li>
+                <li><code>ANTHROPIC_API_KEY</code> - For Anthropic Claude models</li>
+                <li><code>GEMINI_API_KEY</code> - For Google Gemini models</li>
+                <li><code>IBM_API_KEY</code> and <code>IBM_PROJECT_ID</code> - For IBM WatsonX models</li>
+              </ul>
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                Alternatively, you can configure local API keys in the API Keys section to use direct mode.
+              </p>
             </div>
           </div>
         </div>

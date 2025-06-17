@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Key, Eye, EyeOff, Trash2, Shield, AlertTriangle, Code, Upload, Download, Edit, Server } from 'lucide-react';
+import { Plus, Key, Eye, EyeOff, Trash2, Shield, AlertTriangle, Code, Upload, Download, Edit } from 'lucide-react';
 import { providers } from '../../data/providers';
 import { keyVault } from '../../lib/encryption';
 import { ConfigurationGenerator } from './ConfigurationGenerator';
 import { ConfigurationExporter } from './ConfigurationExporter';
 import { ConfigurationImporter } from './ConfigurationImporter';
-import { DynamicSecretsManager } from './DynamicSecretsManager';
 import type { APIKey } from '../../types';
 import toast from 'react-hot-toast';
 
@@ -24,7 +23,6 @@ export function KeyManagement() {
   const [showConfigModal, setShowConfigModal] = useState<string | null>(null);
   const [showExportModal, setShowExportModal] = useState<string | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [showSecretsManager, setShowSecretsManager] = useState(false);
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const [editingKey, setEditingKey] = useState<{provider: string, keyId: string, keyData: Record<string, string>} | null>(null);
 
@@ -110,13 +108,6 @@ export function KeyManagement() {
         </h2>
         <div className="flex flex-wrap gap-2">
           <button
-            onClick={() => setShowSecretsManager(true)}
-            className="flex items-center space-x-2 px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
-          >
-            <Server className="w-4 h-4" />
-            <span>Manage Server Secrets</span>
-          </button>
-          <button
             onClick={() => setShowImportModal(true)}
             className="flex items-center space-x-2 px-3 py-2 bg-accent-500 text-white rounded-lg hover:bg-accent-600 transition-colors"
           >
@@ -149,13 +140,6 @@ export function KeyManagement() {
             </p>
             <div className="flex justify-center space-x-3">
               <button
-                onClick={() => setShowSecretsManager(true)}
-                className="inline-flex items-center space-x-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
-              >
-                <Server className="w-4 h-4" />
-                <span>Configure Server Secrets</span>
-              </button>
-              <button
                 onClick={() => {
                   setEditingKey(null);
                   setShowAddModal(true);
@@ -163,7 +147,7 @@ export function KeyManagement() {
                 className="inline-flex items-center space-x-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
               >
                 <Plus className="w-4 h-4" />
-                <span>Add Local API Key</span>
+                <span>Add API Key</span>
               </button>
               <button
                 onClick={() => setShowImportModal(true)}
@@ -346,13 +330,6 @@ export function KeyManagement() {
             loadKeys();
             setShowImportModal(false);
           }}
-        />
-      )}
-
-      {/* Dynamic Secrets Manager Modal */}
-      {showSecretsManager && (
-        <DynamicSecretsManager
-          onClose={() => setShowSecretsManager(false)}
         />
       )}
     </div>

@@ -96,8 +96,34 @@ export class DynamicProxyService {
         // Enhanced error extraction with better context handling
         let specificError = 'Dynamic proxy service error';
         
-        // Check for specific error patterns
-        if (error.message) {
+        // First, try to extract error from the context (response body)
+        if (error.context) {
+          try {
+            let contextError = null;
+            
+            if (typeof error.context === 'string') {
+              try {
+                // Try to parse as JSON first
+                const contextData = JSON.parse(error.context);
+                contextError = contextData.error || contextData.message || contextData.details;
+              } catch {
+                // If not JSON, use the string directly
+                contextError = error.context;
+              }
+            } else if (typeof error.context === 'object') {
+              contextError = error.context.error || error.context.message || error.context.details;
+            }
+            
+            if (contextError && typeof contextError === 'string' && contextError.trim()) {
+              specificError = contextError;
+            }
+          } catch (parseError) {
+            console.warn('Could not parse error context:', parseError);
+          }
+        }
+        
+        // If we still have a generic error, try to extract from the main error message
+        if (specificError === 'Dynamic proxy service error' && error.message) {
           if (error.message.includes('Function not found')) {
             specificError = 'ai-proxy Edge Function not found. Please ensure the ai-proxy function is deployed to Supabase.';
           } else if (error.message.includes('Invalid API key') || error.message.includes('401')) {
@@ -119,28 +145,9 @@ export class DynamicProxyService {
           }
         }
 
-        // Try to extract from context if available
-        if (error.context) {
-          try {
-            let contextError = null;
-            
-            if (typeof error.context === 'string') {
-              try {
-                const contextData = JSON.parse(error.context);
-                contextError = contextData.error || contextData.message;
-              } catch {
-                contextError = error.context;
-              }
-            } else if (typeof error.context === 'object') {
-              contextError = error.context.error || error.context.message;
-            }
-            
-            if (contextError) {
-              specificError = contextError;
-            }
-          } catch (parseError) {
-            console.warn('Could not parse error context:', parseError);
-          }
+        // If we still have a generic error, provide a helpful fallback
+        if (specificError === 'Dynamic proxy service error') {
+          specificError = `${provider.displayName} request failed. This could be due to missing API keys on the server, network issues, or service unavailability. Please check the server configuration and try again.`;
         }
         
         throw new Error(specificError);
@@ -275,11 +282,41 @@ export class DynamicProxyService {
         });
 
         if (error) {
+          // Extract detailed error information
+          let errorMessage = 'ai-proxy function error';
+          
+          if (error.context) {
+            try {
+              let contextError = null;
+              
+              if (typeof error.context === 'string') {
+                try {
+                  const contextData = JSON.parse(error.context);
+                  contextError = contextData.error || contextData.message || contextData.details;
+                } catch {
+                  contextError = error.context;
+                }
+              } else if (typeof error.context === 'object') {
+                contextError = error.context.error || error.context.message || error.context.details;
+              }
+              
+              if (contextError && typeof contextError === 'string' && contextError.trim()) {
+                errorMessage = contextError;
+              }
+            } catch (parseError) {
+              console.warn('Could not parse health check error context:', parseError);
+            }
+          }
+          
+          if (errorMessage === 'ai-proxy function error' && error.message) {
+            errorMessage = error.message;
+          }
+
           return {
             available: false,
             authenticated: true,
             configuredProviders: [],
-            errors: [error.message || 'ai-proxy function error']
+            errors: [errorMessage]
           };
         }
 

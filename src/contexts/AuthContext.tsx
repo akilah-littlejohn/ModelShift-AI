@@ -50,20 +50,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Try to get the current session
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Error getting session:', error);
+        try {
+          const { data: { session }, error } = await supabase.auth.getSession();
+          
+          if (error) {
+            console.error('Error getting session:', error);
+            if (mounted) {
+              setIsLoading(false);
+            }
+            return;
+          }
+
+          if (session?.user && mounted) {
+            await handleUserSession(session.user);
+          } else if (mounted) {
+            setIsLoading(false);
+          }
+        } catch (sessionError) {
+          console.error('Session error:', sessionError);
           if (mounted) {
             setIsLoading(false);
           }
-          return;
-        }
-
-        if (session?.user && mounted) {
-          await handleUserSession(session.user);
-        } else if (mounted) {
-          setIsLoading(false);
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
@@ -119,50 +126,79 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('Handling user session for:', supabaseUser.email);
       
       // Check if user exists in our users table
-      const { data: existingUser, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', supabaseUser.id)
-        .single();
-
       let appUser: AppUser;
 
-      if (error && error.code === 'PGRST116') {
-        // User doesn't exist, create new user record
-        console.log('Creating new user record for:', supabaseUser.email);
-        
-        const newUserData = {
-          id: supabaseUser.id,
-          email: supabaseUser.email || '',
-          name: supabaseUser.user_metadata?.name || 
-                supabaseUser.user_metadata?.full_name || 
-                supabaseUser.email?.split('@')[0] || 'User',
-          plan: 'free' as const,
-          usage_limit: 100,
-          usage_count: 0
-        };
-
-        const { data: createdUser, error: createError } = await supabase
+      try {
+        const { data: existingUser, error } = await supabase
           .from('users')
-          .insert([newUserData])
-          .select()
+          .select('*')
+          .eq('id', supabaseUser.id)
           .single();
 
-        if (createError) {
-          console.error('Error creating user:', createError);
+        if (error && error.code === 'PGRST116') {
+          // User doesn't exist, create new user record
+          console.log('Creating new user record for:', supabaseUser.email);
+          
+          const newUserData = {
+            id: supabaseUser.id,
+            email: supabaseUser.email || '',
+            name: supabaseUser.user_metadata?.name || 
+                  supabaseUser.user_metadata?.full_name || 
+                  supabaseUser.email?.split('@')[0] || 'User',
+            plan: 'free' as const,
+            usage_limit: 100,
+            usage_count: 0
+          };
+
+          try {
+            const { data: createdUser, error: createError } = await supabase
+              .from('users')
+              .insert([newUserData])
+              .select()
+              .single();
+
+            if (createError) {
+              console.error('Error creating user:', createError);
+              // Create a fallback user object
+              appUser = {
+                ...newUserData,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              };
+            } else {
+              appUser = createdUser;
+            }
+          } catch (createError) {
+            console.error('Database create error:', createError);
+            appUser = {
+              ...newUserData,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+          }
+
+          console.log('Successfully created user:', appUser.email);
+        } else if (error) {
+          console.error('Error fetching user:', error);
           // Create a fallback user object
           appUser = {
-            ...newUserData,
+            id: supabaseUser.id,
+            email: supabaseUser.email || '',
+            name: supabaseUser.user_metadata?.name || 
+                  supabaseUser.user_metadata?.full_name || 
+                  supabaseUser.email?.split('@')[0] || 'User',
+            plan: 'free' as const,
+            usage_limit: 100,
+            usage_count: 0,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           };
         } else {
-          appUser = createdUser;
+          appUser = existingUser;
+          console.log('Found existing user:', appUser.email);
         }
-
-        console.log('Successfully created user:', appUser.email);
-      } else if (error) {
-        console.error('Error fetching user:', error);
+      } catch (dbError) {
+        console.error('Database error:', dbError);
         // Create a fallback user object
         appUser = {
           id: supabaseUser.id,
@@ -176,9 +212,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
-      } else {
-        appUser = existingUser;
-        console.log('Found existing user:', appUser.email);
       }
 
       setUser(appUser);

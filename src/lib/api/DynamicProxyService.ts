@@ -118,7 +118,29 @@ export class DynamicProxyService {
 
       if (error) {
         console.error('Dynamic Edge Function invocation error:', error);
-        throw new Error(`Dynamic proxy service error: ${error.message}`);
+        
+        // Extract specific error message from Edge Function response context
+        let specificError = 'Dynamic proxy service error';
+        
+        if (error.context) {
+          // Try to extract error from context
+          if (typeof error.context === 'string') {
+            try {
+              const contextData = JSON.parse(error.context);
+              specificError = contextData.error || contextData.message || specificError;
+            } catch {
+              specificError = error.context;
+            }
+          } else if (error.context.error) {
+            specificError = error.context.error;
+          } else if (error.context.message) {
+            specificError = error.context.message;
+          }
+        } else if (error.message && error.message !== 'Edge Function returned a non-2xx status code') {
+          specificError = error.message;
+        }
+        
+        throw new Error(specificError);
       }
 
       if (!data) {

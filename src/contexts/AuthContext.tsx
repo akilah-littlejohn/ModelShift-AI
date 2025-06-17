@@ -16,6 +16,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Check if we're in demo environment
+  const isDemoEnvironment = () => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    return !supabaseUrl || !supabaseAnonKey || 
+           supabaseUrl.includes('demo') || supabaseAnonKey.includes('demo');
+  };
+
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -43,6 +51,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const handleUserSession = async (supabaseUser: User) => {
     try {
+      // In demo environment, create a mock user without database operations
+      if (isDemoEnvironment()) {
+        const mockUser: AppUser = {
+          id: supabaseUser.id,
+          email: supabaseUser.email || '',
+          name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'Demo User',
+          plan: 'free' as const,
+          usage_limit: 100,
+          usage_count: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        setUser(mockUser);
+        setIsLoading(false);
+        return;
+      }
+
       // Check if user exists in our users table
       const { data: existingUser, error } = await supabase
         .from('users')
@@ -50,9 +75,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('id', supabaseUser.id)
         .single();
 
-      if (error && error.code !== 'PGRST116') {
-        // Error other than "not found"
-        console.error('Error fetching user:', error);
+      // Handle the expected "not found" error for new users
+      if (error && error.code === 'PGRST116') {
+        console.log('New user detected, creating user record...');
+        // This is expected for new users - we'll create the record below
+      } else if (error) {
+        // Unexpected error
+        console.error('Unexpected error fetching user:', error);
         setIsLoading(false);
         return;
       }
@@ -71,6 +100,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           created_at: new Date().toISOString()
         };
 
+        console.log('Creating new user record:', newUser);
+
         const { data: createdUser, error: createError } = await supabase
           .from('users')
           .insert([newUser])
@@ -79,18 +110,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (createError) {
           console.error('Error creating user:', createError);
-          setIsLoading(false);
-          return;
+          
+          // If user creation fails, still allow authentication with a temporary user object
+          // This prevents the app from being completely unusable due to database issues
+          console.warn('Using temporary user object due to database creation failure');
+          appUser = {
+            ...newUser,
+            updated_at: new Date().toISOString()
+          };
+        } else {
+          appUser = createdUser;
+          console.log('Successfully created user record:', appUser);
         }
-
-        appUser = createdUser;
       } else {
         appUser = existingUser;
+        console.log('Found existing user record:', appUser);
       }
 
       setUser(appUser);
     } catch (error) {
       console.error('Error handling user session:', error);
+      
+      // Create a fallback user object to prevent complete failure
+      const fallbackUser: AppUser = {
+        id: supabaseUser.id,
+        email: supabaseUser.email || '',
+        name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User',
+        plan: 'free' as const,
+        usage_limit: 100,
+        usage_count: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      console.warn('Using fallback user object due to session handling error:', fallbackUser);
+      setUser(fallbackUser);
     } finally {
       setIsLoading(false);
     }

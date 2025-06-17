@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Brain, Mail, Lock, Eye, EyeOff, UserPlus } from 'lucide-react';
+import { Brain, Mail, Lock, Eye, EyeOff, UserPlus, AlertCircle, Info } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
@@ -12,7 +12,16 @@ export function LoginForm() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
+  const [showDemoInfo, setShowDemoInfo] = useState(false);
   const { login } = useAuth();
+
+  // Check if we're using demo/development environment
+  const isDemoEnvironment = () => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    return !supabaseUrl || !supabaseAnonKey || 
+           supabaseUrl.includes('demo') || supabaseAnonKey.includes('demo');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,19 +65,48 @@ export function LoginForm() {
     } catch (error: any) {
       console.error('Authentication error:', error);
       
-      // Handle specific Supabase auth errors
+      // Enhanced error handling with more specific messages
       if (error.message?.includes('Invalid login credentials')) {
-        toast.error('Invalid email or password. Please try again.');
+        if (isSignUp) {
+          toast.error('Sign up failed. This email may already be registered. Try signing in instead.');
+        } else {
+          toast.error('Invalid email or password. Please check your credentials and try again.');
+        }
       } else if (error.message?.includes('Email not confirmed')) {
         toast.error('Please check your email and confirm your account before signing in.');
       } else if (error.message?.includes('User already registered')) {
         toast.error('An account with this email already exists. Please sign in instead.');
+        setIsSignUp(false); // Switch to sign in mode
+      } else if (error.message?.includes('Signup is disabled')) {
+        toast.error('Account registration is currently disabled. Please contact the administrator.');
+      } else if (error.message?.includes('Email rate limit exceeded')) {
+        toast.error('Too many email attempts. Please wait a few minutes before trying again.');
+      } else if (error.message?.includes('Password should be at least')) {
+        toast.error('Password must be at least 6 characters long.');
+      } else if (error.message?.includes('Unable to validate email address')) {
+        toast.error('Please enter a valid email address.');
+      } else if (error.message?.includes('Network request failed') || error.message?.includes('Failed to fetch')) {
+        toast.error('Network error. Please check your internet connection and try again.');
       } else {
-        toast.error(error.message || 'Authentication failed. Please try again.');
+        // Generic error with helpful context
+        const errorMsg = error.message || 'Authentication failed. Please try again.';
+        toast.error(errorMsg);
+        
+        // Show demo info if in demo environment and authentication fails
+        if (isDemoEnvironment() && !isSignUp) {
+          setShowDemoInfo(true);
+        }
       }
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleDemoLogin = () => {
+    setEmail('demo@modelshift.ai');
+    setPassword('demo123');
+    setShowDemoInfo(false);
+    toast.info('Demo credentials filled. Click Sign In to continue.');
   };
 
   return (
@@ -86,6 +124,63 @@ export function LoginForm() {
             Multi-LLM SaaS Platform for AI Orchestration
           </p>
         </div>
+
+        {/* Demo Environment Notice */}
+        {isDemoEnvironment() && (
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+            <div className="flex items-start space-x-3">
+              <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-1">
+                  Demo Environment
+                </h3>
+                <p className="text-sm text-blue-700 dark:text-blue-300 mb-2">
+                  You're using a demo version. Create an account to test the authentication flow, or use demo credentials.
+                </p>
+                <button
+                  onClick={handleDemoLogin}
+                  className="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors"
+                >
+                  Use Demo Credentials
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Demo Info Modal */}
+        {showDemoInfo && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-6">
+            <div className="flex items-start space-x-3">
+              <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-medium text-amber-900 dark:text-amber-100 mb-1">
+                  Authentication Failed
+                </h3>
+                <p className="text-sm text-amber-700 dark:text-amber-300 mb-2">
+                  If you're testing the demo, you can either create a new account or use the demo credentials.
+                </p>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={handleDemoLogin}
+                    className="text-sm bg-amber-600 text-white px-3 py-1 rounded hover:bg-amber-700 transition-colors"
+                  >
+                    Use Demo Login
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsSignUp(true);
+                      setShowDemoInfo(false);
+                    }}
+                    className="text-sm border border-amber-600 text-amber-600 px-3 py-1 rounded hover:bg-amber-50 transition-colors"
+                  >
+                    Create Account
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Login/Signup Card */}
         <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-xl border border-neutral-200 dark:border-neutral-700 p-8">
@@ -210,6 +305,7 @@ export function LoginForm() {
                 setPassword('');
                 setConfirmPassword('');
                 setName('');
+                setShowDemoInfo(false);
               }}
               className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium transition-colors"
             >

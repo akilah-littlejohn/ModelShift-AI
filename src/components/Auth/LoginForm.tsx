@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
-import { Brain, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Brain, Mail, Lock, Eye, EyeOff, UserPlus } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
 export function LoginForm() {
-  const [email, setEmail] = useState('demo@modelshift.ai');
-  const [password, setPassword] = useState('demo123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState('');
   const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -15,10 +19,53 @@ export function LoginForm() {
     setIsLoading(true);
 
     try {
-      await login(email, password);
-      toast.success('Welcome to ModelShift AI!');
-    } catch (error) {
-      toast.error('Login failed. Please try again.');
+      if (isSignUp) {
+        // Sign up flow
+        if (password !== confirmPassword) {
+          throw new Error('Passwords do not match');
+        }
+
+        if (password.length < 6) {
+          throw new Error('Password must be at least 6 characters long');
+        }
+
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              name: name || email.split('@')[0]
+            }
+          }
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        if (data.user && !data.session) {
+          toast.success('Please check your email to confirm your account!');
+        } else {
+          toast.success('Account created successfully!');
+        }
+      } else {
+        // Sign in flow
+        await login(email, password);
+        toast.success('Welcome back to ModelShift AI!');
+      }
+    } catch (error: any) {
+      console.error('Authentication error:', error);
+      
+      // Handle specific Supabase auth errors
+      if (error.message?.includes('Invalid login credentials')) {
+        toast.error('Invalid email or password. Please try again.');
+      } else if (error.message?.includes('Email not confirmed')) {
+        toast.error('Please check your email and confirm your account before signing in.');
+      } else if (error.message?.includes('User already registered')) {
+        toast.error('An account with this email already exists. Please sign in instead.');
+      } else {
+        toast.error(error.message || 'Authentication failed. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -40,18 +87,37 @@ export function LoginForm() {
           </p>
         </div>
 
-        {/* Login Card */}
+        {/* Login/Signup Card */}
         <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-xl border border-neutral-200 dark:border-neutral-700 p-8">
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-neutral-900 dark:text-white mb-2">
-              Welcome Back
+              {isSignUp ? 'Create Account' : 'Welcome Back'}
             </h2>
             <p className="text-neutral-600 dark:text-neutral-400">
-              Sign in to access your AI playground
+              {isSignUp ? 'Sign up to access your AI playground' : 'Sign in to access your AI playground'}
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Name Field (Sign Up Only) */}
+            {isSignUp && (
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <UserPlus className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-neutral-400" />
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full pl-11 pr-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white transition-colors"
+                    placeholder="Enter your full name"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Email Field */}
             <div>
               <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
@@ -84,6 +150,7 @@ export function LoginForm() {
                   className="w-full pl-11 pr-11 py-3 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white transition-colors"
                   placeholder="Enter your password"
                   required
+                  minLength={6}
                 />
                 <button
                   type="button"
@@ -95,6 +162,27 @@ export function LoginForm() {
               </div>
             </div>
 
+            {/* Confirm Password Field (Sign Up Only) */}
+            {isSignUp && (
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                  Confirm Password
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-neutral-400" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full pl-11 pr-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white transition-colors"
+                    placeholder="Confirm your password"
+                    required
+                    minLength={6}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Submit Button */}
             <button
               type="submit"
@@ -104,19 +192,32 @@ export function LoginForm() {
               {isLoading ? (
                 <div className="flex items-center justify-center">
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span className="ml-2">Signing In...</span>
+                  <span className="ml-2">
+                    {isSignUp ? 'Creating Account...' : 'Signing In...'}
+                  </span>
                 </div>
               ) : (
-                'Sign In'
+                isSignUp ? 'Create Account' : 'Sign In'
               )}
             </button>
           </form>
 
-          {/* Demo Info */}
-          <div className="mt-6 p-4 bg-primary-50 dark:bg-primary-900/20 rounded-lg">
-            <p className="text-sm text-primary-700 dark:text-primary-300">
-              <strong>Demo Account:</strong> Use the pre-filled credentials to explore the platform
-            </p>
+          {/* Toggle Sign Up/Sign In */}
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setPassword('');
+                setConfirmPassword('');
+                setName('');
+              }}
+              className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium transition-colors"
+            >
+              {isSignUp 
+                ? 'Already have an account? Sign in' 
+                : "Don't have an account? Sign up"
+              }
+            </button>
           </div>
         </div>
 

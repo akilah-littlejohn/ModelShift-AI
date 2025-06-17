@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { v4 as uuidv4 } from 'uuid';
-import type { User } from '../types';
+import { supabase } from '../lib/supabase';
+import type { User } from '@supabase/supabase-js';
+import type { User as AppUser } from '../types';
 
 interface AuthContextType {
-  user: User | null;
+  user: AppUser | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
@@ -11,64 +12,117 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Helper function to validate UUID format
-function isValidUUID(uuid: string): boolean {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  return uuidRegex.test(uuid);
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing user in localStorage
-    const mockUserData = localStorage.getItem('modelshift-ai-user');
-    if (mockUserData) {
-      try {
-        const parsedUser = JSON.parse(mockUserData);
-        
-        // Validate that the user has a valid UUID
-        if (parsedUser && parsedUser.id && isValidUUID(parsedUser.id)) {
-          setUser(parsedUser);
-        } else {
-          // Invalid user data (likely from old session with non-UUID ID)
-          console.warn('Invalid user data found in localStorage, clearing...');
-          localStorage.removeItem('modelshift-ai-user');
-          setUser(null);
-        }
-      } catch (error) {
-        // Corrupted data in localStorage
-        console.error('Error parsing user data from localStorage:', error);
-        localStorage.removeItem('modelshift-ai-user');
-        setUser(null);
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        handleUserSession(session.user);
+      } else {
+        setIsLoading(false);
       }
-    }
-    setIsLoading(false);
+    });
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        await handleUserSession(session.user);
+      } else {
+        setUser(null);
+        setIsLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
+
+  const handleUserSession = async (supabaseUser: User) => {
+    try {
+      // Check if user exists in our users table
+      const { data: existingUser, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', supabaseUser.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        // Error other than "not found"
+        console.error('Error fetching user:', error);
+        setIsLoading(false);
+        return;
+      }
+
+      let appUser: AppUser;
+
+      if (!existingUser) {
+        // Create new user record
+        const newUser = {
+          id: supabaseUser.id,
+          email: supabaseUser.email || '',
+          name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User',
+          plan: 'free' as const,
+          usage_limit: 100,
+          usage_count: 0,
+          created_at: new Date().toISOString()
+        };
+
+        const { data: createdUser, error: createError } = await supabase
+          .from('users')
+          .insert([newUser])
+          .select()
+          .single();
+
+        if (createError) {
+          console.error('Error creating user:', createError);
+          setIsLoading(false);
+          return;
+        }
+
+        appUser = createdUser;
+      } else {
+        appUser = existingUser;
+      }
+
+      setUser(appUser);
+    } catch (error) {
+      console.error('Error handling user session:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     
-    // Demo authentication - always generate a proper UUID
-    const mockUser: User = {
-      id: uuidv4(), // This ensures we always have a valid UUID
-      email,
-      name: email.split('@')[0],
-      plan: 'pro',
-      created_at: new Date().toISOString(),
-      usage_limit: 1000,
-      usage_count: 0
-    };
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    localStorage.setItem('modelshift-ai-user', JSON.stringify(mockUser));
-    setUser(mockUser);
-    setIsLoading(false);
+      if (error) {
+        throw error;
+      }
+
+      // User session will be handled by the auth state change listener
+    } catch (error) {
+      setIsLoading(false);
+      throw error;
+    }
   };
 
-  const logout = () => {
-    localStorage.removeItem('modelshift-ai-user');
-    setUser(null);
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
   };
 
   return (

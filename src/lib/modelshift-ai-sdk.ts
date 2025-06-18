@@ -2,6 +2,8 @@
 import { setValueAtPath, getValueAtPath, mergeAtPath } from './jsonPathUtils';
 import { ProxyService } from './api/ProxyService';
 import { DynamicProxyService } from './api/DynamicProxyService';
+import { apiKeysDb } from './api-keys/api-keys-db';
+import { serverEncryption } from './api-keys/encryption';
 import type { ApiConfiguration } from '../types';
 
 export interface ModelShiftAIClient {
@@ -49,9 +51,11 @@ async function isSupabaseProxyConfigured(): Promise<boolean> {
 export class DynamicProxyClient implements ModelShiftAIClient {
   constructor(
     private readonly providerId: string,
+    private readonly userId: string,
     private readonly customModel?: string,
     private readonly customParameters?: Record<string, any>,
-    private readonly agentId?: string
+    private readonly agentId?: string,
+    private readonly useUserKey: boolean = true
   ) {}
 
   async generate(prompt: string): Promise<string> {
@@ -64,7 +68,9 @@ export class DynamicProxyClient implements ModelShiftAIClient {
         {
           model: this.customModel,
           parameters: this.customParameters,
-          agentId: this.agentId
+          agentId: this.agentId,
+          userId: this.userId,
+          useUserKey: this.useUserKey
         }
       );
 
@@ -102,9 +108,11 @@ export class DynamicProxyClient implements ModelShiftAIClient {
 export class ProxyClient implements ModelShiftAIClient {
   constructor(
     private readonly providerId: string,
+    private readonly userId: string,
     private readonly customModel?: string,
     private readonly customParameters?: Record<string, any>,
-    private readonly agentId?: string
+    private readonly agentId?: string,
+    private readonly useUserKey: boolean = true
   ) {}
 
   async generate(prompt: string): Promise<string> {
@@ -116,7 +124,9 @@ export class ProxyClient implements ModelShiftAIClient {
         prompt,
         model: this.customModel,
         parameters: this.customParameters,
-        agentId: this.agentId
+        agentId: this.agentId,
+        userId: this.userId,
+        useUserKey: this.useUserKey
       });
 
       // Log the usage for analytics
@@ -125,7 +135,9 @@ export class ProxyClient implements ModelShiftAIClient {
         prompt,
         model: this.customModel,
         parameters: this.customParameters,
-        agentId: this.agentId
+        agentId: this.agentId,
+        userId: this.userId,
+        useUserKey: this.useUserKey
       }, response);
 
       if (!response.success) {
@@ -605,7 +617,13 @@ Classify the input into one of the categories.`;
 // Client Factory
 export class ModelShiftAIClientFactory {
   // Enhanced primary method using the secure dynamic proxy with fallback
-  static async create(provider: string, keyData?: Record<string, string>, agentId?: string): Promise<ModelShiftAIClient> {
+  static async create(
+    provider: string, 
+    userId: string,
+    keyData?: Record<string, string>, 
+    agentId?: string,
+    useUserKey: boolean = true
+  ): Promise<ModelShiftAIClient> {
     // Check if Supabase is configured for proxy mode
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -619,7 +637,7 @@ export class ModelShiftAIClientFactory {
       if (isProxyConfigured) {
         // Use the new dynamic proxy client
         console.log(`Creating DynamicProxyClient for ${provider}`);
-        return new DynamicProxyClient(provider, undefined, undefined, agentId);
+        return new DynamicProxyClient(provider, userId, undefined, undefined, agentId, useUserKey);
       } else {
         console.warn(`Supabase dynamic proxy not properly configured, falling back to direct client for ${provider}`);
       }
@@ -639,7 +657,13 @@ export class ModelShiftAIClientFactory {
   }
 
   // Synchronous version for backward compatibility
-  static createSync(provider: string, keyData?: Record<string, string>, agentId?: string): ModelShiftAIClient {
+  static createSync(
+    provider: string, 
+    userId: string,
+    keyData?: Record<string, string>, 
+    agentId?: string,
+    useUserKey: boolean = true
+  ): ModelShiftAIClient {
     // Check if Supabase is configured for proxy mode
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -648,7 +672,7 @@ export class ModelShiftAIClientFactory {
         !supabaseUrl.includes('demo') && !supabaseAnonKey.includes('demo')) {
       // Use the new dynamic proxy client
       console.log(`Creating DynamicProxyClient for ${provider}`);
-      return new DynamicProxyClient(provider, undefined, undefined, agentId);
+      return new DynamicProxyClient(provider, userId, undefined, undefined, agentId, useUserKey);
     } else {
       // Fallback to legacy direct client for development/demo
       console.warn(`Supabase not configured, falling back to direct client for ${provider}`);
@@ -693,9 +717,11 @@ export class ModelShiftAIClientFactory {
       // Use the new dynamic proxy client
       return new DynamicProxyClient(
         serializedConfig.providerId,
+        'serialized-config-user', // Placeholder user ID
         serializedConfig.model,
         serializedConfig.parameters,
-        serializedConfig.agentId
+        serializedConfig.agentId,
+        false // Don't use user key for serialized configs
       );
     } else {
       // Fallback to legacy client
@@ -730,6 +756,54 @@ export class ModelShiftAIClientFactory {
       };
 
       return new ConfigurableClient(serializedConfig.keyData, customConfig);
+    }
+  }
+
+  // New method to get user API key and create client
+  static async createWithUserKey(
+    provider: string,
+    userId: string,
+    agentId?: string
+  ): Promise<ModelShiftAIClient> {
+    try {
+      // First check if user has an API key for this provider
+      const userKey = await apiKeysDb.getActiveForProvider(userId, provider);
+      
+      if (userKey) {
+        // User has a key, decrypt it
+        const decryptedKey = serverEncryption.decrypt(userKey.encrypted_key);
+        
+        // For IBM, we need to check if the user has a project ID
+        let projectId = null;
+        if (provider === 'ibm') {
+          const projectIdKey = await apiKeysDb.getActiveForProvider(userId, 'ibm_project');
+          if (projectIdKey) {
+            projectId = serverEncryption.decrypt(projectIdKey.encrypted_key);
+          }
+        }
+        
+        // Create key data object
+        const keyData: Record<string, string> = {
+          apiKey: decryptedKey
+        };
+        
+        if (projectId) {
+          keyData.projectId = projectId;
+        }
+        
+        // Update last used timestamp
+        await apiKeysDb.updateLastUsed(userId, userKey.id);
+        
+        // Create client with user's key
+        return this.createSync(provider, userId, keyData, agentId, false);
+      }
+      
+      // No user key, use proxy with server key
+      return this.createSync(provider, userId, undefined, agentId, false);
+    } catch (error) {
+      console.error('Error creating client with user key:', error);
+      // Fallback to server key
+      return this.createSync(provider, userId, undefined, agentId, false);
     }
   }
 }

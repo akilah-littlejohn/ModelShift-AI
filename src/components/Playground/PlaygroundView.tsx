@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Play, Zap, Clock, DollarSign, AlertTriangle, Info, Key, Users, Swords, Settings, CheckCircle, XCircle } from 'lucide-react';
 import { ProviderSelector } from './ProviderSelector';
 import { AgentSelector } from './AgentSelector';
@@ -44,11 +44,18 @@ export function PlaygroundView() {
     configuredProviders: string[];
     errors: string[];
   } | null>(null);
+  const [userApiKeys, setUserApiKeys] = useState<{
+    hasKeys: boolean;
+    providers: Record<string, boolean>;
+  } | null>(null);
 
-  // Check proxy health on component mount
-  React.useEffect(() => {
+  // Check proxy health and user API keys on component mount
+  useEffect(() => {
     checkProxyHealth();
-  }, []);
+    if (user) {
+      checkUserApiKeys();
+    }
+  }, [user]);
 
   const checkProxyHealth = async () => {
     try {
@@ -61,6 +68,21 @@ export function PlaygroundView() {
         authenticated: false,
         configuredProviders: [],
         errors: ['Failed to check proxy health']
+      });
+    }
+  };
+
+  const checkUserApiKeys = async () => {
+    if (!user) return;
+    
+    try {
+      const keys = await ProxyService.checkUserApiKeys(user.id);
+      setUserApiKeys(keys);
+    } catch (error) {
+      console.error('Failed to check user API keys:', error);
+      setUserApiKeys({
+        hasKeys: false,
+        providers: { openai: false, gemini: false, claude: false, ibm: false }
       });
     }
   };
@@ -120,8 +142,9 @@ export function PlaygroundView() {
 
     // Check if API keys are configured for selected providers (only for direct mode)
     const usingProxy = isUsingProxy();
+    const hasUserKeys = userApiKeys?.hasKeys || false;
 
-    if (!usingProxy) {
+    if (!usingProxy && !hasUserKeys) {
       const missingKeys = providersToCheck.filter(providerId => {
         const keyData = keyVault.retrieveDefault(providerId);
         return !keyData || Object.keys(keyData).length === 0;
@@ -134,7 +157,7 @@ export function PlaygroundView() {
         }).join(', ');
         
         toast.error(
-          `Missing API keys for: ${providerNames}. Please add them in the API Keys section.`,
+          `Missing API keys for: ${providerNames}. Please add them in the Settings → API Keys section.`,
           { duration: 5000 }
         );
         return;
@@ -257,6 +280,7 @@ export function PlaygroundView() {
         successfulProviders: providerResponses.filter(r => r.success).map(r => r.provider),
         failedProviders: providerResponses.filter(r => !r.success).map(r => r.provider),
         usingProxy: usingProxy,
+        usingUserKeys: hasUserKeys,
         ...(isDebateMode && {
           sideAProviders: debateSideAConfig.selectedProviders,
           sideBProviders: debateSideBConfig.selectedProviders,
@@ -319,31 +343,14 @@ export function PlaygroundView() {
         }
       }
 
-      // Get API key data for direct mode
-      let keyData = null;
-      const usingProxy = isUsingProxy();
-      
-      if (!usingProxy) {
-        keyData = keyVault.retrieveDefault(providerId);
-        if (!keyData || Object.keys(keyData).length === 0) {
-          throw new Error(`API credentials not found for ${providerId}. Please add them in the API Keys section.`);
-        }
-
-        // Validate required fields for the provider
-        const provider = providers.find(p => p.id === providerId);
-        if (provider) {
-          const missingFields = provider.keyRequirements
-            .filter(req => req.required && (!keyData[req.name] || !keyData[req.name].trim()))
-            .map(req => req.label);
-          
-          if (missingFields.length > 0) {
-            throw new Error(`Missing required fields for ${providerId}: ${missingFields.join(', ')}`);
-          }
-        }
-      }
-
       // Create client and generate response
-      const client = ModelShiftAIClientFactory.createSync(providerId, keyData || undefined, agentId);
+      // Use user's API key if available
+      const client = await ModelShiftAIClientFactory.createWithUserKey(
+        providerId,
+        user!.id,
+        agentId
+      );
+      
       const response = await client.generate(prompt);
       
       const latency = Date.now() - requestStart;
@@ -381,7 +388,8 @@ export function PlaygroundView() {
           originalInput: input,
           agentUsed: agentId || 'direct',
           mode: isDebateMode ? 'debate' : 'standard',
-          usingProxy,
+          usingProxy: isUsingProxy(),
+          usingUserKey: userApiKeys?.providers[providerId] || false,
           ...(sideId && { debateSide: sideId })
         }
       });
@@ -412,7 +420,7 @@ export function PlaygroundView() {
       
       if (errorMessage.includes('invalid_api_key') || errorMessage.includes('Incorrect API key')) {
         const providerName = providers.find(p => p.id === providerId)?.displayName || providerId;
-        userFriendlyError = `Invalid API key for ${providerName}. Please check your API key in the API Keys section.`;
+        userFriendlyError = `Invalid API key for ${providerName}. Please check your API key in the Settings → API Keys section.`;
         errorType = 'authentication';
       } else if (errorMessage.includes('401')) {
         const providerName = providers.find(p => p.id === providerId)?.displayName || providerId;
@@ -423,11 +431,15 @@ export function PlaygroundView() {
         errorType = 'network';
       } else if (errorMessage.includes('not set in Supabase secrets') || errorMessage.includes('not configured on the server')) {
         const providerName = providers.find(p => p.id === providerId)?.displayName || providerId;
-        userFriendlyError = `${providerName} API key is not configured on the server. The server administrator needs to configure the API key in Supabase Edge Function secrets. Alternatively, you can configure local API keys in the API Keys section to use direct mode.`;
+        userFriendlyError = `${providerName} API key is not configured on the server. The server administrator needs to configure the API key in Supabase Edge Function secrets. Alternatively, you can configure your own API key in the Settings → API Keys section.`;
         errorType = 'server_config';
       } else if (errorMessage.includes('GEMINI_API_KEY not set in Supabase secrets')) {
-        userFriendlyError = `Google Gemini API key is not configured on the server. The server administrator needs to configure the GEMINI_API_KEY in Supabase Edge Function secrets. Alternatively, you can configure local API keys in the API Keys section to use direct mode.`;
+        userFriendlyError = `Google Gemini API key is not configured on the server. The server administrator needs to configure the GEMINI_API_KEY in Supabase Edge Function secrets. Alternatively, you can configure your own API key in the Settings → API Keys section.`;
         errorType = 'server_config';
+      } else if (errorMessage.includes('No API key found')) {
+        const providerName = providers.find(p => p.id === providerId)?.displayName || providerId;
+        userFriendlyError = `No API key found for ${providerName}. Please add your API key in the Settings → API Keys section.`;
+        errorType = 'missing_key';
       }
       
       // Store failed response for analytics
@@ -463,6 +475,7 @@ export function PlaygroundView() {
           errorMessage: userFriendlyError,
           mode: isDebateMode ? 'debate' : 'standard',
           usingProxy: isUsingProxy(),
+          usingUserKey: userApiKeys?.providers[providerId] || false,
           ...(sideId && { debateSide: sideId })
         }
       });
@@ -485,14 +498,13 @@ export function PlaygroundView() {
       // Show toast for specific error types
       if (errorType === 'authentication') {
         const providerName = providers.find(p => p.id === providerId)?.displayName || providerId;
-        toast.error(`${providerName}: Invalid API key. Please update your credentials.`, { duration: 5000 });
+        toast.error(`${providerName}: Invalid API key. Please update your credentials in Settings → API Keys.`, { duration: 5000 });
       } else if (errorType === 'server_config') {
         const providerName = providers.find(p => p.id === providerId)?.displayName || providerId;
-        if (errorMessage.includes('GEMINI_API_KEY')) {
-          toast.error(`${providerName}: Server API key not configured. Please configure GEMINI_API_KEY in Supabase Edge Function secrets, or add local API keys in the API Keys section.`, { duration: 8000 });
-        } else {
-          toast.error(`${providerName}: Server API key not configured. The administrator needs to configure the API key in Supabase Edge Function secrets, or you can add local API keys in the API Keys section.`, { duration: 8000 });
-        }
+        toast.error(`${providerName}: Server API key not configured. Please add your own API key in Settings → API Keys.`, { duration: 8000 });
+      } else if (errorType === 'missing_key') {
+        const providerName = providers.find(p => p.id === providerId)?.displayName || providerId;
+        toast.error(`${providerName}: No API key found. Please add your API key in Settings → API Keys.`, { duration: 5000 });
       } else if (errorType === 'network') {
         const providerName = providers.find(p => p.id === providerId)?.displayName || providerId;
         toast.error(`${providerName}: Network/CORS error. Please check the development server proxy configuration.`, { duration: 6000 });
@@ -507,16 +519,22 @@ export function PlaygroundView() {
                                    window.location.hostname.includes('webcontainer') ||
                                    window.location.hostname.includes('stackblitz');
 
-  // Check for missing API keys (only for direct mode)
+  // Check for missing API keys
   const usingProxy = isUsingProxy();
   let missingApiKeys: string[] = [];
   
-  if (!usingProxy) {
+  if (!usingProxy && (!userApiKeys || !userApiKeys.hasKeys)) {
     const providersToCheck = isDebateMode 
       ? [...debateSideAConfig.selectedProviders, ...debateSideBConfig.selectedProviders]
       : selectedProviders;
     
     missingApiKeys = providersToCheck.filter(providerId => {
+      // Check if user has this provider key
+      if (userApiKeys?.providers[providerId]) {
+        return false;
+      }
+      
+      // Fall back to legacy key vault
       const keyData = keyVault.retrieveDefault(providerId);
       return !keyData || Object.keys(keyData).length === 0;
     });
@@ -549,7 +567,7 @@ export function PlaygroundView() {
               <div className="flex items-center space-x-2">
                 <Settings className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 <span className="text-xs text-blue-600 dark:text-blue-400">
-                  Configure local API keys in the API Keys section to test with real providers
+                  Configure your API keys in the Settings → API Keys section to test with real providers
                 </span>
               </div>
             </div>
@@ -611,12 +629,66 @@ export function PlaygroundView() {
                   </ul>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* User API Keys Status */}
+      {userApiKeys && (
+        <div className={`border rounded-lg p-4 ${
+          userApiKeys.hasKeys
+            ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+            : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
+        }`}>
+          <div className="flex items-start space-x-3">
+            {userApiKeys.hasKeys ? (
+              <Key className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+            ) : (
+              <Key className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+            )}
+            <div className="flex-1">
+              <h3 className={`font-medium mb-1 ${
+                userApiKeys.hasKeys
+                  ? 'text-green-900 dark:text-green-100'
+                  : 'text-amber-900 dark:text-amber-100'
+              }`}>
+                {userApiKeys.hasKeys 
+                  ? 'Your API Keys Configured'
+                  : 'No Personal API Keys Found'
+                }
+              </h3>
+              <p className={`text-sm mb-2 ${
+                userApiKeys.hasKeys
+                  ? 'text-green-700 dark:text-green-300'
+                  : 'text-amber-700 dark:text-amber-300'
+              }`}>
+                {userApiKeys.hasKeys
+                  ? 'You have configured your own API keys for some providers. These will be used instead of server keys when available.'
+                  : 'You haven\'t configured any personal API keys yet. The system will use server keys if available.'
+                }
+              </p>
+              
+              {userApiKeys.hasKeys && (
+                <div className="text-xs mb-2">
+                  <span className="font-medium">Your configured providers: </span>
+                  <span className="text-green-600 dark:text-green-400">
+                    {Object.entries(userApiKeys.providers)
+                      .filter(([_, hasKey]) => hasKey)
+                      .map(([providerId]) => {
+                        const provider = providers.find(p => p.id === providerId);
+                        return provider?.displayName || providerId;
+                      })
+                      .join(', ')}
+                  </span>
+                </div>
+              )}
               
               <button
-                onClick={checkProxyHealth}
-                className="mt-2 text-xs px-2 py-1 bg-white dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded hover:bg-neutral-50 dark:hover:bg-neutral-600 transition-colors"
+                onClick={() => window.location.href = '#/settings/api-keys'}
+                className="text-xs px-2 py-1 bg-white dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded hover:bg-neutral-50 dark:hover:bg-neutral-600 transition-colors"
               >
-                Refresh Status
+                {userApiKeys.hasKeys ? 'Manage API Keys' : 'Add Your API Keys'}
               </button>
             </div>
           </div>
@@ -633,16 +705,14 @@ export function PlaygroundView() {
                 Using Authenticated Proxy Mode
               </h3>
               <p className="text-sm text-green-700 dark:text-green-300 mb-2">
-                API calls are being routed through a secure authenticated server proxy. If you encounter API key errors, the server administrator needs to configure the API keys in Supabase Edge Function secrets.
+                API calls are being routed through a secure authenticated server proxy. The system will use your personal API keys when available, and fall back to server keys when needed.
               </p>
               <div className="text-xs text-green-600 dark:text-green-400">
-                <p className="font-medium mb-1">Required server secrets:</p>
-                <ul className="list-disc list-inside space-y-1">
-                  <li>OPENAI_API_KEY - For OpenAI GPT models</li>
-                  <li>ANTHROPIC_API_KEY - For Anthropic Claude models</li>
-                  <li>GEMINI_API_KEY - For Google Gemini models</li>
-                  <li>IBM_API_KEY and IBM_PROJECT_ID - For IBM WatsonX models</li>
-                </ul>
+                <p className="font-medium mb-1">API Key Priority:</p>
+                <ol className="list-decimal list-inside space-y-1">
+                  <li>Your personal API keys (if configured in Settings → API Keys)</li>
+                  <li>Server API keys (if configured by administrator)</li>
+                </ol>
               </div>
             </div>
           </div>
@@ -665,7 +735,7 @@ export function PlaygroundView() {
                 }).join(', ')}
               </p>
               <p className="text-xs text-amber-600 dark:text-amber-400">
-                Go to the API Keys section to add your credentials before using the playground.
+                Go to Settings → API Keys to add your credentials before using the playground.
               </p>
             </div>
           </div>
@@ -768,6 +838,7 @@ export function PlaygroundView() {
                   <ProviderSelector
                     selected={debateSideAConfig.selectedProviders}
                     onChange={(providers) => setDebateSideAConfig(prev => ({ ...prev, selectedProviders: providers }))}
+                    userApiKeys={userApiKeys?.providers}
                   />
                 </div>
                 
@@ -806,6 +877,7 @@ export function PlaygroundView() {
                   <ProviderSelector
                     selected={debateSideBConfig.selectedProviders}
                     onChange={(providers) => setDebateSideBConfig(prev => ({ ...prev, selectedProviders: providers }))}
+                    userApiKeys={userApiKeys?.providers}
                   />
                 </div>
                 
@@ -838,6 +910,7 @@ export function PlaygroundView() {
               <ProviderSelector
                 selected={selectedProviders}
                 onChange={setSelectedProviders}
+                userApiKeys={userApiKeys?.providers}
               />
             </div>
 

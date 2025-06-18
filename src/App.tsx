@@ -14,6 +14,7 @@ import { KeyManagement } from './components/Keys/KeyManagement';
 import { AnalyticsView } from './components/Analytics/AnalyticsView';
 import { HistoryView } from './components/History/HistoryView';
 import { SDKDocsView } from './components/Docs/SDKDocsView';
+import { SettingsView } from './components/Settings/SettingsView';
 
 function AppContent() {
   const { user, isLoading } = useAuth();
@@ -119,6 +120,8 @@ function AppContent() {
         return <AnalyticsView />;
       case 'sdk-docs':
         return <SDKDocsView />;
+      case 'settings':
+        return <SettingsView />;
       default:
         return <PlaygroundView />;
     }

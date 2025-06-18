@@ -7,7 +7,8 @@ import {
   Settings, 
   Zap,
   Bot,
-  FileText
+  FileText,
+  UserCog
 } from 'lucide-react';
 import { AgentService } from '../../lib/agents';
 import * as Icons from 'lucide-react';
@@ -24,6 +25,7 @@ const navigation = [
   { id: 'history', name: 'History', icon: History },
   { id: 'analytics', name: 'Analytics', icon: BarChart3 },
   { id: 'sdk-docs', name: 'SDK Docs', icon: FileText },
+  { id: 'settings', name: 'Settings', icon: UserCog },
 ];
 
 export function Sidebar({ activeView, onViewChange }: SidebarProps) {

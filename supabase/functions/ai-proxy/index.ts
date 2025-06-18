@@ -15,6 +15,7 @@ interface RequestBody {
   parameters?: Record<string, any>;
   agentId?: string;
   userId?: string;
+  useUserKey?: boolean; // New flag to indicate whether to use user's API key
 }
 
 interface ProviderConfig {
@@ -95,6 +96,23 @@ const PROVIDERS: Record<string, ProviderConfig> = {
   }
 };
 
+// Encryption utilities for API keys
+const encryptionKey = Deno.env.get('ENCRYPTION_KEY') || 'modelshift-ai-secure-key-2024';
+
+function decrypt(encryptedText: string): string {
+  // This is a simplified implementation - in production, use a proper encryption library
+  // For demo purposes, we're using a basic XOR encryption
+  const textBytes = atob(encryptedText);
+  const keyBytes = encryptionKey.repeat(Math.ceil(textBytes.length / encryptionKey.length)).slice(0, textBytes.length);
+  
+  let decrypted = '';
+  for (let i = 0; i < textBytes.length; i++) {
+    decrypted += String.fromCharCode(textBytes.charCodeAt(i) ^ keyBytes.charCodeAt(i));
+  }
+  
+  return decrypted;
+}
+
 serve(async (req) => {
   // CRITICAL: Handle CORS preflight requests first
   if (req.method === 'OPTIONS') {
@@ -128,7 +146,7 @@ serve(async (req) => {
     console.log(`[${requestId}] Authenticated request from user: ${user.email}`);
 
     // Parse request body
-    const { providerId, prompt, model, parameters, agentId, userId }: RequestBody = await req.json();
+    const { providerId, prompt, model, parameters, agentId, userId, useUserKey = false }: RequestBody = await req.json();
 
     // Validate request
     if (!providerId || !prompt) {
@@ -176,21 +194,106 @@ serve(async (req) => {
       throw new Error(`Unsupported provider: ${providerId}`);
     }
 
-    // Check API key availability
-    const apiKey = Deno.env.get(providerConfig.apiKeyEnvVar);
+    // Determine which API key to use
+    let apiKey: string | null = null;
+    let userKeyId: string | null = null;
+    let usingUserKey = false;
+
+    // If useUserKey is true, try to get the user's API key
+    if (useUserKey) {
+      try {
+        // Get the user's API key for this provider
+        const { data: userKeys, error: userKeyError } = await supabaseClient
+          .from('user_api_keys')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('provider_id', providerId)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        if (userKeyError) {
+          console.error(`[${requestId}] Error fetching user API key:`, userKeyError);
+        } else if (userKeys && userKeys.length > 0) {
+          try {
+            apiKey = decrypt(userKeys[0].encrypted_key);
+            userKeyId = userKeys[0].id;
+            usingUserKey = true;
+            
+            console.log(`[${requestId}] Using user's API key for ${providerConfig.name}`);
+            
+            // Update last_used_at timestamp
+            await supabaseClient
+              .from('user_api_keys')
+              .update({ last_used_at: new Date().toISOString() })
+              .eq('id', userKeyId);
+          } catch (decryptError) {
+            console.error(`[${requestId}] Error decrypting user API key:`, decryptError);
+          }
+        }
+      } catch (error) {
+        console.error(`[${requestId}] Error in user key lookup:`, error);
+      }
+    }
+
+    // If no user key or not using user keys, fall back to global key
     if (!apiKey) {
-      throw new Error(`${providerConfig.apiKeyEnvVar} not set in Supabase secrets.`);
+      apiKey = Deno.env.get(providerConfig.apiKeyEnvVar);
+      
+      if (!apiKey) {
+        if (useUserKey) {
+          throw new Error(`No API key found for ${providerConfig.name}. Please add your API key in the settings.`);
+        } else {
+          throw new Error(`${providerConfig.apiKeyEnvVar} not set in Supabase secrets.`);
+        }
+      }
+      
+      console.log(`[${requestId}] Using global API key for ${providerConfig.name}`);
     }
 
     // Check additional requirements (e.g., IBM Project ID)
-    if (providerConfig.requiresProjectId && !Deno.env.get('IBM_PROJECT_ID')) {
-      throw new Error('IBM_PROJECT_ID not set in Supabase secrets.');
+    let projectId: string | null = null;
+    
+    if (providerConfig.requiresProjectId) {
+      if (usingUserKey) {
+        // For IBM, we need to check if the user has a project ID
+        try {
+          const { data: userKeys, error: userKeyError } = await supabaseClient
+            .from('user_api_keys')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('provider_id', 'ibm_project')
+            .eq('is_active', true)
+            .order('created_at', { ascending: false })
+            .limit(1);
+          
+          if (!userKeyError && userKeys && userKeys.length > 0) {
+            projectId = decrypt(userKeys[0].encrypted_key);
+          }
+        } catch (error) {
+          console.error(`[${requestId}] Error in project ID lookup:`, error);
+        }
+      }
+      
+      // Fall back to global project ID
+      if (!projectId) {
+        projectId = Deno.env.get('IBM_PROJECT_ID');
+        
+        if (!projectId) {
+          throw new Error('IBM_PROJECT_ID not set in Supabase secrets.');
+        }
+      }
     }
 
     console.log(`[${requestId}] Making API call to ${providerConfig.name}`);
 
     // Build request
     const requestBody = providerConfig.buildRequest(prompt, model, parameters);
+    
+    // For IBM, inject the project ID
+    if (providerConfig.requiresProjectId && projectId) {
+      requestBody.project_id = projectId;
+    }
     
     // Build headers
     const headers: Record<string, string> = {
@@ -258,7 +361,8 @@ serve(async (req) => {
       model: model || 'default',
       responseTime,
       responseLength: generatedText?.length || 0,
-      userId: user.id
+      userId: user.id,
+      usingUserKey
     });
 
     // Log to analytics (optional - could be done asynchronously)
@@ -280,7 +384,8 @@ serve(async (req) => {
         metadata: {
           model: model || 'default',
           requestId,
-          proxy_mode: true
+          proxy_mode: true,
+          using_user_key: usingUserKey
         },
         timestamp: new Date().toISOString()
       });
@@ -296,6 +401,7 @@ serve(async (req) => {
         provider: providerId,
         model: model || 'default',
         requestId,
+        using_user_key: usingUserKey,
         metrics: {
           responseTime,
           timestamp: new Date().toISOString()

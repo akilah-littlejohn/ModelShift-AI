@@ -1,4 +1,5 @@
 import { supabase } from '../supabase';
+import { apiKeysDb } from '../api-keys/api-keys-db';
 import type { Provider } from '../../types';
 
 export interface ProxyRequest {
@@ -8,6 +9,7 @@ export interface ProxyRequest {
   parameters?: Record<string, any>;
   agentId?: string;
   userId?: string;
+  useUserKey?: boolean; // New flag to indicate whether to use user's API key
 }
 
 export interface ProxyResponse {
@@ -16,6 +18,7 @@ export interface ProxyResponse {
   error?: string;
   provider: string;
   model?: string;
+  usingUserKey?: boolean; // New flag to indicate whether user's API key was used
   metrics?: {
     latency: number;
     tokens: number;
@@ -45,6 +48,19 @@ export class ProxyService {
         throw new Error('No active session. Please sign in to use the AI proxy.');
       }
 
+      // Check if the user has an API key for this provider
+      let useUserKey = request.useUserKey;
+      
+      if (useUserKey === undefined) {
+        // Auto-detect if user has a key for this provider
+        const hasUserKey = await apiKeysDb.getActiveForProvider(
+          request.userId || session.user.id,
+          request.providerId
+        );
+        
+        useUserKey = !!hasUserKey;
+      }
+
       // Prepare the request body
       const requestBody = {
         providerId: request.providerId,
@@ -52,14 +68,16 @@ export class ProxyService {
         model: request.model,
         parameters: request.parameters,
         agentId: request.agentId,
-        userId: request.userId || session.user.id
+        userId: request.userId || session.user.id,
+        useUserKey
       };
 
       console.log(`Making authenticated proxy request to ${request.providerId}:`, {
         providerId: request.providerId,
         model: request.model,
         promptLength: request.prompt.length,
-        userId: requestBody.userId
+        userId: requestBody.userId,
+        useUserKey
       });
 
       // Make the authenticated request to the Edge Function
@@ -90,7 +108,7 @@ export class ProxyService {
           throw new Error(
             `${providerName} API key is not configured on the server. ` +
             `The server administrator needs to configure the API key in Supabase Edge Function secrets. ` +
-            `Alternatively, you can configure local API keys in the API Keys section to use direct mode.`
+            `Alternatively, you can configure your own API key in the API Keys section.`
           );
         }
         
@@ -106,6 +124,7 @@ export class ProxyService {
         response: data.response,
         provider: request.providerId,
         model: data.model || request.model,
+        usingUserKey: data.using_user_key,
         metrics: {
           latency,
           tokens: estimatedTokens,
@@ -122,7 +141,8 @@ export class ProxyService {
         providerId: request.providerId,
         latency,
         tokens: estimatedTokens,
-        cost: estimatedCost
+        cost: estimatedCost,
+        usingUserKey: data.using_user_key
       });
 
       return response;
@@ -213,6 +233,47 @@ export class ProxyService {
   }
 
   /**
+   * Check if a user has API keys configured for providers
+   */
+  static async checkUserApiKeys(userId: string): Promise<{
+    hasKeys: boolean;
+    providers: Record<string, boolean>;
+  }> {
+    try {
+      const { data, error } = await supabase
+        .from('user_api_keys')
+        .select('provider_id')
+        .eq('user_id', userId)
+        .eq('is_active', true);
+      
+      if (error) throw error;
+      
+      const providers: Record<string, boolean> = {
+        openai: false,
+        gemini: false,
+        claude: false,
+        ibm: false
+      };
+      
+      (data || []).forEach(key => {
+        if (key.provider_id in providers) {
+          providers[key.provider_id] = true;
+        }
+      });
+      
+      const hasKeys = Object.values(providers).some(v => v);
+      
+      return { hasKeys, providers };
+    } catch (error) {
+      console.error('Failed to check user API keys:', error);
+      return { 
+        hasKeys: false, 
+        providers: { openai: false, gemini: false, claude: false, ibm: false } 
+      };
+    }
+  }
+
+  /**
    * Get display name for a provider
    */
   private static getProviderDisplayName(providerId: string): string {
@@ -267,7 +328,8 @@ export class ProxyService {
         metadata: {
           ...response.metadata,
           model: response.model,
-          proxy_mode: true
+          proxy_mode: true,
+          using_user_key: response.usingUserKey
         },
         timestamp: new Date().toISOString()
       });

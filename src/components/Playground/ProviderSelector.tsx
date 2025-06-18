@@ -7,9 +7,10 @@ import type { Provider } from '../../types';
 interface ProviderSelectorProps {
   selected: string[];
   onChange: (selected: string[]) => void;
+  userApiKeys?: Record<string, boolean>;
 }
 
-export function ProviderSelector({ selected, onChange }: ProviderSelectorProps) {
+export function ProviderSelector({ selected, onChange, userApiKeys }: ProviderSelectorProps) {
   const [customProviders, setCustomProviders] = useState<Provider[]>([]);
 
   useEffect(() => {
@@ -37,6 +38,12 @@ export function ProviderSelector({ selected, onChange }: ProviderSelectorProps) 
   };
 
   const hasValidCredentials = (providerId: string): boolean => {
+    // First check if user has configured this provider
+    if (userApiKeys && userApiKeys[providerId]) {
+      return true;
+    }
+    
+    // Fall back to legacy key vault
     const keyData = keyVault.retrieveDefault(providerId);
     if (!keyData) return false;
 
@@ -57,7 +64,9 @@ export function ProviderSelector({ selected, onChange }: ProviderSelectorProps) 
     <div className="grid grid-cols-2 gap-3">
       {allProviders.map((provider) => {
         const isSelected = selected.includes(provider.id);
-        const hasCredentials = hasValidCredentials(provider.id);
+        const hasUserKey = userApiKeys && userApiKeys[provider.id];
+        const hasLegacyKey = hasValidCredentials(provider.id);
+        const hasCredentials = hasUserKey || hasLegacyKey;
         const isCustom = customProviders.some(p => p.id === provider.id);
         
         return (
@@ -102,15 +111,20 @@ export function ProviderSelector({ selected, onChange }: ProviderSelectorProps) 
 
               {/* Credentials Status */}
               <div className="flex items-center space-x-2 mb-2">
-                {hasCredentials ? (
+                {hasUserKey ? (
+                  <div className="flex items-center space-x-1 text-xs text-green-600 dark:text-green-400">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span>Your API Key</span>
+                  </div>
+                ) : hasLegacyKey ? (
                   <div className="flex items-center space-x-1 text-xs text-accent-600 dark:text-accent-400">
                     <div className="w-2 h-2 bg-accent-500 rounded-full"></div>
-                    <span>Credentials Ready</span>
+                    <span>Legacy Key</span>
                   </div>
                 ) : (
                   <div className="flex items-center space-x-1 text-xs text-orange-600 dark:text-orange-400">
                     <AlertCircle className="w-3 h-3" />
-                    <span>Credentials Missing</span>
+                    <span>No API Key</span>
                   </div>
                 )}
               </div>

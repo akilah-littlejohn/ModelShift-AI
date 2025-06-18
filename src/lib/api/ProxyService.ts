@@ -239,6 +239,14 @@ export class ProxyService {
     hasKeys: boolean;
     providers: Record<string, boolean>;
   }> {
+    // For demo users, return mock data
+    if (userId === 'demo-user-123') {
+      return {
+        hasKeys: false,
+        providers: { openai: false, gemini: false, claude: false, ibm: false }
+      };
+    }
+    
     try {
       const { data, error } = await supabase
         .from('user_api_keys')

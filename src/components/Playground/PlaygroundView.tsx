@@ -73,7 +73,14 @@ export function PlaygroundView() {
   };
 
   const checkUserApiKeys = async () => {
-    if (!user || user.id === 'demo-user-123') return;
+    if (!user || user.id === 'demo-user-123') {
+      // For demo users, set mock API key data
+      setUserApiKeys({
+        hasKeys: false,
+        providers: { openai: false, gemini: false, claude: false, ibm: false }
+      });
+      return;
+    }
     
     try {
       const keys = await ProxyService.checkUserApiKeys(user.id);

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// CORS headers must be included in all responses
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -99,7 +100,7 @@ function mergeAtPath(obj: any, path: string, value: Record<string, any>): any {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
+  // CRITICAL: Handle CORS preflight requests first
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -124,7 +125,7 @@ serve(async (req) => {
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
     
     if (authError || !user) {
-      console.error('Authentication failed:', authError);
+      console.error(`[${requestId}] Authentication failed:`, authError);
       throw new Error('Invalid authentication token');
     }
 
@@ -331,6 +332,7 @@ serve(async (req) => {
     
     console.error(`[${requestId}] Dynamic AI Proxy error:`, error);
     
+    // Always return error with CORS headers
     return new Response(
       JSON.stringify({
         success: false,

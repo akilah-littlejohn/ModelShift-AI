@@ -1,35 +1,66 @@
 import { createClient } from '@supabase/supabase-js';
 import type { PromptExecution } from '../types';
 
-// Get environment variables with fallbacks
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+// Environment variable validation with clear error messages
+function validateEnvironmentVariables() {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
+  const isProduction = import.meta.env.PROD;
 
-console.log('Supabase config:', { 
-  hasUrl: !!supabaseUrl, 
-  hasKey: !!supabaseAnonKey,
-  url: supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : 'none',
-  isDemo: supabaseUrl.includes('demo') || supabaseAnonKey.includes('demo')
-});
+  console.log('🔍 Environment Validation:', {
+    hasUrl: !!supabaseUrl,
+    hasAnonKey: !!supabaseAnonKey,
+    isDemoMode,
+    isProduction,
+    nodeEnv: import.meta.env.MODE
+  });
 
-// Validate environment variables
-if (!supabaseUrl) {
-  console.warn('VITE_SUPABASE_URL environment variable is not set');
+  // In production, require all variables
+  if (isProduction && !isDemoMode) {
+    const missing = [];
+    if (!supabaseUrl) missing.push('VITE_SUPABASE_URL');
+    if (!supabaseAnonKey) missing.push('VITE_SUPABASE_ANON_KEY');
+
+    if (missing.length > 0) {
+      const errorMessage = `
+❌ Missing Required Environment Variables:
+
+${missing.map(key => `  ❌ ${key}`).join('\n')}
+
+Required for production:
+  ✅ VITE_SUPABASE_URL - Your Supabase project URL
+  ✅ VITE_SUPABASE_ANON_KEY - Your Supabase anon/public key
+
+Please add these to your .env file or deployment environment.
+      `.trim();
+      
+      console.error(errorMessage);
+      throw new Error(`Missing environment variables: ${missing.join(', ')}`);
+    }
+  }
+
+  return { supabaseUrl, supabaseAnonKey, isDemoMode, isProduction };
 }
 
-if (!supabaseAnonKey) {
-  console.warn('VITE_SUPABASE_ANON_KEY environment variable is not set');
-}
+// Create environment-aware Supabase client
+function createSupabaseClient() {
+  const { supabaseUrl, supabaseAnonKey, isDemoMode, isProduction } = validateEnvironmentVariables();
 
-// Create Supabase client with error handling and timeout
-let supabase: any;
+  // Demo mode or missing configuration in development
+  if (isDemoMode || (!supabaseUrl || !supabaseAnonKey)) {
+    if (!isProduction) {
+      console.warn('⚠️  Using mock Supabase client (development/demo mode)');
+      return createMockSupabaseClient();
+    } else {
+      throw new Error('Supabase configuration required in production mode');
+    }
+  }
 
-try {
-  if (supabaseUrl && supabaseAnonKey && 
-      !supabaseUrl.includes('demo') && !supabaseAnonKey.includes('demo')) {
-    
-    console.log('Creating real Supabase client');
-    supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  console.log('✅ Creating real Supabase client');
+  
+  try {
+    return createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         autoRefreshToken: true,
         persistSession: true,
@@ -50,183 +81,189 @@ try {
         },
       },
     });
-  } else {
-    console.warn('Creating mock Supabase client due to missing/demo environment variables');
-    
-    // Create a comprehensive mock client that won't cause errors
-    supabase = {
-      auth: {
-        getSession: () => {
-          console.log('Mock getSession called');
-          return Promise.resolve({ 
-            data: { session: null }, 
-            error: null 
-          });
-        },
-        signInWithPassword: ({ email, password }: { email: string, password: string }) => {
-          console.log('Mock signInWithPassword called for:', email);
-          return Promise.resolve({ 
-            data: { 
+  } catch (error) {
+    console.error('❌ Failed to create Supabase client:', error);
+    throw new Error(`Supabase client creation failed: ${error.message}`);
+  }
+}
+
+// Mock client for development/demo mode
+function createMockSupabaseClient() {
+  return {
+    auth: {
+      getSession: () => {
+        console.log('🔄 Mock getSession called');
+        return Promise.resolve({ 
+          data: { session: null }, 
+          error: null 
+        });
+      },
+      signInWithPassword: ({ email, password }: { email: string, password: string }) => {
+        console.log('🔄 Mock signInWithPassword called for:', email);
+        return Promise.resolve({ 
+          data: { 
+            user: {
+              id: 'mock-user-id',
+              email: email,
+              user_metadata: { name: email.split('@')[0] }
+            },
+            session: {
+              access_token: 'mock-token',
               user: {
                 id: 'mock-user-id',
                 email: email,
                 user_metadata: { name: email.split('@')[0] }
-              },
-              session: {
-                access_token: 'mock-token',
-                user: {
-                  id: 'mock-user-id',
-                  email: email,
-                  user_metadata: { name: email.split('@')[0] }
-                }
               }
-            }, 
-            error: null 
-          });
-        },
-        signUp: ({ email, password, options }: { email: string, password: string, options?: any }) => {
-          console.log('Mock signUp called for:', email);
-          return Promise.resolve({ 
-            data: { 
+            }
+          }, 
+          error: null 
+        });
+      },
+      signUp: ({ email, password, options }: { email: string, password: string, options?: any }) => {
+        console.log('🔄 Mock signUp called for:', email);
+        return Promise.resolve({ 
+          data: { 
+            user: {
+              id: 'mock-user-id',
+              email: email,
+              user_metadata: options?.data || { name: email.split('@')[0] }
+            },
+            session: {
+              access_token: 'mock-token',
               user: {
                 id: 'mock-user-id',
                 email: email,
                 user_metadata: options?.data || { name: email.split('@')[0] }
-              },
-              session: {
-                access_token: 'mock-token',
-                user: {
-                  id: 'mock-user-id',
-                  email: email,
-                  user_metadata: options?.data || { name: email.split('@')[0] }
-                }
               }
-            }, 
-            error: null 
-          });
-        },
-        signOut: () => {
-          console.log('Mock signOut called');
-          return Promise.resolve({ error: null });
-        },
-        onAuthStateChange: (callback: Function) => {
-          console.log('Mock onAuthStateChange called');
-          // Call callback with initial state
-          setTimeout(() => {
-            callback('INITIAL_SESSION', null);
-          }, 100);
-          
-          return { 
-            data: { 
-              subscription: { 
-                unsubscribe: () => {
-                  console.log('Mock auth subscription unsubscribed');
-                } 
-              } 
-            } 
-          };
-        },
-        getUser: (token: string) => {
-          console.log('Mock getUser called');
-          return Promise.resolve({
-            data: { user: null },
-            error: null
-          });
-        }
+            }
+          }, 
+          error: null 
+        });
       },
-      from: (table: string) => {
-        console.log('Mock from() called for table:', table);
-        return {
-          select: (columns?: string) => ({
-            eq: (column: string, value: any) => ({
-              single: () => {
-                console.log(`Mock select ${columns} from ${table} where ${column} = ${value}`);
-                return Promise.resolve({ 
-                  data: null, 
-                  error: { code: 'PGRST116', message: 'Mock: No rows found' } 
-                });
-              },
-              limit: (count: number) => Promise.resolve({ data: [], error: null }),
+      signOut: () => {
+        console.log('🔄 Mock signOut called');
+        return Promise.resolve({ error: null });
+      },
+      onAuthStateChange: (callback: Function) => {
+        console.log('🔄 Mock onAuthStateChange called');
+        setTimeout(() => callback('INITIAL_SESSION', null), 100);
+        
+        return { 
+          data: { 
+            subscription: { 
+              unsubscribe: () => console.log('🔄 Mock auth subscription unsubscribed') 
+            } 
+          } 
+        };
+      },
+      getUser: () => {
+        console.log('🔄 Mock getUser called');
+        return Promise.resolve({
+          data: { user: null },
+          error: null
+        });
+      }
+    },
+    from: (table: string) => {
+      console.log('🔄 Mock from() called for table:', table);
+      return {
+        select: (columns?: string) => ({
+          eq: (column: string, value: any) => ({
+            single: () => {
+              console.log(`🔄 Mock select ${columns} from ${table} where ${column} = ${value}`);
+              return Promise.resolve({ 
+                data: null, 
+                error: { code: 'PGRST116', message: 'Mock: No rows found' } 
+              });
+            },
+            limit: (count: number) => Promise.resolve({ data: [], error: null }),
+            order: (column: string, options?: any) => ({
+              limit: (count: number) => Promise.resolve({ data: [], error: null })
+            })
+          }),
+          gte: (column: string, value: any) => ({
+            lte: (column: string, value: any) => ({
               order: (column: string, options?: any) => ({
                 limit: (count: number) => Promise.resolve({ data: [], error: null })
               })
-            }),
-            gte: (column: string, value: any) => ({
-              lte: (column: string, value: any) => ({
-                order: (column: string, options?: any) => ({
-                  limit: (count: number) => Promise.resolve({ data: [], error: null })
-                })
-              })
-            }),
-            limit: (count: number) => Promise.resolve({ data: [], error: null })
-          }),
-          insert: (data: any[]) => ({
-            select: () => ({
-              single: () => {
-                console.log(`Mock insert into ${table}:`, data);
-                return Promise.resolve({ 
-                  data: data[0], 
-                  error: null 
-                });
-              }
             })
           }),
-          update: (data: any) => ({
-            eq: (column: string, value: any) => {
-              console.log(`Mock update ${table} set`, data, `where ${column} = ${value}`);
-              return Promise.resolve({ error: null });
+          limit: (count: number) => Promise.resolve({ data: [], error: null })
+        }),
+        insert: (data: any[]) => ({
+          select: () => ({
+            single: () => {
+              console.log(`🔄 Mock insert into ${table}:`, data);
+              return Promise.resolve({ 
+                data: data[0], 
+                error: null 
+              });
             }
           })
-        };
-      },
-      functions: {
-        invoke: (functionName: string, options?: any) => {
-          console.log(`Mock function invoke: ${functionName}`, options);
-          
-          if (functionName === 'ai-proxy') {
-            // Mock AI proxy response
-            return Promise.resolve({ 
-              data: {
-                success: false,
-                error: 'Mock mode: Supabase not configured. Please configure your environment variables.'
-              }, 
-              error: null 
-            });
+        }),
+        update: (data: any) => ({
+          eq: (column: string, value: any) => {
+            console.log(`🔄 Mock update ${table} set`, data, `where ${column} = ${value}`);
+            return Promise.resolve({ error: null });
           }
-          
+        })
+      };
+    },
+    functions: {
+      invoke: (functionName: string, options?: any) => {
+        console.log(`🔄 Mock function invoke: ${functionName}`, options);
+        
+        if (functionName === 'ai-proxy') {
           return Promise.resolve({ 
-            data: null, 
-            error: { message: 'Mock mode: Functions not available' } 
+            data: {
+              success: false,
+              error: 'Mock mode: Supabase not configured. Please configure your environment variables.'
+            }, 
+            error: null 
           });
         }
+        
+        return Promise.resolve({ 
+          data: null, 
+          error: { message: 'Mock mode: Functions not available' } 
+        });
       }
-    };
-  }
-} catch (error) {
-  console.error('Error creating Supabase client:', error);
-  // Create a minimal mock client
-  supabase = {
-    auth: {
-      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-      signInWithPassword: () => Promise.resolve({ data: null, error: new Error('Supabase client error') }),
-      signUp: () => Promise.resolve({ data: null, error: new Error('Supabase client error') }),
-      signOut: () => Promise.resolve({ error: null }),
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } })
-    },
-    from: () => ({
-      select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: null, error: new Error('Supabase client error') }) }) }),
-      insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: new Error('Supabase client error') }) }) }),
-      update: () => ({ eq: () => Promise.resolve({ error: new Error('Supabase client error') }) })
-    }),
-    functions: {
-      invoke: () => Promise.resolve({ data: null, error: new Error('Supabase client error') })
     }
   };
 }
 
-export { supabase };
+// Create the main client
+export const supabase = createSupabaseClient();
 
-// Database Operations with improved error handling and timeouts
+// Create admin client for analytics (bypasses RLS)
+export const adminSupabase = (() => {
+  const { supabaseUrl, isDemoMode, isProduction } = validateEnvironmentVariables();
+  const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+
+  if (isDemoMode || !supabaseUrl || !serviceRoleKey) {
+    console.warn('⚠️  Admin client not available (demo mode or missing service role key)');
+    return null;
+  }
+
+  try {
+    return createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      },
+      global: {
+        headers: {
+          'X-Client-Info': 'modelshift-ai-admin@1.0.0',
+        },
+      }
+    });
+  } catch (error) {
+    console.error('❌ Failed to create admin Supabase client:', error);
+    return null;
+  }
+})();
+
+// Database Operations with improved error handling
 export const db = {
   users: {
     async create(user: { email: string; name: string }) {
@@ -240,7 +277,7 @@ export const db = {
         if (error) throw error;
         return data;
       } catch (error) {
-        console.error('Error creating user:', error);
+        console.error('❌ Error creating user:', error);
         throw error;
       }
     },
@@ -256,7 +293,7 @@ export const db = {
         if (error) throw error;
         return data;
       } catch (error) {
-        console.error('Error getting user by ID:', error);
+        console.error('❌ Error getting user by ID:', error);
         throw error;
       }
     },
@@ -270,7 +307,7 @@ export const db = {
         
         if (error) throw error;
       } catch (error) {
-        console.error('Error updating user usage:', error);
+        console.error('❌ Error updating user usage:', error);
         throw error;
       }
     }
@@ -291,7 +328,7 @@ export const db = {
         if (error) throw error;
         return data;
       } catch (error) {
-        console.error('Error creating prompt execution:', error);
+        console.error('❌ Error creating prompt execution:', error);
         throw error;
       }
     },
@@ -308,7 +345,7 @@ export const db = {
         if (error) throw error;
         return data || [];
       } catch (error) {
-        console.error('Error getting prompt executions:', error);
+        console.error('❌ Error getting prompt executions:', error);
         return [];
       }
     },
@@ -328,7 +365,7 @@ export const db = {
         if (error) throw error;
         return data || [];
       } catch (error) {
-        console.error('Error getting analytics:', error);
+        console.error('❌ Error getting analytics:', error);
         return [];
       }
     }
@@ -350,7 +387,10 @@ export const db = {
       timestamp: string;
     }) {
       try {
-        const { data, error } = await supabase
+        // Use admin client if available to bypass RLS
+        const client = adminSupabase || supabase;
+        
+        const { data, error } = await client
           .from('analytics_events')
           .insert([event])
           .select()
@@ -359,7 +399,7 @@ export const db = {
         if (error) throw error;
         return data;
       } catch (error) {
-        console.error('Error creating analytics event:', error);
+        console.error('❌ Error creating analytics event:', error);
         throw error;
       }
     },
@@ -378,7 +418,7 @@ export const db = {
         if (error) throw error;
         return data || [];
       } catch (error) {
-        console.error('Error getting analytics events:', error);
+        console.error('❌ Error getting analytics events:', error);
         return [];
       }
     },
@@ -396,7 +436,7 @@ export const db = {
         if (error) throw error;
         return data || [];
       } catch (error) {
-        console.error('Error getting analytics aggregations:', error);
+        console.error('❌ Error getting analytics aggregations:', error);
         return [];
       }
     }

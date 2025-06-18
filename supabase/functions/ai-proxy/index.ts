@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// CORS headers must be included in all responses
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -95,7 +96,7 @@ const PROVIDERS: Record<string, ProviderConfig> = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
+  // CRITICAL: Handle CORS preflight requests first
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -120,7 +121,7 @@ serve(async (req) => {
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
     
     if (authError || !user) {
-      console.error('Authentication failed:', authError);
+      console.error(`[${requestId}] Authentication failed:`, authError);
       throw new Error('Invalid authentication token');
     }
 
@@ -311,47 +312,7 @@ serve(async (req) => {
     
     console.error(`[${requestId}] AI Proxy Edge Function error:`, error);
     
-    // Log error to analytics (optional)
-    try {
-      const supabaseClient = createClient(
-        Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-      );
-
-      // Try to get user from auth header for error logging
-      const authHeader = req.headers.get('Authorization');
-      if (authHeader) {
-        const token = authHeader.replace('Bearer ', '');
-        const { data: { user } } = await supabaseClient.auth.getUser(token);
-        
-        if (user) {
-          await supabaseClient.from('analytics_events').insert({
-            id: `proxy_error_${requestId}`,
-            user_id: user.id,
-            event_type: 'proxy_error',
-            provider_id: 'unknown',
-            prompt_length: 0,
-            response_length: 0,
-            success: false,
-            error_type: 'proxy_error',
-            metrics: {
-              latency: responseTime,
-              tokens: 0,
-              cost: 0
-            },
-            metadata: {
-              error: error.message,
-              requestId,
-              proxy_mode: true
-            },
-            timestamp: new Date().toISOString()
-          });
-        }
-      }
-    } catch (logError) {
-      console.warn(`[${requestId}] Failed to log error analytics:`, logError);
-    }
-
+    // Always return error with CORS headers
     return new Response(
       JSON.stringify({
         success: false,

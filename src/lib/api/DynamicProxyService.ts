@@ -35,8 +35,20 @@ export class DynamicProxyService {
     const startTime = Date.now();
     
     try {
-      // Get the current session for authentication
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      // Get the current session for authentication with timeout
+      const sessionPromise = supabase.auth.getSession();
+      const sessionTimeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Session timeout after 5 seconds')), 5000)
+      );
+      
+      let sessionResult;
+      try {
+        sessionResult = await Promise.race([sessionPromise, sessionTimeoutPromise]) as any;
+      } catch (timeoutError) {
+        throw new Error('Authentication timeout: Unable to verify session. Please check your Supabase configuration.');
+      }
+      
+      const { data: { session }, error: sessionError } = sessionResult;
       
       if (sessionError) {
         throw new Error(`Authentication error: ${sessionError.message}`);
@@ -80,14 +92,26 @@ export class DynamicProxyService {
         userId: requestBody.userId
       });
 
-      // Call the existing ai-proxy Edge Function
-      const { data, error } = await supabase.functions.invoke('ai-proxy', {
+      // Call the existing ai-proxy Edge Function with timeout
+      const functionPromise = supabase.functions.invoke('ai-proxy', {
         body: requestBody,
         headers: {
           'Content-Type': 'application/json'
         }
       });
+      
+      const functionTimeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Edge Function timeout after 30 seconds')), 30000)
+      );
 
+      let functionResult;
+      try {
+        functionResult = await Promise.race([functionPromise, functionTimeoutPromise]) as any;
+      } catch (timeoutError) {
+        throw new Error(`Request timeout: The ${provider.displayName} API request took too long to complete. This may be due to high server load or network issues.`);
+      }
+
+      const { data, error } = functionResult;
       const latency = Date.now() - startTime;
 
       if (error) {
@@ -245,8 +269,25 @@ export class DynamicProxyService {
     errors: string[];
   }> {
     try {
-      // Check if user is authenticated
-      const { data: { session } } = await supabase.auth.getSession();
+      // Check if user is authenticated with timeout
+      const sessionPromise = supabase.auth.getSession();
+      const sessionTimeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Session timeout after 5 seconds')), 5000)
+      );
+      
+      let sessionResult;
+      try {
+        sessionResult = await Promise.race([sessionPromise, sessionTimeoutPromise]) as any;
+      } catch (timeoutError) {
+        return {
+          available: false,
+          authenticated: false,
+          configuredProviders: [],
+          errors: ['Session timeout - unable to verify authentication']
+        };
+      }
+      
+      const { data: { session } } = sessionResult;
       
       if (!session) {
         return {
@@ -273,13 +314,22 @@ export class DynamicProxyService {
 
       // Test the ai-proxy function with a health check
       try {
-        const { data, error } = await supabase.functions.invoke('ai-proxy', {
+        const functionPromise = supabase.functions.invoke('ai-proxy', {
           body: {
             providerId: 'health-check',
             prompt: 'test',
             userId: session.user.id
           }
         });
+        
+        const functionTimeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Health check timeout after 10 seconds')), 10000)
+        );
+
+        const { data, error } = await Promise.race([
+          functionPromise,
+          functionTimeoutPromise
+        ]) as any;
 
         if (error) {
           // Extract detailed error information

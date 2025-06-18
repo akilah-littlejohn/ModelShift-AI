@@ -172,17 +172,16 @@ export const apiKeysDb = {
         .eq('provider_id', providerId)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+        .limit(1);
       
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return null; // No active key found
-        }
-        throw error;
+      if (error) throw error;
+      
+      // Check if we have any results
+      if (!data || data.length === 0) {
+        return null; // No active key found
       }
       
-      return data;
+      return data[0];
     } catch (error) {
       console.error(`Failed to get active API key for ${providerId}:`, error);
       return null;

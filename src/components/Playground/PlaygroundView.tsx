@@ -52,7 +52,7 @@ export function PlaygroundView() {
   // Check proxy health and user API keys on component mount
   useEffect(() => {
     checkProxyHealth();
-    if (user) {
+    if (user && user.id !== 'demo-user-123') {
       checkUserApiKeys();
     }
   }, [user]);
@@ -73,7 +73,7 @@ export function PlaygroundView() {
   };
 
   const checkUserApiKeys = async () => {
-    if (!user) return;
+    if (!user || user.id === 'demo-user-123') return;
     
     try {
       const keys = await ProxyService.checkUserApiKeys(user.id);
@@ -91,7 +91,7 @@ export function PlaygroundView() {
   const hasRealSupabaseSession = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      return session && session.user && !session.user.email?.includes('demo');
+      return session && session.user && !session.user.email?.includes('demo') && session.user.id !== 'demo-user-123';
     } catch {
       return false;
     }
@@ -110,7 +110,8 @@ export function PlaygroundView() {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
     return !supabaseUrl || !supabaseAnonKey || 
-           supabaseUrl.includes('demo') || supabaseAnonKey.includes('demo');
+           supabaseUrl.includes('demo') || supabaseAnonKey.includes('demo') ||
+           (user && user.id === 'demo-user-123');
   };
 
   const handleExecute = async () => {

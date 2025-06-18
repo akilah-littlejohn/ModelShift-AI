@@ -164,6 +164,12 @@ export const apiKeysDb = {
    * Get the active API key for a provider
    */
   async getActiveForProvider(userId: string, providerId: string): Promise<UserApiKey | null> {
+    // Skip database query for demo user IDs
+    if (userId === 'demo-user-123') {
+      console.log('🔄 Skipping database query for demo user');
+      return null;
+    }
+    
     try {
       const { data, error } = await supabase
         .from('user_api_keys')
@@ -192,6 +198,11 @@ export const apiKeysDb = {
    * Update the last_used_at timestamp
    */
   async updateLastUsed(userId: string, keyId: string): Promise<void> {
+    // Skip database query for demo user IDs
+    if (userId === 'demo-user-123') {
+      return;
+    }
+    
     try {
       const { error } = await supabase
         .from('user_api_keys')

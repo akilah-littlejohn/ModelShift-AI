@@ -220,6 +220,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('🔄 Handling user session for:', supabaseUser.email);
       
+      // Skip database query for demo user IDs
+      if (supabaseUser.id === 'demo-user-123') {
+        console.log('🔄 Using mock user for demo ID');
+        const mockUser: AppUser = {
+          id: 'demo-user-123',
+          email: supabaseUser.email || 'demo@modelshift.ai',
+          name: supabaseUser.user_metadata?.name || 
+                supabaseUser.user_metadata?.full_name || 
+                supabaseUser.email?.split('@')[0] || 'Demo User',
+          plan: 'free',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          usage_limit: 100,
+          usage_count: 0
+        };
+        setUser(mockUser);
+        setIsLoading(false);
+        return;
+      }
+      
       // Try to get user from database with timeout
       const userPromise = supabase
         .from('users')

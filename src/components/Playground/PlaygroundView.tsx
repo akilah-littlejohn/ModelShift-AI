@@ -630,6 +630,13 @@ export function PlaygroundView() {
                   </ul>
                 </div>
               )}
+              
+              <button
+                onClick={checkProxyHealth}
+                className="mt-2 text-xs px-2 py-1 bg-white dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded hover:bg-neutral-50 dark:hover:bg-neutral-600 transition-colors"
+              >
+                Refresh Status
+              </button>
             </div>
           </div>
         </div>

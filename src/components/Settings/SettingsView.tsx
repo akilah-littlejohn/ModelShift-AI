@@ -23,14 +23,17 @@ export function SettingsView() {
       case 'profile':
         return <ProfileSettings />;
       default:
+        const currentTab = tabs.find(tab => tab.id === activeTab);
+        const IconComponent = currentTab?.icon || Key;
+        
         return (
           <div className="max-w-4xl mx-auto p-6 text-center">
             <div className="py-12">
               <div className="w-16 h-16 bg-neutral-100 dark:bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                <tabs.find(tab => tab.id === activeTab)?.icon className="w-8 h-8 text-neutral-400" />
+                <IconComponent className="w-8 h-8 text-neutral-400" />
               </div>
               <h3 className="text-lg font-medium text-neutral-900 dark:text-white mb-2">
-                {tabs.find(tab => tab.id === activeTab)?.name} Settings
+                {currentTab?.name} Settings
               </h3>
               <p className="text-neutral-600 dark:text-neutral-400">
                 This feature is coming soon.

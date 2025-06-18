@@ -120,8 +120,12 @@ export class DynamicProxyService {
         // Enhanced error extraction with better context handling
         let specificError = 'Dynamic proxy service error';
         
-        // First, try to extract error from the context (response body)
-        if (error.context) {
+        // First, try to extract error from the response data if available
+        if (data && data.error) {
+          specificError = data.error;
+        }
+        // Then try to extract from the error context
+        else if (error.context) {
           try {
             let contextError = null;
             
@@ -335,7 +339,12 @@ export class DynamicProxyService {
           // Extract detailed error information
           let errorMessage = 'ai-proxy function error';
           
-          if (error.context) {
+          // First check if we have data with error info
+          if (data && data.error) {
+            errorMessage = data.error;
+          }
+          // Then check error context
+          else if (error.context) {
             try {
               let contextError = null;
               

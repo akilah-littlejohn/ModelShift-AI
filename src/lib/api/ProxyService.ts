@@ -80,19 +80,54 @@ export class ProxyService {
         useUserKey
       });
 
+      // Get the correct URL for the Edge Function
+      const proxyUrl = import.meta.env.VITE_SUPABASE_URL 
+        ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-proxy`
+        : '/api/ai-proxy'; // Fallback for local development
+
       // Make the authenticated request to the Edge Function
-      const { data, error } = await supabase.functions.invoke('ai-proxy', {
-        body: requestBody,
+      const response = await fetch(proxyUrl, {
+        method: 'POST',
         headers: {
+          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify(requestBody)
       });
 
       const latency = Date.now() - startTime;
 
-      if (error) {
-        console.error('Edge Function invocation error:', error);
-        throw new Error(`Proxy service error: ${error.message}`);
+      // Clone the response to inspect the raw text if needed
+      const responseClone = response.clone();
+      
+      if (!response.ok) {
+        // Get the raw text to see what's actually being returned
+        const errorText = await responseClone.text();
+        console.error('Proxy service returned error:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText
+        });
+        
+        // Try to parse as JSON if possible
+        let errorJson;
+        try {
+          errorJson = JSON.parse(errorText);
+          throw new Error(errorJson.error || `Proxy service error: ${response.status}`);
+        } catch (parseError) {
+          // If not JSON, use the raw text or status
+          throw new Error(errorText || `Proxy service error: ${response.status}`);
+        }
+      }
+
+      // Safely parse JSON
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        const rawText = await responseClone.text();
+        console.error('Failed to parse JSON response:', rawText);
+        throw new Error('Invalid response format from proxy service');
       }
 
       if (!data) {
@@ -101,17 +136,6 @@ export class ProxyService {
 
       if (!data.success) {
         console.error('Proxy service returned error:', data.error);
-        
-        // Enhanced error handling for specific cases
-        if (data.error?.includes('not set in Supabase secrets')) {
-          const providerName = this.getProviderDisplayName(request.providerId);
-          throw new Error(
-            `${providerName} API key is not configured on the server. ` +
-            `The server administrator needs to configure the API key in Supabase Edge Function secrets. ` +
-            `Alternatively, you can configure your own API key in the API Keys section.`
-          );
-        }
-        
         throw new Error(data.error || 'Proxy service request failed');
       }
 
@@ -119,7 +143,7 @@ export class ProxyService {
       const estimatedTokens = Math.ceil((request.prompt.length + (data.response?.length || 0)) / 4);
       const estimatedCost = this.estimateCost(request.providerId, estimatedTokens);
 
-      const response: ProxyResponse = {
+      const proxyResponse: ProxyResponse = {
         success: true,
         response: data.response,
         provider: request.providerId,
@@ -145,7 +169,7 @@ export class ProxyService {
         usingUserKey: data.using_user_key
       });
 
-      return response;
+      return proxyResponse;
 
     } catch (error) {
       const latency = Date.now() - startTime;
@@ -169,7 +193,7 @@ export class ProxyService {
         }
       };
     }
-  }
+  },
 
   /**
    * Check if the proxy service is available and properly configured
@@ -193,25 +217,63 @@ export class ProxyService {
         };
       }
 
+      // Get the correct URL for the Edge Function
+      const proxyUrl = import.meta.env.VITE_SUPABASE_URL 
+        ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-proxy`
+        : '/api/ai-proxy'; // Fallback for local development
+
       // Test the proxy with a minimal request
-      const { data, error } = await supabase.functions.invoke('ai-proxy', {
-        body: {
+      const response = await fetch(proxyUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
           providerId: 'health-check',
           prompt: 'test',
           userId: session.user.id
-        }
+        })
       });
 
-      if (error) {
+      if (!response.ok) {
+        // Try to get error details
+        let errorMessage = `HTTP error: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          // If not JSON, try to get text
+          try {
+            const errorText = await response.text();
+            if (errorText) errorMessage = errorText;
+          } catch (e2) {
+            // Ignore text parsing error
+          }
+        }
+        
         return {
           available: false,
           authenticated: true,
           configuredProviders: [],
-          errors: [error.message]
+          errors: [errorMessage]
         };
       }
 
       // Parse the health check response
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        return {
+          available: false,
+          authenticated: true,
+          configuredProviders: [],
+          errors: ['Invalid JSON response from proxy']
+        };
+      }
+
+      // Extract provider info and errors
       const configuredProviders = data?.configuredProviders || [];
       const errors = data?.errors || [];
 
@@ -230,7 +292,7 @@ export class ProxyService {
         errors: [error instanceof Error ? error.message : 'Unknown error']
       };
     }
-  }
+  },
 
   /**
    * Check if a user has API keys configured for providers
@@ -239,8 +301,9 @@ export class ProxyService {
     hasKeys: boolean;
     providers: Record<string, boolean>;
   }> {
-    // For demo users, return mock data
-    if (userId === 'demo-user-123') {
+    // For non-UUID user IDs, return mock data
+    if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89ab][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(userId)) {
+      console.warn(`Invalid userId format for API key check: ${userId}`);
       return {
         hasKeys: false,
         providers: { openai: false, gemini: false, claude: false, ibm: false }
@@ -279,7 +342,7 @@ export class ProxyService {
         providers: { openai: false, gemini: false, claude: false, ibm: false } 
       };
     }
-  }
+  },
 
   /**
    * Get display name for a provider
@@ -292,7 +355,7 @@ export class ProxyService {
       ibm: 'IBM WatsonX'
     };
     return names[providerId] || providerId;
-  }
+  },
 
   /**
    * Estimate cost based on provider and tokens
@@ -307,7 +370,7 @@ export class ProxyService {
     
     const pricePerToken = pricing[providerId] || 0.05; // Default fallback
     return (tokens * pricePerToken) / 1000;
-  }
+  },
 
   /**
    * Log proxy usage for analytics
@@ -318,6 +381,12 @@ export class ProxyService {
       
       if (!session) {
         console.warn('Cannot log proxy usage: No active session');
+        return;
+      }
+
+      // Validate UUID format to prevent database errors
+      if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89ab][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(session.user.id)) {
+        console.warn(`Skipping analytics logging for invalid userId format: ${session.user.id}`);
         return;
       }
 

@@ -1,8 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { db } from '../lib/supabase';
-import type { User } from '@supabase/supabase-js';
-import type { User as AppUser } from '../types';
 
 interface AuthContextProps {
   user: any;
@@ -12,7 +9,13 @@ interface AuthContextProps {
   logout: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextProps | undefined>(undefined);
+export const AuthContext = createContext<AuthContextProps>({
+  user: null,
+  session: null,
+  loading: true,
+  login: async () => {},
+  logout: async () => {},
+});
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<any>(null);

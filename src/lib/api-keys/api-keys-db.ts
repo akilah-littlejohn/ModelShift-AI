@@ -3,6 +3,11 @@ import { serverEncryption } from './encryption';
 import type { UserApiKey, ApiKeyFormData, ApiKeyListItem } from './types';
 
 /**
+ * Simple UUID validation
+ */
+const isUuid = (value: string): boolean => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89ab][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(value);
+
+/**
  * Database operations for user API keys
  */
 export const apiKeysDb = {
@@ -11,6 +16,12 @@ export const apiKeysDb = {
    */
   async create(userId: string, data: ApiKeyFormData): Promise<UserApiKey> {
     try {
+      // Validate UUID format to prevent database errors
+      if (!isUuid(userId)) {
+        console.warn(`Invalid userId format (not UUID): ${userId}`);
+        throw new Error('Invalid user ID format');
+      }
+      
       // Encrypt the API key
       const encrypted_key = serverEncryption.encrypt(data.key);
       
@@ -41,6 +52,12 @@ export const apiKeysDb = {
    */
   async getAll(userId: string): Promise<ApiKeyListItem[]> {
     try {
+      // Validate UUID format to prevent database errors
+      if (!isUuid(userId)) {
+        console.warn(`Invalid userId format (not UUID): ${userId}`);
+        return []; // Return empty array instead of throwing
+      }
+      
       const { data, error } = await supabase
         .from('user_api_keys')
         .select('*')
@@ -71,6 +88,12 @@ export const apiKeysDb = {
    */
   async get(userId: string, keyId: string): Promise<UserApiKey | null> {
     try {
+      // Validate UUID format to prevent database errors
+      if (!isUuid(userId)) {
+        console.warn(`Invalid userId format (not UUID): ${userId}`);
+        return null;
+      }
+      
       const { data, error } = await supabase
         .from('user_api_keys')
         .select('*')
@@ -97,6 +120,12 @@ export const apiKeysDb = {
    */
   async update(userId: string, keyId: string, updates: Partial<ApiKeyFormData>): Promise<UserApiKey> {
     try {
+      // Validate UUID format to prevent database errors
+      if (!isUuid(userId)) {
+        console.warn(`Invalid userId format (not UUID): ${userId}`);
+        throw new Error('Invalid user ID format');
+      }
+      
       const updateData: any = {};
       
       if (updates.name !== undefined) {
@@ -129,6 +158,12 @@ export const apiKeysDb = {
    */
   async toggleStatus(userId: string, keyId: string, isActive: boolean): Promise<void> {
     try {
+      // Validate UUID format to prevent database errors
+      if (!isUuid(userId)) {
+        console.warn(`Invalid userId format (not UUID): ${userId}`);
+        throw new Error('Invalid user ID format');
+      }
+      
       const { error } = await supabase
         .from('user_api_keys')
         .update({ is_active: isActive })
@@ -147,6 +182,12 @@ export const apiKeysDb = {
    */
   async delete(userId: string, keyId: string): Promise<void> {
     try {
+      // Validate UUID format to prevent database errors
+      if (!isUuid(userId)) {
+        console.warn(`Invalid userId format (not UUID): ${userId}`);
+        throw new Error('Invalid user ID format');
+      }
+      
       const { error } = await supabase
         .from('user_api_keys')
         .delete()
@@ -164,9 +205,9 @@ export const apiKeysDb = {
    * Get the active API key for a provider
    */
   async getActiveForProvider(userId: string, providerId: string): Promise<UserApiKey | null> {
-    // Skip database query for demo user IDs
-    if (userId === 'demo-user-123') {
-      console.log('🔄 Skipping database query for demo user');
+    // Skip database query for non-UUID user IDs
+    if (!isUuid(userId)) {
+      console.warn(`Skipping database query for invalid userId format: ${userId}`);
       return null;
     }
     
@@ -198,8 +239,9 @@ export const apiKeysDb = {
    * Update the last_used_at timestamp
    */
   async updateLastUsed(userId: string, keyId: string): Promise<void> {
-    // Skip database query for demo user IDs
-    if (userId === 'demo-user-123') {
+    // Skip database query for non-UUID user IDs
+    if (!isUuid(userId)) {
+      console.warn(`Skipping last_used_at update for invalid userId format: ${userId}`);
       return;
     }
     

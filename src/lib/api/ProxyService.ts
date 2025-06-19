@@ -193,7 +193,7 @@ export class ProxyService {
         }
       };
     }
-  },
+  }
 
   /**
    * Check if the proxy service is available and properly configured
@@ -292,7 +292,7 @@ export class ProxyService {
         errors: [error instanceof Error ? error.message : 'Unknown error']
       };
     }
-  },
+  }
 
   /**
    * Check if a user has API keys configured for providers
@@ -342,7 +342,7 @@ export class ProxyService {
         providers: { openai: false, gemini: false, claude: false, ibm: false } 
       };
     }
-  },
+  }
 
   /**
    * Get display name for a provider
@@ -355,7 +355,7 @@ export class ProxyService {
       ibm: 'IBM WatsonX'
     };
     return names[providerId] || providerId;
-  },
+  }
 
   /**
    * Estimate cost based on provider and tokens
@@ -370,7 +370,7 @@ export class ProxyService {
     
     const pricePerToken = pricing[providerId] || 0.05; // Default fallback
     return (tokens * pricePerToken) / 1000;
-  },
+  }
 
   /**
    * Log proxy usage for analytics

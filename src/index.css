@@ -1,3 +1,20 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --gradient-start: #24243e;
+    --gradient-middle: #302b63;
+    --gradient-end: #0f0c29;
+  }
+  
+  .dark body {
+    /* fallback for old browsers */
+    background: var(--gradient-end);
+    /* Chrome 10-25, Safari 5.1-6 */
+    background: -webkit-linear-gradient(to right, var(--gradient-start), var(--gradient-middle), var(--gradient-end));
+    /* W3C, IE 10+/ Edge, Firefox 16+, Chrome 26+, Opera 12+, Safari 7+ */
+    background: linear-gradient(to right, var(--gradient-start), var(--gradient-middle), var(--gradient-end));
+  }
+}

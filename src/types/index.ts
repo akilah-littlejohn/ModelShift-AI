@@ -135,7 +135,7 @@ export interface ConfigValidationResult {
   warnings: string[];
 }
 
-// NEW: Debate Mode Types
+// Debate Mode Types
 export interface DebateSideConfig {
   selectedProviders: string[];
   selectedAgent: string;
@@ -153,8 +153,8 @@ export interface ComparisonResult {
     tokens: number;
     cost: number;
   };
-  sideId?: 'A' | 'B'; // NEW: For debate mode
-  sideLabel?: string; // NEW: For debate mode
+  sideId?: 'A' | 'B'; // For debate mode
+  sideLabel?: string; // For debate mode
 }
 
 export interface ThemeContextType {

@@ -23,13 +23,13 @@ export function DebateView() {
   const [sideA, setSideA] = useState<DebateSideConfig>({
     selectedProviders: ['openai'],
     selectedAgent: '',
-    label: 'Side A'
+    label: 'Position A'
   });
   
   const [sideB, setSideB] = useState<DebateSideConfig>({
     selectedProviders: ['gemini'],
     selectedAgent: '',
-    label: 'Side B'
+    label: 'Position B'
   });
 
   // Load connection mode from localStorage
@@ -56,7 +56,7 @@ export function DebateView() {
     }
     
     if (sideA.selectedProviders.length === 0 || sideB.selectedProviders.length === 0) {
-      toast.error('Please select at least one provider for each side');
+      toast.error('Please select at least one provider for each position');
       return;
     }
     
@@ -223,7 +223,7 @@ Return ONLY the improved prompt text without any explanations, introductions, or
   const handleAddProvider = (side: 'A' | 'B') => {
     if (side === 'A') {
       if (sideA.selectedProviders.length >= 3) {
-        toast.error('Maximum 3 providers per side');
+        toast.error('Maximum 3 providers per position');
         return;
       }
       setSideA({
@@ -232,7 +232,7 @@ Return ONLY the improved prompt text without any explanations, introductions, or
       });
     } else {
       if (sideB.selectedProviders.length >= 3) {
-        toast.error('Maximum 3 providers per side');
+        toast.error('Maximum 3 providers per position');
         return;
       }
       setSideB({
@@ -322,25 +322,25 @@ Return ONLY the improved prompt text without any explanations, introductions, or
 
         {showSettings && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            {/* Side A Configuration */}
+            {/* Position A Configuration */}
             <div className="space-y-4">
               <div className="flex items-center space-x-3 mb-2">
                 <div className="w-8 h-8 bg-orange-500 text-white rounded-full flex items-center justify-center font-bold">
                   A
                 </div>
                 <div>
-                  <h3 className="font-semibold text-neutral-900 dark:text-white">Side A Configuration</h3>
+                  <h3 className="font-semibold text-neutral-900 dark:text-white">Position A Configuration</h3>
                   <input
                     type="text"
                     value={sideA.label}
                     onChange={(e) => setSideA({ ...sideA, label: e.target.value })}
-                    placeholder="Side A Label"
+                    placeholder="Position A Label"
                     className="mt-1 px-3 py-1 text-sm border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
                   />
                 </div>
               </div>
 
-              {/* Side A Providers */}
+              {/* Position A Providers */}
               <div className="space-y-3">
                 {sideA.selectedProviders.map((provider, index) => (
                   <div key={`sideA-${index}`} className="flex items-center space-x-2">
@@ -371,7 +371,7 @@ Return ONLY the improved prompt text without any explanations, introductions, or
                 </button>
               </div>
 
-              {/* Side A Agent */}
+              {/* Position A Agent */}
               <div>
                 <h4 className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                   Prompt Agent (Optional)
@@ -383,25 +383,25 @@ Return ONLY the improved prompt text without any explanations, introductions, or
               </div>
             </div>
 
-            {/* Side B Configuration */}
+            {/* Position B Configuration */}
             <div className="space-y-4">
               <div className="flex items-center space-x-3 mb-2">
                 <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold">
                   B
                 </div>
                 <div>
-                  <h3 className="font-semibold text-neutral-900 dark:text-white">Side B Configuration</h3>
+                  <h3 className="font-semibold text-neutral-900 dark:text-white">Position B Configuration</h3>
                   <input
                     type="text"
                     value={sideB.label}
                     onChange={(e) => setSideB({ ...sideB, label: e.target.value })}
-                    placeholder="Side B Label"
+                    placeholder="Position B Label"
                     className="mt-1 px-3 py-1 text-sm border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
                   />
                 </div>
               </div>
 
-              {/* Side B Providers */}
+              {/* Position B Providers */}
               <div className="space-y-3">
                 {sideB.selectedProviders.map((provider, index) => (
                   <div key={`sideB-${index}`} className="flex items-center space-x-2">
@@ -432,7 +432,7 @@ Return ONLY the improved prompt text without any explanations, introductions, or
                 </button>
               </div>
 
-              {/* Side B Agent */}
+              {/* Position B Agent */}
               <div>
                 <h4 className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                   Prompt Agent (Optional)

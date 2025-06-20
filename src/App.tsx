@@ -4,7 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { analyticsService } from './lib/analytics/AnalyticsService';
-import { supabase } from './lib/supabase';
+import { supabase, isUuid } from './lib/supabase';
 import { LoginForm } from './components/Auth/LoginForm';
 import { Header } from './components/Layout/Header';
 import { Sidebar } from './components/Layout/Sidebar';
@@ -34,6 +34,13 @@ function AppContent() {
       // Check if Supabase is available and configured
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      // Check if user ID is a valid UUID - if not, use local mode
+      if (!isUuid(user.id)) {
+        console.warn('⚠️  User ID is not a valid UUID, using local analytics mode:', user.id);
+        analyticsService.configure({ mode: 'local' });
+        return;
+      }
       
       // Check if we have a real Supabase session (not mock auth)
       let hasRealSupabaseSession = false;

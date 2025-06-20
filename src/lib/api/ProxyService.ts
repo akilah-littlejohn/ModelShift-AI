@@ -217,13 +217,22 @@ export class ProxyService {
         };
       }
 
-      // Get the correct URL for the Edge Function
-      const proxyUrl = import.meta.env.VITE_SUPABASE_URL 
-        ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-proxy`
-        : '/api/ai-proxy'; // Fallback for local development
+      // Check if Supabase is configured for proxy mode
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseAnonKey || 
+          supabaseUrl.includes('demo') || supabaseAnonKey.includes('demo')) {
+        return {
+          available: false,
+          authenticated: true,
+          configuredProviders: [],
+          errors: ['Supabase not configured for proxy mode']
+        };
+      }
 
-      // Test the proxy with a minimal request
-      const response = await fetch(proxyUrl, {
+      // Test the ai-proxy function with a health check
+      const response = await fetch(`${supabaseUrl}/functions/v1/ai-proxy`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,

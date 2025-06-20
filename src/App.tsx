@@ -9,6 +9,7 @@ import { LoginForm } from './components/Auth/LoginForm';
 import { Header } from './components/Layout/Header';
 import { Sidebar } from './components/Layout/Sidebar';
 import { PlaygroundView } from './components/Playground/PlaygroundView';
+import { DebateView } from './components/Playground/DebateView';
 import { AgentManagement } from './components/Agents/AgentManagement';
 import { KeyManagement } from './components/Keys/KeyManagement';
 import { AnalyticsView } from './components/Analytics/AnalyticsView';
@@ -117,6 +118,8 @@ function AppContent() {
     switch (activeView) {
       case 'playground':
         return <PlaygroundView />;
+      case 'debate':
+        return <DebateView />;
       case 'agents':
         return <AgentManagement />;
       case 'keys':

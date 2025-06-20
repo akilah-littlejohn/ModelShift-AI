@@ -8,7 +8,8 @@ import {
   Zap,
   Bot,
   FileText,
-  UserCog
+  UserCog,
+  Swords
 } from 'lucide-react';
 import { AgentService } from '../../lib/agents';
 import * as Icons from 'lucide-react';
@@ -20,6 +21,7 @@ interface SidebarProps {
 
 const navigation = [
   { id: 'playground', name: 'AI Playground', icon: Brain },
+  { id: 'debate', name: 'AI Debate Arena', icon: Swords },
   { id: 'agents', name: 'Prompt Agent Management', icon: Bot },
   { id: 'keys', name: 'API Keys', icon: Key },
   { id: 'history', name: 'History', icon: History },

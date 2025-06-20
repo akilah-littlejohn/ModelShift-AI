@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { ProviderSelector } from './ProviderSelector';
 import { AgentSelector } from './AgentSelector';
+import { ProxyService } from '../../lib/api/ProxyService';
 import type { MessageType } from './types';
 
 export function PlaygroundView() {
@@ -14,76 +15,52 @@ export function PlaygroundView() {
   const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash');
   const [selectedParameters, setSelectedParameters] = useState({ maxOutputTokens: 256 });
   const [selectedAgent, setSelectedAgent] = useState<{ id: string } | null>(null);
+  const [connectionMode, setConnectionMode] = useState('server');
+
+  // Load connection mode from localStorage
+  useEffect(() => {
+    const savedMode = localStorage.getItem('modelshift-connection-mode');
+    if (savedMode) {
+      setConnectionMode(savedMode);
+    }
+  }, []);
 
   const executeProviderRequest = async (prompt: string) => {
-    if (!user?.id || !session?.access_token) {
+    if (!user?.id) {
       toast.error('You must be logged in to use the playground.');
       return;
     }
     setIsLoading(true);
 
     try {
-      const body = {
+      // Use the ProxyService to handle the request based on connection mode
+      const response = await ProxyService.callProvider({
         providerId: selectedProvider,
         prompt,
         model: selectedModel,
         parameters: selectedParameters,
         agentId: selectedAgent?.id || null,
         userId: user.id,
-        useUserKey: true,
-      };
-
-      // Use the correct endpoint URL for your Supabase Edge Function
-      // This should match the actual deployed function path in your Bolt project
-      const proxyUrl = import.meta.env.VITE_SUPABASE_URL 
-        ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-proxy`
-        : '/api/ai-proxy'; // Fallback for local development
-
-      console.log('Making proxy request to:', proxyUrl);
-
-      const res = await fetch(proxyUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
+        useUserKey: connectionMode === 'browser', // Use user key in browser mode
       });
 
-      // Clone the response to inspect the raw text if needed
-      const resClone = res.clone();
+      if (!response.success) {
+        throw new Error(response.error || 'Request failed');
+      }
+
+      setMessages((msgs) => [...msgs, { role: 'assistant', text: response.response || '' }]);
       
-      if (!res.ok) {
-        // Get the raw text to see what's actually being returned
-        const errorText = await resClone.text();
-        console.error('Proxy error response:', {
-          status: res.status,
-          statusText: res.statusText,
-          body: errorText
-        });
-        
-        // Try to parse as JSON if possible
-        let errorJson;
-        try {
-          errorJson = JSON.parse(errorText);
-          throw new Error(errorJson.error || `Proxy error: ${res.status}`);
-        } catch (parseError) {
-          // If not JSON, use the raw text or status
-          throw new Error(errorText || `Proxy error: ${res.status}`);
-        }
-      }
-
-      // Safely parse JSON
-      let json;
-      try {
-        json = await res.json();
-      } catch (parseError) {
-        const rawText = await resClone.text();
-        console.error('Failed to parse JSON response:', rawText);
-        throw new Error('Invalid response format from server');
-      }
-
-      setMessages((msgs) => [...msgs, { role: 'assistant', text: json.response }]);
+      // Log usage for analytics
+      await ProxyService.logProxyUsage({
+        providerId: selectedProvider,
+        prompt,
+        model: selectedModel,
+        parameters: selectedParameters,
+        agentId: selectedAgent?.id || null,
+        userId: user.id,
+        useUserKey: connectionMode === 'browser'
+      }, response);
+      
     } catch (err: any) {
       console.error('Proxy request failed:', err);
       toast.error(`Request failed: ${err.message}`);
@@ -116,6 +93,28 @@ export function PlaygroundView() {
             selected={selectedAgent?.id || ''} 
             onChange={(agentId) => setSelectedAgent(agentId ? { id: agentId } : null)} 
           />
+        </div>
+      </div>
+
+      {/* Connection Mode Indicator */}
+      <div className="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-3 mb-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <div className={`w-2 h-2 rounded-full ${connectionMode === 'server' ? 'bg-primary-500' : 'bg-secondary-500'}`}></div>
+            <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              {connectionMode === 'server' ? 'Server Proxy Mode' : 'Direct Browser Mode'}
+            </span>
+          </div>
+          <a 
+            href="#" 
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.href = '/settings';
+            }}
+            className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+          >
+            Change in Settings
+          </a>
         </div>
       </div>
 

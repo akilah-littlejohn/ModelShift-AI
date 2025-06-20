@@ -60,6 +60,13 @@ export class DynamicProxyClient implements ModelShiftAIClient {
 
   async generate(prompt: string): Promise<string> {
     try {
+      // Check if we should use direct browser mode
+      const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'server';
+      if (connectionMode === 'browser') {
+        console.log('DynamicProxyClient: Using direct browser mode');
+        return this.generateDirectly(prompt);
+      }
+      
       console.log(`DynamicProxyClient: Making authenticated request to ${this.providerId}`);
 
       const response = await DynamicProxyService.callProvider(
@@ -92,6 +99,77 @@ export class DynamicProxyClient implements ModelShiftAIClient {
       throw error;
     }
   }
+  
+  private async generateDirectly(prompt: string): Promise<string> {
+    // Import necessary modules
+    const { keyVault } = await import('../encryption');
+    const { providers } = await import('../../data/providers');
+    
+    // Get provider configuration
+    const provider = providers.find(p => p.id === this.providerId);
+    if (!provider) {
+      throw new Error(`Provider '${this.providerId}' not found in configuration`);
+    }
+    
+    // Get API keys from key vault
+    const keyData = keyVault.retrieveDefault(this.providerId);
+    if (!keyData) {
+      throw new Error(`No API key found for ${provider.displayName}. Please add your API key in the API Keys section.`);
+    }
+    
+    // Create a client and make the request
+    const client = new ConfigurableClient(keyData, {
+      endpoint: provider.apiConfig.baseUrl + provider.apiConfig.endpointPath,
+      buildRequestBody: (prompt: string) => {
+        let body = JSON.parse(JSON.stringify(provider.apiConfig.requestBodyStructure));
+        
+        // Set the prompt using the promptJsonPath
+        body = setValueAtPath(body, provider.apiConfig.promptJsonPath, prompt);
+        
+        // Set model if provided
+        if (this.customModel && provider.apiConfig.modelJsonPath) {
+          body = setValueAtPath(body, provider.apiConfig.modelJsonPath, this.customModel);
+        }
+        
+        // Set parameters if provided
+        if (this.customParameters) {
+          if (provider.apiConfig.parametersJsonPath) {
+            body = mergeAtPath(body, provider.apiConfig.parametersJsonPath, this.customParameters);
+          } else {
+            // If no specific path, merge at root level
+            body = { ...body, ...this.customParameters };
+          }
+        }
+        
+        return body;
+      },
+      parseResponse: (response: any) => {
+        return getValueAtPath(response, provider.apiConfig.responseJsonPath) || '';
+      },
+      buildHeaders: (keyData: Record<string, string>) => {
+        const headers = { ...provider.apiConfig.headers };
+        
+        if (provider.apiConfig.authHeaderName) {
+          headers[provider.apiConfig.authHeaderName] = `${provider.apiConfig.authHeaderPrefix || ''}${keyData.apiKey}`;
+        }
+        
+        return headers;
+      },
+      buildEndpoint: (keyData: Record<string, string>) => {
+        let endpoint = provider.apiConfig.baseUrl + provider.apiConfig.endpointPath;
+        
+        // Handle API key in URL parameter (e.g., Gemini)
+        if (provider.apiConfig.apiKeyInUrlParam && provider.apiConfig.urlParamName) {
+          const separator = endpoint.includes('?') ? '&' : '?';
+          endpoint += `${separator}${provider.apiConfig.urlParamName}=${keyData.apiKey}`;
+        }
+        
+        return endpoint;
+      }
+    });
+    
+    return await client.generate(prompt);
+  }
 
   private getProviderDisplayName(): string {
     const providerNames: Record<string, string> = {
@@ -117,6 +195,13 @@ export class ProxyClient implements ModelShiftAIClient {
 
   async generate(prompt: string): Promise<string> {
     try {
+      // Check if we should use direct browser mode
+      const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'server';
+      if (connectionMode === 'browser') {
+        console.log('ProxyClient: Using direct browser mode');
+        return this.generateDirectly(prompt);
+      }
+      
       console.log(`ProxyClient: Making authenticated request to ${this.providerId}`);
 
       const response = await ProxyService.callProvider({
@@ -157,6 +242,77 @@ export class ProxyClient implements ModelShiftAIClient {
       
       throw error;
     }
+  }
+  
+  private async generateDirectly(prompt: string): Promise<string> {
+    // Import necessary modules
+    const { keyVault } = await import('../encryption');
+    const { providers } = await import('../../data/providers');
+    
+    // Get provider configuration
+    const provider = providers.find(p => p.id === this.providerId);
+    if (!provider) {
+      throw new Error(`Provider '${this.providerId}' not found in configuration`);
+    }
+    
+    // Get API keys from key vault
+    const keyData = keyVault.retrieveDefault(this.providerId);
+    if (!keyData) {
+      throw new Error(`No API key found for ${provider.displayName}. Please add your API key in the API Keys section.`);
+    }
+    
+    // Create a client and make the request
+    const client = new ConfigurableClient(keyData, {
+      endpoint: provider.apiConfig.baseUrl + provider.apiConfig.endpointPath,
+      buildRequestBody: (prompt: string) => {
+        let body = JSON.parse(JSON.stringify(provider.apiConfig.requestBodyStructure));
+        
+        // Set the prompt using the promptJsonPath
+        body = setValueAtPath(body, provider.apiConfig.promptJsonPath, prompt);
+        
+        // Set model if provided
+        if (this.customModel && provider.apiConfig.modelJsonPath) {
+          body = setValueAtPath(body, provider.apiConfig.modelJsonPath, this.customModel);
+        }
+        
+        // Set parameters if provided
+        if (this.customParameters) {
+          if (provider.apiConfig.parametersJsonPath) {
+            body = mergeAtPath(body, provider.apiConfig.parametersJsonPath, this.customParameters);
+          } else {
+            // If no specific path, merge at root level
+            body = { ...body, ...this.customParameters };
+          }
+        }
+        
+        return body;
+      },
+      parseResponse: (response: any) => {
+        return getValueAtPath(response, provider.apiConfig.responseJsonPath) || '';
+      },
+      buildHeaders: (keyData: Record<string, string>) => {
+        const headers = { ...provider.apiConfig.headers };
+        
+        if (provider.apiConfig.authHeaderName) {
+          headers[provider.apiConfig.authHeaderName] = `${provider.apiConfig.authHeaderPrefix || ''}${keyData.apiKey}`;
+        }
+        
+        return headers;
+      },
+      buildEndpoint: (keyData: Record<string, string>) => {
+        let endpoint = provider.apiConfig.baseUrl + provider.apiConfig.endpointPath;
+        
+        // Handle API key in URL parameter (e.g., Gemini)
+        if (provider.apiConfig.apiKeyInUrlParam && provider.apiConfig.urlParamName) {
+          const separator = endpoint.includes('?') ? '&' : '?';
+          endpoint += `${separator}${provider.apiConfig.urlParamName}=${keyData.apiKey}`;
+        }
+        
+        return endpoint;
+      }
+    });
+    
+    return await client.generate(prompt);
   }
 }
 
@@ -624,7 +780,30 @@ export class ModelShiftAIClientFactory {
     agentId?: string,
     useUserKey: boolean = true
   ): Promise<ModelShiftAIClient> {
-    // Check if Supabase is configured for proxy mode
+    // Check if we should use direct browser mode
+    const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'server';
+    
+    if (connectionMode === 'browser') {
+      console.log(`Creating direct browser client for ${provider}`);
+      // For browser mode, we need API keys
+      if (!keyData) {
+        const { keyVault } = await import('../encryption');
+        keyData = keyVault.retrieveDefault(provider);
+        
+        if (!keyData) {
+          throw new Error(`API keys required for direct browser mode. Please configure API keys in the API Keys section.`);
+        }
+      }
+      
+      const config = providerConfigs[provider];
+      if (!config) {
+        throw new Error(`Provider '${provider}' not supported`);
+      }
+      
+      return new ConfigurableClient(keyData, config);
+    }
+    
+    // Server mode - check if Supabase is configured
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
     
@@ -664,7 +843,25 @@ export class ModelShiftAIClientFactory {
     agentId?: string,
     useUserKey: boolean = true
   ): ModelShiftAIClient {
-    // Check if Supabase is configured for proxy mode
+    // Check if we should use direct browser mode
+    const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'server';
+    
+    if (connectionMode === 'browser') {
+      console.log(`Creating direct browser client for ${provider}`);
+      // For browser mode, we need API keys
+      if (!keyData) {
+        throw new Error(`API keys required for direct browser mode. Please configure API keys in the API Keys section.`);
+      }
+      
+      const config = providerConfigs[provider];
+      if (!config) {
+        throw new Error(`Provider '${provider}' not supported`);
+      }
+      
+      return new ConfigurableClient(keyData, config);
+    }
+    
+    // Server mode - check if Supabase is configured
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
     
@@ -708,7 +905,46 @@ export class ModelShiftAIClientFactory {
 
   // Enhanced method for creating clients from serialized configurations
   static createFromSerializedConfig(serializedConfig: import('../types').SerializedConfig): ModelShiftAIClient {
-    // Check if Supabase is configured for proxy mode
+    // Check if we should use direct browser mode
+    const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'server';
+    
+    if (connectionMode === 'browser') {
+      console.log(`Creating direct browser client from serialized config for ${serializedConfig.providerId}`);
+      // For browser mode, we use the serialized config directly
+      const baseConfig = providerConfigs[serializedConfig.providerId];
+      if (!baseConfig) {
+        throw new Error(`Provider '${serializedConfig.providerId}' not supported`);
+      }
+
+      // Create a custom config that overrides defaults with serialized values
+      const customConfig: ProviderConfig = {
+        ...baseConfig,
+        buildRequestBody: (prompt: string, keyData: Record<string, string>) => {
+          const baseBody = baseConfig.buildRequestBody(prompt, keyData);
+          
+          // Override model and parameters if specified in serialized config
+          const customBody = { ...baseBody };
+          
+          if (serializedConfig.model) {
+            if ('model' in customBody) {
+              customBody.model = serializedConfig.model;
+            } else if ('model_id' in customBody) {
+              (customBody as any).model_id = serializedConfig.model;
+            }
+          }
+          
+          if (serializedConfig.parameters) {
+            Object.assign(customBody, serializedConfig.parameters);
+          }
+          
+          return customBody;
+        }
+      };
+
+      return new ConfigurableClient(serializedConfig.keyData, customConfig);
+    }
+    
+    // Server mode
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
     
@@ -766,7 +1002,27 @@ export class ModelShiftAIClientFactory {
     agentId?: string
   ): Promise<ModelShiftAIClient> {
     try {
-      // First check if user has an API key for this provider
+      // Check if we should use direct browser mode
+      const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'server';
+      
+      if (connectionMode === 'browser') {
+        console.log(`Creating direct browser client with user key for ${provider}`);
+        const { keyVault } = await import('../encryption');
+        const keyData = keyVault.retrieveDefault(provider);
+        
+        if (!keyData) {
+          throw new Error(`No API key found for ${provider}. Please add your API key in the API Keys section.`);
+        }
+        
+        const config = providerConfigs[provider];
+        if (!config) {
+          throw new Error(`Provider '${provider}' not supported`);
+        }
+        
+        return new ConfigurableClient(keyData, config);
+      }
+      
+      // Server mode - check if user has an API key for this provider
       const userKey = await apiKeysDb.getActiveForProvider(userId, provider);
       
       if (userKey) {

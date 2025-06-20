@@ -59,8 +59,8 @@ export default {
         }
       },
       fontFamily: {
-        sans: ['Lora', 'serif'],
-        mono: ['Space Mono', 'monospace'],
+        sans: ['Work Sans', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'monospace'],
       },
       spacing: {
         '18': '4.5rem',

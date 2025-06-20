@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Swords, Play, X, Settings, Plus, Minus, RefreshCw, AlertTriangle, Info } from 'lucide-react';
+import { Swords, Play, X, Settings, Plus, Minus, RefreshCw, AlertTriangle, Info, Download, Copy, Check } from 'lucide-react';
 import { ProviderSelector } from './ProviderSelector';
 import { AgentSelector } from './AgentSelector';
 import { ResponseComparison } from './ResponseComparison';
@@ -8,6 +8,54 @@ import { useAuth } from '../../contexts/AuthContext';
 import { AgentService } from '../../lib/agents';
 import toast from 'react-hot-toast';
 import type { DebateSideConfig, ComparisonResult } from '../../types';
+
+// Predefined prompt packs for debate topics
+const PROMPT_PACKS = [
+  {
+    id: 'general',
+    name: 'General Topics',
+    topics: [
+      'Should artificial intelligence be regulated by governments?',
+      'Is social media doing more harm than good to society?',
+      'Should college education be free for all citizens?',
+      'Is universal basic income a good solution for economic inequality?',
+      'Should voting be mandatory in democratic countries?'
+    ]
+  },
+  {
+    id: 'technology',
+    name: 'Technology & Future',
+    topics: [
+      'Will cryptocurrency replace traditional banking in the next decade?',
+      'Should autonomous vehicles be allowed on public roads?',
+      'Is the metaverse the future of human interaction?',
+      'Should we colonize Mars in the next 20 years?',
+      'Are smart homes improving or compromising our quality of life?'
+    ]
+  },
+  {
+    id: 'ethics',
+    name: 'Ethics & Society',
+    topics: [
+      'Is it ethical to use genetic engineering on human embryos?',
+      'Should euthanasia be legal for terminally ill patients?',
+      'Do corporations have a responsibility to prioritize environmental concerns over profits?',
+      'Should hate speech be protected under freedom of expression?',
+      'Is cultural appropriation harmful or beneficial to society?'
+    ]
+  },
+  {
+    id: 'philosophy',
+    name: 'Philosophy 101',
+    topics: [
+      'Does free will truly exist?',
+      'Is morality objective or subjective?',
+      'Can artificial intelligence ever be conscious?',
+      'Is knowledge possible without experience?',
+      'Does the existence of evil disprove the existence of an all-powerful, benevolent God?'
+    ]
+  }
+];
 
 export function DebateView() {
   const { user } = useAuth();
@@ -18,6 +66,12 @@ export function DebateView() {
   const [showSettings, setShowSettings] = useState(false);
   const [improvedPrompt, setImprovedPrompt] = useState<string | null>(null);
   const [isImprovingPrompt, setIsImprovingPrompt] = useState(false);
+  const [selectedPack, setSelectedPack] = useState('');
+  const [selectedTopic, setSelectedTopic] = useState('');
+  const [debateRound, setDebateRound] = useState(0);
+  const [debateHistory, setDebateHistory] = useState<Array<{round: number, positionA: string, positionB: string}>>([]);
+  const [activePosition, setActivePosition] = useState<'A' | 'B'>('A');
+  const [copiedText, setCopiedText] = useState<string | null>(null);
   
   // Debate configuration
   const [sideA, setSideA] = useState<DebateSideConfig>({
@@ -40,13 +94,19 @@ export function DebateView() {
     }
   }, []);
 
+  // Handle topic selection from prompt packs
+  const handleTopicSelect = (topic: string) => {
+    setPrompt(topic);
+    setImprovedPrompt(null);
+  };
+
   const handlePromptSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     const promptToUse = improvedPrompt || prompt;
     
     if (!promptToUse.trim()) {
-      toast.error('Please enter a prompt');
+      toast.error('Please enter a debate topic');
       return;
     }
     
@@ -62,6 +122,7 @@ export function DebateView() {
     
     setIsLoading(true);
     setResults([]);
+    setDebateRound(1);
     
     // Initialize results with loading state
     const initialResults: ComparisonResult[] = [
@@ -90,10 +151,10 @@ export function DebateView() {
     // Process each provider in parallel
     const promises = [
       ...sideA.selectedProviders.map((provider, index) => 
-        processProvider(provider, sideA.selectedAgent, 'A', sideA.label, index, promptToUse)
+        processProvider(provider, sideA.selectedAgent, 'A', sideA.label, index, promptToUse, 1)
       ),
       ...sideB.selectedProviders.map((provider, index) => 
-        processProvider(provider, sideB.selectedAgent, 'B', sideB.label, sideA.selectedProviders.length + index, promptToUse)
+        processProvider(provider, sideB.selectedAgent, 'B', sideB.label, sideA.selectedProviders.length + index, promptToUse, 1)
       )
     ];
     
@@ -107,7 +168,8 @@ export function DebateView() {
     sideId: 'A' | 'B',
     sideLabel: string,
     resultIndex: number,
-    promptText: string
+    promptText: string,
+    round: number
   ) => {
     try {
       // Prepare the prompt based on agent and debate context
@@ -123,11 +185,34 @@ export function DebateView() {
       }
       
       // Add debate context to the prompt
-      const debateContext = `You are participating in a debate as ${sideLabel}. 
-Your goal is to provide a thoughtful, well-reasoned response to the following prompt.
+      let debateContext = '';
+      
+      if (round === 1) {
+        // Opening statements
+        debateContext = `You are participating in a debate as ${sideLabel}. 
+Your goal is to provide a thoughtful, well-reasoned opening statement on the following topic.
 Focus on making the strongest possible case for your position.
 
-PROMPT: ${finalPrompt}`;
+DEBATE TOPIC: ${finalPrompt}
+
+Provide an opening statement of 3-4 paragraphs that clearly states your position and main arguments.
+Be persuasive, logical, and evidence-based. Avoid logical fallacies and emotional appeals.`;
+      } else {
+        // Rebuttals - include previous rounds
+        const previousRounds = debateHistory.slice(0, round - 1);
+        const previousRoundsText = previousRounds.map(r => 
+          `Round ${r.round}:\n${sideLabel === sideA.label ? 'Your position' : 'Opposing position'}: ${r.positionA}\n${sideLabel === sideB.label ? 'Your position' : 'Opposing position'}: ${r.positionB}`
+        ).join('\n\n');
+        
+        debateContext = `You are participating in a debate as ${sideLabel} on the topic: "${finalPrompt}"
+
+Previous rounds of the debate:
+${previousRoundsText}
+
+Now, provide a rebuttal for round ${round}. Address the arguments made by the opposing position, defend your position against criticisms, and introduce new supporting evidence for your stance.
+
+Your response should be 3-4 paragraphs, focused on the strongest counterarguments and most compelling points for your position.`;
+      }
 
       // Make the API call
       const response = await ProxyService.callProvider({
@@ -265,6 +350,199 @@ Return ONLY the improved prompt text without any explanations, introductions, or
         ...sideB,
         selectedProviders: newProviders
       });
+    }
+  };
+
+  const togglePosition = () => {
+    setActivePosition(prev => prev === 'A' ? 'B' : 'A');
+    toast.success(`Switched to ${activePosition === 'A' ? 'Position B' : 'Position A'}`);
+  };
+
+  const continueDebate = async () => {
+    if (!user?.id) {
+      toast.error('You must be logged in to continue the debate');
+      return;
+    }
+    
+    if (results.length === 0) {
+      toast.error('No debate results to continue from');
+      return;
+    }
+    
+    // Save current round to history
+    const positionAResponses = results.filter(r => r.sideId === 'A' && !r.loading && !r.error);
+    const positionBResponses = results.filter(r => r.sideId === 'B' && !r.loading && !r.error);
+    
+    if (positionAResponses.length === 0 || positionBResponses.length === 0) {
+      toast.error('Both positions must have at least one successful response to continue');
+      return;
+    }
+    
+    // Get the best response from each side (for now, just take the first one)
+    const positionAResponse = positionAResponses[0].response;
+    const positionBResponse = positionBResponses[0].response;
+    
+    setDebateHistory(prev => [
+      ...prev, 
+      {
+        round: debateRound,
+        positionA: positionAResponse,
+        positionB: positionBResponse
+      }
+    ]);
+    
+    // Start next round
+    const nextRound = debateRound + 1;
+    setDebateRound(nextRound);
+    setIsLoading(true);
+    
+    // Initialize results with loading state for next round
+    const initialResults: ComparisonResult[] = [
+      ...sideA.selectedProviders.map(provider => ({
+        provider,
+        response: '',
+        loading: true,
+        error: undefined,
+        metrics: { latency: 0, tokens: 0, cost: 0 },
+        sideId: 'A',
+        sideLabel: sideA.label
+      })),
+      ...sideB.selectedProviders.map(provider => ({
+        provider,
+        response: '',
+        loading: true,
+        error: undefined,
+        metrics: { latency: 0, tokens: 0, cost: 0 },
+        sideId: 'B',
+        sideLabel: sideB.label
+      }))
+    ];
+    
+    setResults(initialResults);
+    
+    // Process each provider in parallel for the next round
+    const promptToUse = improvedPrompt || prompt;
+    const promises = [
+      ...sideA.selectedProviders.map((provider, index) => 
+        processProvider(provider, sideA.selectedAgent, 'A', sideA.label, index, promptToUse, nextRound)
+      ),
+      ...sideB.selectedProviders.map((provider, index) => 
+        processProvider(provider, sideB.selectedAgent, 'B', sideB.label, sideA.selectedProviders.length + index, promptToUse, nextRound)
+      )
+    ];
+    
+    await Promise.all(promises);
+    setIsLoading(false);
+  };
+
+  const exportDebate = async () => {
+    if (results.length === 0 && debateHistory.length === 0) {
+      toast.error('No debate to export');
+      return;
+    }
+    
+    // Compile the debate into markdown
+    let markdown = `# AI Debate: ${improvedPrompt || prompt}\n\n`;
+    
+    // Add position labels
+    markdown += `## Positions\n\n`;
+    markdown += `- **${sideA.label}**\n`;
+    markdown += `- **${sideB.label}**\n\n`;
+    
+    // Add debate history
+    for (let i = 0; i < debateHistory.length; i++) {
+      const round = debateHistory[i];
+      markdown += `## Round ${round.round}\n\n`;
+      markdown += `### ${sideA.label}\n\n${round.positionA}\n\n`;
+      markdown += `### ${sideB.label}\n\n${round.positionB}\n\n`;
+    }
+    
+    // Add current round if not in history
+    if (results.length > 0) {
+      const positionAResponses = results.filter(r => r.sideId === 'A' && !r.loading && !r.error);
+      const positionBResponses = results.filter(r => r.sideId === 'B' && !r.loading && !r.error);
+      
+      if (positionAResponses.length > 0 || positionBResponses.length > 0) {
+        markdown += `## Round ${debateRound}\n\n`;
+        
+        if (positionAResponses.length > 0) {
+          markdown += `### ${sideA.label}\n\n${positionAResponses[0].response}\n\n`;
+        }
+        
+        if (positionBResponses.length > 0) {
+          markdown += `### ${sideB.label}\n\n${positionBResponses[0].response}\n\n`;
+        }
+      }
+    }
+    
+    // Add metadata
+    markdown += `## Debate Metadata\n\n`;
+    markdown += `- **Date**: ${new Date().toLocaleDateString()}\n`;
+    markdown += `- **Topic**: ${improvedPrompt || prompt}\n`;
+    markdown += `- **Position A Providers**: ${sideA.selectedProviders.join(', ')}\n`;
+    markdown += `- **Position B Providers**: ${sideB.selectedProviders.join(', ')}\n`;
+    
+    // Create a blob and download
+    const blob = new Blob([markdown], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `debate-${Date.now()}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    toast.success('Debate exported successfully');
+  };
+
+  const copyDebateToClipboard = async () => {
+    if (results.length === 0 && debateHistory.length === 0) {
+      toast.error('No debate to copy');
+      return;
+    }
+    
+    // Compile the debate into markdown
+    let markdown = `# AI Debate: ${improvedPrompt || prompt}\n\n`;
+    
+    // Add position labels
+    markdown += `## Positions\n\n`;
+    markdown += `- **${sideA.label}**\n`;
+    markdown += `- **${sideB.label}**\n\n`;
+    
+    // Add debate history
+    for (let i = 0; i < debateHistory.length; i++) {
+      const round = debateHistory[i];
+      markdown += `## Round ${round.round}\n\n`;
+      markdown += `### ${sideA.label}\n\n${round.positionA}\n\n`;
+      markdown += `### ${sideB.label}\n\n${round.positionB}\n\n`;
+    }
+    
+    // Add current round if not in history
+    if (results.length > 0) {
+      const positionAResponses = results.filter(r => r.sideId === 'A' && !r.loading && !r.error);
+      const positionBResponses = results.filter(r => r.sideId === 'B' && !r.loading && !r.error);
+      
+      if (positionAResponses.length > 0 || positionBResponses.length > 0) {
+        markdown += `## Round ${debateRound}\n\n`;
+        
+        if (positionAResponses.length > 0) {
+          markdown += `### ${sideA.label}\n\n${positionAResponses[0].response}\n\n`;
+        }
+        
+        if (positionBResponses.length > 0) {
+          markdown += `### ${sideB.label}\n\n${positionBResponses[0].response}\n\n`;
+        }
+      }
+    }
+    
+    try {
+      await navigator.clipboard.writeText(markdown);
+      setCopiedText('debate');
+      toast.success('Debate copied to clipboard');
+      setTimeout(() => setCopiedText(null), 2000);
+    } catch (error) {
+      toast.error('Failed to copy to clipboard');
     }
   };
 
@@ -446,11 +724,60 @@ Return ONLY the improved prompt text without any explanations, introductions, or
           </div>
         )}
 
+        {/* Prompt Packs */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-medium text-neutral-900 dark:text-white">
+              Select Prompt Pack
+            </h3>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+            {PROMPT_PACKS.map(pack => (
+              <button
+                key={pack.id}
+                onClick={() => setSelectedPack(pack.id === selectedPack ? '' : pack.id)}
+                className={`p-3 rounded-lg border-2 text-left transition-all ${
+                  selectedPack === pack.id
+                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                    : 'border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600'
+                }`}
+              >
+                <h4 className="font-medium text-neutral-900 dark:text-white mb-1">
+                  {pack.name}
+                </h4>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                  {pack.topics.length} debate topics
+                </p>
+              </button>
+            ))}
+          </div>
+          
+          {selectedPack && (
+            <div className="bg-neutral-50 dark:bg-neutral-900/50 rounded-lg p-4 mb-4">
+              <h4 className="font-medium text-neutral-900 dark:text-white mb-3">
+                Select a Topic
+              </h4>
+              <div className="space-y-2">
+                {PROMPT_PACKS.find(p => p.id === selectedPack)?.topics.map((topic, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleTopicSelect(topic)}
+                    className="w-full text-left p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                  >
+                    <p className="text-neutral-800 dark:text-neutral-200">{topic}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Prompt Input */}
         <form onSubmit={handlePromptSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-              Debate Prompt
+              Debate Topic
             </label>
             <div className="relative">
               <textarea
@@ -536,7 +863,125 @@ Return ONLY the improved prompt text without any explanations, introductions, or
 
       {/* Results */}
       {results.length > 0 && (
-        <ResponseComparison results={results} isDebateMode={true} />
+        <div className="space-y-6">
+          {/* Debate Controls */}
+          <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Round:</span>
+                  <span className="px-2 py-1 bg-neutral-100 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-200 rounded-full text-sm font-bold">
+                    {debateRound}
+                  </span>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Active Position:</span>
+                  <button
+                    onClick={togglePosition}
+                    className={`px-3 py-1 rounded-full text-sm font-bold transition-colors ${
+                      activePosition === 'A'
+                        ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200'
+                        : 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200'
+                    }`}
+                  >
+                    {activePosition === 'A' ? sideA.label : sideB.label}
+                  </button>
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={continueDebate}
+                  disabled={isLoading || results.some(r => r.loading)}
+                  className="flex items-center space-x-2 px-3 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Play className="w-4 h-4" />
+                  <span>Continue Debate</span>
+                </button>
+                
+                <div className="relative group">
+                  <button
+                    className="flex items-center space-x-2 px-3 py-2 bg-secondary-500 text-white rounded-lg hover:bg-secondary-600 transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Export</span>
+                  </button>
+                  
+                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-neutral-800 rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+                    <div className="p-1">
+                      <button
+                        onClick={exportDebate}
+                        className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-md transition-colors"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>Download as Markdown</span>
+                      </button>
+                      <button
+                        onClick={copyDebateToClipboard}
+                        className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-md transition-colors"
+                      >
+                        {copiedText === 'debate' ? (
+                          <>
+                            <Check className="w-4 h-4 text-green-500" />
+                            <span>Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-4 h-4" />
+                            <span>Copy to Clipboard</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Debate History */}
+          {debateHistory.length > 0 && (
+            <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6">
+              <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">
+                Debate History
+              </h3>
+              
+              <div className="space-y-6">
+                {debateHistory.map((round, index) => (
+                  <div key={index} className="border-b border-neutral-200 dark:border-neutral-700 pb-6 last:border-0 last:pb-0">
+                    <h4 className="font-medium text-neutral-900 dark:text-white mb-3">
+                      Round {round.round}
+                    </h4>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4">
+                        <h5 className="font-medium text-orange-900 dark:text-orange-100 mb-2">
+                          {sideA.label}
+                        </h5>
+                        <div className="text-sm text-orange-800 dark:text-orange-200 whitespace-pre-wrap">
+                          {round.positionA}
+                        </div>
+                      </div>
+                      
+                      <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                        <h5 className="font-medium text-blue-900 dark:text-blue-100 mb-2">
+                          {sideB.label}
+                        </h5>
+                        <div className="text-sm text-blue-800 dark:text-blue-200 whitespace-pre-wrap">
+                          {round.positionB}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {/* Current Round Results */}
+          <ResponseComparison results={results} isDebateMode={true} />
+        </div>
       )}
     </div>
   );

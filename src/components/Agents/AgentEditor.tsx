@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Save, X, Bot, Lightbulb, Code, TestTube, Zap } from 'lucide-react';
 import type { Agent } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
+import { PromptAgentAdvanced } from './PromptAgentAdvanced';
 
 interface AgentEditorProps {
   agent: Agent | null;
@@ -32,6 +33,9 @@ export function AgentEditor({ agent, onSave, onClose }: AgentEditorProps) {
     constraintsRules: '',
     styleFormat: ''
   });
+
+  // NEW: Improve My Prompt feature
+  const [showImprovePrompt, setShowImprovePrompt] = useState(false);
 
   useEffect(() => {
     if (agent) {
@@ -71,11 +75,13 @@ export function AgentEditor({ agent, onSave, onClose }: AgentEditorProps) {
   };
 
   const removeExample = (index: number) => {
-    const newExamples = (formData.examples || []).filter((_, i) => i !== index);
-    setFormData(prev => ({
-      ...prev,
-      examples: newExamples.length > 0 ? newExamples : ['']
-    }));
+    if (formData.examples && formData.examples.length > 1) {
+      const newExamples = formData.examples.filter((_, i) => i !== index);
+      setFormData(prev => ({
+        ...prev,
+        examples: newExamples
+      }));
+    }
   };
 
   // NEW: Generate combined prompt from advanced fields
@@ -166,6 +172,27 @@ export function AgentEditor({ agent, onSave, onClose }: AgentEditorProps) {
     };
 
     onSave(agentData);
+  };
+
+  // NEW: Handle applying improved prompt
+  const handleApplyImprovedPrompt = (improvedPrompt: string) => {
+    if (isAdvancedMode) {
+      // For advanced mode, we'll just put the improved prompt in the role/persona field
+      // This is a simple approach - a more sophisticated implementation could parse the improved prompt
+      setAdvancedPrompt(prev => ({
+        ...prev,
+        rolePersona: improvedPrompt
+      }));
+    } else {
+      // For simple mode, replace the prompt template
+      setFormData(prev => ({
+        ...prev,
+        promptTemplate: improvedPrompt
+      }));
+    }
+    
+    // Hide the improve prompt section
+    setShowImprovePrompt(false);
   };
 
   const categories = [
@@ -290,6 +317,41 @@ export function AgentEditor({ agent, onSave, onClose }: AgentEditorProps) {
                 />
               </button>
             </div>
+
+            {/* NEW: Improve My Prompt Toggle */}
+            <div className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+              <div>
+                <h4 className="font-medium text-green-900 dark:text-green-100 mb-1 flex items-center space-x-2">
+                  <Lightbulb className="w-4 h-4" />
+                  <span>Improve My Prompt</span>
+                </h4>
+                <p className="text-sm text-green-700 dark:text-green-300">
+                  Use AI to improve your prompt with suggestions from an AI assistant
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowImprovePrompt(!showImprovePrompt)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  showImprovePrompt 
+                    ? 'bg-green-600' 
+                    : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    showImprovePrompt ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* NEW: Improve My Prompt Section */}
+            {showImprovePrompt && (
+              <div className="border border-green-200 dark:border-green-800 rounded-lg p-4 bg-green-50 dark:bg-green-900/10">
+                <PromptAgentAdvanced onApplyImprovedPrompt={handleApplyImprovedPrompt} />
+              </div>
+            )}
 
             {/* Prompt Template Section - Conditional based on mode */}
             {!isAdvancedMode ? (

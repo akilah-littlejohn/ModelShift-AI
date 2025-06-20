@@ -6,6 +6,7 @@ import { ConfigurationGenerator } from './ConfigurationGenerator';
 import { ConfigurationExporter } from './ConfigurationExporter';
 import { ConfigurationImporter } from './ConfigurationImporter';
 import { CustomProviderEditor } from './CustomProviderEditor';
+import { CodeSnippetModal } from './CodeSnippetModal';
 import type { APIKey, Provider } from '../../types';
 import toast from 'react-hot-toast';
 
@@ -26,6 +27,7 @@ export function KeyManagement() {
   const [showExportModal, setShowExportModal] = useState<string | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showCustomProviderModal, setShowCustomProviderModal] = useState(false);
+  const [showCodeSnippetModal, setShowCodeSnippetModal] = useState<string | null>(null);
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const [editingKey, setEditingKey] = useState<{provider: string, keyId: string, keyData: Record<string, string>} | null>(null);
 
@@ -134,6 +136,10 @@ export function KeyManagement() {
   const handleEditKey = (provider: string, keyId: string, keyData: Record<string, string>) => {
     setEditingKey({ provider, keyId, keyData });
     setShowAddModal(true);
+  };
+
+  const handleShowCodeSnippet = (providerId: string) => {
+    setShowCodeSnippetModal(providerId);
   };
 
   // Get all providers (built-in + custom)
@@ -341,6 +347,13 @@ export function KeyManagement() {
                     </div>
                     <div className="flex items-center space-x-2">
                       <button
+                        onClick={() => handleShowCodeSnippet(group.provider)}
+                        className="p-2 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                        title="Show code snippets"
+                      >
+                        <Code className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={() => setShowExportModal(group.provider)}
                         className="p-2 text-secondary-500 hover:text-secondary-700 dark:text-secondary-400 dark:hover:text-secondary-300 hover:bg-secondary-50 dark:hover:bg-secondary-900/20 rounded-lg transition-colors"
                         title="Export configuration"
@@ -352,7 +365,7 @@ export function KeyManagement() {
                         className="p-2 text-primary-500 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
                         title="Generate configuration"
                       >
-                        <Code className="w-4 h-4" />
+                        <Settings className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => {
@@ -434,6 +447,13 @@ export function KeyManagement() {
                           {/* Actions */}
                           <div className="flex items-center space-x-2 ml-4">
                             <button
+                              onClick={() => handleShowCodeSnippet(group.provider)}
+                              className="p-2 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                              title="Show code snippets"
+                            >
+                              <Code className="w-4 h-4" />
+                            </button>
+                            <button
                               onClick={() => handleEditKey(group.provider, key.id, key.keyData)}
                               className="p-2 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
                               title="Edit key"
@@ -508,6 +528,14 @@ export function KeyManagement() {
         <CustomProviderEditor
           onClose={() => setShowCustomProviderModal(false)}
           onSave={handleSaveCustomProvider}
+        />
+      )}
+
+      {/* Code Snippet Modal */}
+      {showCodeSnippetModal && (
+        <CodeSnippetModal
+          provider={showCodeSnippetModal}
+          onClose={() => setShowCodeSnippetModal(null)}
         />
       )}
     </div>

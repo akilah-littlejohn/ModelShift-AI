@@ -6,6 +6,7 @@ import { ResponseComparison } from './ResponseComparison';
 import { ProxyService } from '../../lib/api/ProxyService';
 import { useAuth } from '../../contexts/AuthContext';
 import { AgentService } from '../../lib/agents';
+import { db } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 import type { DebateSideConfig, ComparisonResult } from '../../types';
 
@@ -159,6 +160,40 @@ export function DebateView() {
     ];
     
     await Promise.all(promises);
+    
+    // Record the debate execution in the database for history
+    try {
+      if (user.id) {
+        // Get all successful responses
+        const allResponses = results.filter(r => !r.loading && !r.error).map(r => ({
+          provider: r.provider,
+          response: r.response,
+          latency: r.metrics.latency,
+          tokens: r.metrics.tokens,
+          success: true,
+          error: undefined
+        }));
+        
+        // Calculate total execution time and tokens
+        const totalExecutionTime = allResponses.reduce((sum, r) => sum + r.latency, 0);
+        const totalTokens = allResponses.reduce((sum, r) => sum + r.tokens, 0);
+        
+        // Create a record of this debate round
+        await db.prompts.create({
+          user_id: user.id,
+          prompt: promptToUse,
+          agent_type: 'debate',
+          providers: [...sideA.selectedProviders, ...sideB.selectedProviders],
+          responses: allResponses,
+          execution_time: totalExecutionTime,
+          tokens_used: totalTokens
+        });
+      }
+    } catch (historyError) {
+      console.error('Failed to record debate execution history:', historyError);
+      // Don't show error to user as this is a background operation
+    }
+    
     setIsLoading(false);
   };
   
@@ -432,6 +467,40 @@ Return ONLY the improved prompt text without any explanations, introductions, or
     ];
     
     await Promise.all(promises);
+    
+    // Record the debate round in the database for history
+    try {
+      if (user.id) {
+        // Get all successful responses for this round
+        const allResponses = results.filter(r => !r.loading && !r.error).map(r => ({
+          provider: r.provider,
+          response: r.response,
+          latency: r.metrics.latency,
+          tokens: r.metrics.tokens,
+          success: true,
+          error: undefined
+        }));
+        
+        // Calculate total execution time and tokens
+        const totalExecutionTime = allResponses.reduce((sum, r) => sum + r.latency, 0);
+        const totalTokens = allResponses.reduce((sum, r) => sum + r.tokens, 0);
+        
+        // Create a record of this debate round
+        await db.prompts.create({
+          user_id: user.id,
+          prompt: `${promptToUse} (Round ${nextRound})`,
+          agent_type: 'debate',
+          providers: [...sideA.selectedProviders, ...sideB.selectedProviders],
+          responses: allResponses,
+          execution_time: totalExecutionTime,
+          tokens_used: totalTokens
+        });
+      }
+    } catch (historyError) {
+      console.error('Failed to record debate round history:', historyError);
+      // Don't show error to user as this is a background operation
+    }
+    
     setIsLoading(false);
   };
 

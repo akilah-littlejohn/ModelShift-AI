@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { ProviderSelector } from './ProviderSelector';
 import { AgentSelector } from './AgentSelector';
 import { ProxyService } from '../../lib/api/ProxyService';
+import { db } from '../../lib/supabase';
 import type { MessageType } from './types';
 
 export function PlaygroundView() {
@@ -50,16 +51,30 @@ export function PlaygroundView() {
 
       setMessages((msgs) => [...msgs, { role: 'assistant', text: response.response || '' }]);
       
-      // Log usage for analytics
-      await ProxyService.logProxyUsage({
-        providerId: selectedProvider,
-        prompt,
-        model: selectedModel,
-        parameters: selectedParameters,
-        agentId: selectedAgent?.id || null,
-        userId: user.id,
-        useUserKey: connectionMode === 'browser'
-      }, response);
+      // Record the prompt execution in the database for history
+      try {
+        if (user.id) {
+          await db.prompts.create({
+            user_id: user.id,
+            prompt,
+            agent_type: selectedAgent?.id || 'direct',
+            providers: [selectedProvider],
+            responses: [{
+              provider: selectedProvider,
+              response: response.response || '',
+              latency: response.metrics?.latency || 0,
+              tokens: response.metrics?.tokens || 0,
+              success: true,
+              error: undefined
+            }],
+            execution_time: response.metrics?.latency || 0,
+            tokens_used: response.metrics?.tokens || 0
+          });
+        }
+      } catch (historyError) {
+        console.error('Failed to record prompt execution history:', historyError);
+        // Don't show error to user as this is a background operation
+      }
       
     } catch (err: any) {
       console.error('Proxy request failed:', err);

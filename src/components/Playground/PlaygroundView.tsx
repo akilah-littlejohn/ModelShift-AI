@@ -166,7 +166,7 @@ export function PlaygroundView() {
             href="#" 
             onClick={(e) => {
               e.preventDefault();
-              window.location.href = '/settings';
+              setActiveTab('connection');
             }}
             className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
           >
@@ -222,4 +222,9 @@ export function PlaygroundView() {
       </form>
     </div>
   );
+
+  function setActiveTab(tab: string) {
+    // This function is used to navigate to the settings page with the connection tab active
+    window.location.href = '/settings';
+  }
 }

@@ -158,8 +158,8 @@ export class ProxyService {
         usingUserKey: data.using_user_key,
         metrics: {
           latency,
-          tokens: estimatedTokens,
-          cost: estimatedCost
+          tokens: data.metrics?.tokens || estimatedTokens,
+          cost: data.metrics?.cost || estimatedCost
         },
         metadata: {
           requestId: data.requestId,

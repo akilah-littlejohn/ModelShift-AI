@@ -108,6 +108,18 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
           )}
         </nav>
       </div>
+      
+      {/* Built with Bolt badge */}
+      <div className="p-4 border-t border-neutral-200 dark:border-neutral-800">
+        <a 
+          href="https://bolt.new" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="flex items-center justify-center space-x-2 px-3 py-2 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-lg transition-colors text-sm text-neutral-600 dark:text-neutral-400"
+        >
+          <span>Built with Bolt</span>
+        </a>
+      </div>
     </div>
   );
 }

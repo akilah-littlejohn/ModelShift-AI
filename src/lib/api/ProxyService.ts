@@ -588,27 +588,24 @@ export class ProxyService {
         return;
       }
 
-      // Log to analytics_events table
-      await supabase.from('analytics_events').insert({
-        id: `proxy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        user_id: session.user.id,
-        event_type: 'proxy_call',
-        provider_id: request.providerId,
-        agent_id: request.agentId,
-        prompt_length: request.prompt.length,
-        response_length: response.response?.length || 0,
+      // Use analyticsService instead of direct database access
+      analyticsService.trackEvent({
+        userId: session.user.id,
+        eventType: 'proxy_call',
+        providerId: request.providerId,
+        agentId: request.agentId,
+        promptLength: request.prompt.length,
+        responseLength: response.response?.length || 0,
         success: response.success,
-        error_type: response.success ? null : 'proxy_error',
+        errorType: response.success ? undefined : 'proxy_error',
         metrics: response.metrics || { latency: 0, tokens: 0, cost: 0 },
         metadata: {
           ...response.metadata,
           model: response.model,
           proxy_mode: true,
           using_user_key: response.usingUserKey
-        },
-        timestamp: new Date().toISOString()
+        }
       });
-
     } catch (error) {
       console.error('Failed to log proxy usage:', error);
       // Don't throw - logging failures shouldn't break the main flow

@@ -241,34 +241,6 @@ function createMockSupabaseClient() {
 // Create the main client
 export const supabase = createSupabaseClient();
 
-// Create admin client for analytics (bypasses RLS)
-export const adminSupabase = (() => {
-  const { supabaseUrl, isDemoMode, isProduction } = validateEnvironmentVariables();
-  const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
-
-  if (isDemoMode || !supabaseUrl || !serviceRoleKey) {
-    console.warn('⚠️  Admin client not available (demo mode or missing service role key)');
-    return null;
-  }
-
-  try {
-    return createClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      },
-      global: {
-        headers: {
-          'X-Client-Info': 'modelshift-ai-admin@1.0.0',
-        },
-      }
-    });
-  } catch (error) {
-    console.error('❌ Failed to create admin Supabase client:', error);
-    return null;
-  }
-})();
-
 // Database Operations with improved error handling
 export const db = {
   users: {
@@ -372,77 +344,6 @@ export const db = {
         return data || [];
       } catch (error) {
         console.error('❌ Error getting analytics:', error);
-        return [];
-      }
-    }
-  },
-
-  analytics: {
-    async createEvent(event: {
-      id: string;
-      user_id: string;
-      event_type: string;
-      provider_id: string;
-      agent_id?: string;
-      prompt_length: number;
-      response_length: number;
-      success: boolean;
-      error_type?: string;
-      metrics: any;
-      metadata?: any;
-      timestamp: string;
-    }) {
-      try {
-        // Use admin client if available to bypass RLS
-        const client = adminSupabase || supabase;
-        
-        const { data, error } = await client
-          .from('analytics_events')
-          .insert([event])
-          .select()
-          .single();
-        
-        if (error) throw error;
-        return data;
-      } catch (error) {
-        console.error('❌ Error creating analytics event:', error);
-        throw error;
-      }
-    },
-
-    async getEvents(userId: string, startDate: string, endDate: string, limit: number = 1000) {
-      try {
-        const { data, error } = await supabase
-          .from('analytics_events')
-          .select('*')
-          .eq('user_id', userId)
-          .gte('timestamp', startDate)
-          .lte('timestamp', endDate)
-          .order('timestamp', { ascending: false })
-          .limit(limit);
-        
-        if (error) throw error;
-        return data || [];
-      } catch (error) {
-        console.error('❌ Error getting analytics events:', error);
-        return [];
-      }
-    },
-
-    async getAggregations(userId: string, startDate: string, endDate: string) {
-      try {
-        const { data, error } = await supabase
-          .from('analytics_aggregations')
-          .select('*')
-          .eq('user_id', userId)
-          .gte('date', startDate)
-          .lte('date', endDate)
-          .order('date', { ascending: false });
-        
-        if (error) throw error;
-        return data || [];
-      } catch (error) {
-        console.error('❌ Error getting analytics aggregations:', error);
         return [];
       }
     }

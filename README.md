@@ -2,6 +2,8 @@
 
 ModelShift AI is a powerful SaaS platform for orchestrating and comparing multiple large language models (LLMs) through a unified interface. It supports OpenAI, Google Gemini, Anthropic Claude, and IBM WatsonX.
 
+[![Built with Bolt](https://img.shields.io/badge/Built%20with-Bolt-blue)](https://bolt.new)
+
 ## Features
 
 - **Multi-Provider Support**: Compare responses from different AI providers side-by-side

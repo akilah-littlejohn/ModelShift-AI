@@ -4,7 +4,6 @@ import {
   Key, 
   History, 
   Settings, 
-  Zap,
   Bot,
   FileText,
   UserCog,
@@ -108,22 +107,6 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
             </div>
           )}
         </nav>
-      </div>
-
-      {/* Upgrade Section */}
-      <div className="p-4 border-t border-neutral-200 dark:border-neutral-800">
-        <div className="bg-gradient-to-r from-primary-500 to-secondary-500 rounded-lg p-4 text-white">
-          <div className="flex items-center space-x-2 mb-2">
-            <Zap className="w-5 h-5" />
-            <span className="font-semibold">Upgrade to Pro</span>
-          </div>
-          <p className="text-sm text-primary-100 mb-3">
-            Unlock unlimited API calls and advanced features
-          </p>
-          <button className="w-full bg-white text-primary-600 py-2 rounded-md text-sm font-medium hover:bg-primary-50 transition-colors">
-            Upgrade Now
-          </button>
-        </div>
       </div>
     </div>
   );

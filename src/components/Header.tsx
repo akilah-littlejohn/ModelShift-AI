@@ -1,7 +1,7 @@
 import React from 'react';
-import { Brain, Moon, Sun, User, LogOut } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
-import { useTheme } from '../../contexts/ThemeContext';
+import { Brain, Moon, Sun, User, Settings, LogOut } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 export function Header() {
   const { user, logout } = useAuth();

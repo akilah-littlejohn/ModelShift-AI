@@ -14,11 +14,7 @@ export function SettingsView() {
   const tabs = [
     { id: 'connection', name: 'Connection Mode', icon: Server },
     { id: 'api-keys', name: 'API Keys', icon: Key },
-    { id: 'profile', name: 'Profile', icon: User },
-    { id: 'notifications', name: 'Notifications', icon: Bell },
-    { id: 'security', name: 'Security', icon: ShieldCheck },
-    { id: 'billing', name: 'Billing', icon: CreditCard },
-    { id: 'advanced', name: 'Advanced', icon: Zap },
+    { id: 'profile', name: 'Profile', icon: User }
   ];
 
   const renderTabContent = () => {
@@ -30,20 +26,17 @@ export function SettingsView() {
       case 'connection':
         return <ConnectionModeSettings />;
       default:
-        const currentTab = tabs.find(tab => tab.id === activeTab);
-        const IconComponent = currentTab?.icon || Key;
-        
         return (
           <div className="max-w-4xl mx-auto p-6 text-center">
             <div className="py-12">
               <div className="w-16 h-16 bg-neutral-100 dark:bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                <IconComponent className="w-8 h-8 text-neutral-400" />
+                <Server className="w-8 h-8 text-neutral-400" />
               </div>
               <h3 className="text-lg font-medium text-neutral-900 dark:text-white mb-2">
-                {currentTab?.name} Settings
+                Connection Mode Settings
               </h3>
               <p className="text-neutral-600 dark:text-neutral-400">
-                This feature is coming soon.
+                Please select Connection Mode from the sidebar to configure how ModelShift AI connects to providers.
               </p>
             </div>
           </div>

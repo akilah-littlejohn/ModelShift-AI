@@ -326,26 +326,6 @@ export const db = {
         console.error('❌ Error getting prompt executions:', error);
         return [];
       }
-    },
-
-    async getAnalytics(userId: string, days: number = 30) {
-      try {
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - days);
-        
-        const { data, error } = await supabase
-          .from('prompt_executions')
-          .select('*')
-          .eq('user_id', userId)
-          .gte('created_at', startDate.toISOString())
-          .order('created_at', { ascending: false });
-        
-        if (error) throw error;
-        return data || [];
-      } catch (error) {
-        console.error('❌ Error getting analytics:', error);
-        return [];
-      }
     }
   }
 };

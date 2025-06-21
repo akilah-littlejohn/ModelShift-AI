@@ -3,7 +3,6 @@ import {
   Brain, 
   Key, 
   History, 
-  BarChart3, 
   Settings, 
   Zap,
   Bot,
@@ -25,7 +24,6 @@ const navigation = [
   { id: 'agents', name: 'Prompt Agent Management', icon: Bot },
   { id: 'keys', name: 'API Keys', icon: Key },
   { id: 'history', name: 'History', icon: History },
-  { id: 'analytics', name: 'Analytics', icon: BarChart3 },
   { id: 'sdk-docs', name: 'SDK Docs', icon: FileText },
   { id: 'settings', name: 'Settings', icon: UserCog },
 ];

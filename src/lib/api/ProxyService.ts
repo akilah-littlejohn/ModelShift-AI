@@ -1,5 +1,6 @@
 import { supabase } from '../supabase';
 import { apiKeysDb } from '../api-keys/api-keys-db';
+import { serverEncryption } from '../api-keys/encryption';
 import type { Provider } from '../../types';
 
 export interface ProxyRequest {
@@ -589,6 +590,7 @@ export class ProxyService {
       }
 
       // Use analyticsService instead of direct database access
+      const { analyticsService } = await import('../analytics/AnalyticsService');
       analyticsService.trackEvent({
         userId: session.user.id,
         eventType: 'proxy_call',

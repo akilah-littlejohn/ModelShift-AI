@@ -3,7 +3,6 @@ import { BrowserRouter as Router } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { analyticsService } from './lib/analytics/AnalyticsService';
 import { supabase, isUuid } from './lib/supabase';
 import { LoginForm } from './components/Auth/LoginForm';
 import { Header } from './components/Layout/Header';
@@ -12,7 +11,6 @@ import { PlaygroundView } from './components/Playground/PlaygroundView';
 import { DebateView } from './components/Playground/DebateView';
 import { AgentManagement } from './components/Agents/AgentManagement';
 import { KeyManagement } from './components/Keys/KeyManagement';
-import { AnalyticsView } from './components/Analytics/AnalyticsView';
 import { HistoryView } from './components/History/HistoryView';
 import { SDKDocsView } from './components/Docs/SDKDocsView';
 import { SettingsView } from './components/Settings/SettingsView';
@@ -20,84 +18,6 @@ import { SettingsView } from './components/Settings/SettingsView';
 function AppContent() {
   const { user, isLoading } = useAuth();
   const [activeView, setActiveView] = useState('playground');
-  const [analyticsInitialized, setAnalyticsInitialized] = useState(false);
-
-  // Initialize analytics service when user is available
-  useEffect(() => {
-    if (user && !analyticsInitialized) {
-      initializeAnalytics();
-      setAnalyticsInitialized(true);
-    }
-  }, [user, analyticsInitialized]);
-
-  const initializeAnalytics = async () => {
-    try {
-      // Check if Supabase is available and configured
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      
-      // Check if user ID is a valid UUID - if not, use local mode
-      if (!isUuid(user.id)) {
-        console.warn('⚠️  User ID is not a valid UUID, using local analytics mode:', user.id);
-        analyticsService.configure({ mode: 'local' });
-        return;
-      }
-      
-      // Check if we have a real Supabase session (not mock auth)
-      let hasRealSupabaseSession = false;
-      
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        hasRealSupabaseSession = session && session.user && !session.user.email?.includes('demo');
-      } catch (error) {
-        console.warn('Could not check Supabase session:', error);
-        hasRealSupabaseSession = false;
-      }
-      
-      if (supabaseUrl && supabaseKey && 
-          !supabaseUrl.includes('demo') && !supabaseKey.includes('demo') &&
-          hasRealSupabaseSession) {
-        
-        // Test Supabase connection with authenticated user
-        try {
-          const { data, error } = await supabase
-            .from('analytics_events')
-            .select('id')
-            .limit(1);
-          
-          if (!error) {
-            // Supabase is available with proper authentication, configure for hybrid mode
-            analyticsService.configure({
-              mode: 'supabase',
-              supabaseClient: supabase,
-              enableRealTimeSync: true
-            });
-            
-            console.log('Analytics service configured for Supabase mode');
-            
-            // Attempt to sync any pending local events
-            const syncStatus = analyticsService.getSyncQueueStatus();
-            if (syncStatus.pending > 0) {
-              console.log(`Attempting to sync ${syncStatus.pending} pending analytics events`);
-            }
-          } else {
-            console.warn('Supabase analytics tables not available or RLS blocking access, using local mode');
-            analyticsService.configure({ mode: 'local' });
-          }
-        } catch (error) {
-          console.warn('Supabase connection failed or RLS blocking access, using local analytics:', error);
-          analyticsService.configure({ mode: 'local' });
-        }
-      } else {
-        console.log('Supabase not configured or using mock authentication, using local analytics');
-        analyticsService.configure({ mode: 'local' });
-      }
-    } catch (error) {
-      console.error('Failed to initialize analytics:', error);
-      // Fallback to local mode
-      analyticsService.configure({ mode: 'local' });
-    }
-  };
 
   if (isLoading) {
     return (
@@ -126,8 +46,6 @@ function AppContent() {
         return <KeyManagement />;
       case 'history':
         return <HistoryView />;
-      case 'analytics':
-        return <AnalyticsView />;
       case 'sdk-docs':
         return <SDKDocsView />;
       case 'settings':

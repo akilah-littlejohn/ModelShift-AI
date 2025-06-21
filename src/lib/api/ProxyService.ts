@@ -570,47 +570,4 @@ export class ProxyService {
     };
     return names[providerId] || providerId;
   }
-
-  /**
-   * Log proxy usage for analytics
-   */
-  static async logProxyUsage(request: ProxyRequest, response: ProxyResponse): Promise<void> {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        console.warn('Cannot log proxy usage: No active session');
-        return;
-      }
-
-      // Validate UUID format to prevent database errors
-      if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89ab][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(session.user.id)) {
-        console.warn(`Skipping analytics logging for invalid userId format: ${session.user.id}`);
-        return;
-      }
-
-      // Use analyticsService instead of direct database access
-      const { analyticsService } = await import('../analytics/AnalyticsService');
-      analyticsService.trackEvent({
-        userId: session.user.id,
-        eventType: 'proxy_call',
-        providerId: request.providerId,
-        agentId: request.agentId,
-        promptLength: request.prompt.length,
-        responseLength: response.response?.length || 0,
-        success: response.success,
-        errorType: response.success ? undefined : 'proxy_error',
-        metrics: response.metrics || { latency: 0, tokens: 0, cost: 0 },
-        metadata: {
-          ...response.metadata,
-          model: response.model,
-          proxy_mode: true,
-          using_user_key: response.usingUserKey
-        }
-      });
-    } catch (error) {
-      console.error('Failed to log proxy usage:', error);
-      // Don't throw - logging failures shouldn't break the main flow
-    }
-  }
 }

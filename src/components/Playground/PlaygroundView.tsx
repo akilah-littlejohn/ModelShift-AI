@@ -4,7 +4,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { ProviderSelector } from './ProviderSelector';
 import { AgentSelector } from './AgentSelector';
 import { ProxyService } from '../../lib/api/ProxyService';
+import { AgentService } from '../../lib/agents';
 import { db } from '../../lib/supabase';
+import { v4 as uuidv4 } from 'uuid';
 import type { MessageType } from './types';
 
 export function PlaygroundView() {
@@ -34,10 +36,24 @@ export function PlaygroundView() {
     setIsLoading(true);
 
     try {
+      // Start tracking execution time
+      const startTime = Date.now();
+      
+      // Process the prompt through the agent if selected
+      let finalPrompt = prompt;
+      if (selectedAgent?.id) {
+        try {
+          finalPrompt = AgentService.buildPrompt(selectedAgent.id, prompt);
+        } catch (error) {
+          console.error('Error building prompt with agent:', error);
+          // Fall back to original prompt
+        }
+      }
+
       // Use the ProxyService to handle the request based on connection mode
       const response = await ProxyService.callProvider({
         providerId: selectedProvider,
-        prompt,
+        prompt: finalPrompt,
         model: selectedModel,
         parameters: selectedParameters,
         agentId: selectedAgent?.id || null,
@@ -49,36 +65,62 @@ export function PlaygroundView() {
         throw new Error(response.error || 'Request failed');
       }
 
+      // Calculate execution time
+      const executionTime = Date.now() - startTime;
+      
+      // Add response to messages
       setMessages((msgs) => [...msgs, { role: 'assistant', text: response.response || '' }]);
       
-      // Record the prompt execution in the database for history
+      // Record execution in database
       try {
-        if (user.id) {
-          await db.prompts.create({
-            user_id: user.id,
-            prompt,
-            agent_type: selectedAgent?.id || 'direct',
-            providers: [selectedProvider],
-            responses: [{
-              provider: selectedProvider,
-              response: response.response || '',
-              latency: response.metrics?.latency || 0,
-              tokens: response.metrics?.tokens || 0,
-              success: true,
-              error: undefined
-            }],
-            execution_time: response.metrics?.latency || 0,
-            tokens_used: response.metrics?.tokens || 0
-          });
-        }
-      } catch (historyError) {
-        console.error('Failed to record prompt execution history:', historyError);
-        // Don't show error to user as this is a background operation
+        await db.prompts.create({
+          user_id: user.id,
+          prompt: finalPrompt,
+          agent_type: selectedAgent?.id || 'direct',
+          providers: [selectedProvider],
+          responses: [{
+            provider: selectedProvider,
+            response: response.response || '',
+            latency: response.metrics?.latency || executionTime,
+            tokens: response.metrics?.tokens || Math.ceil((finalPrompt.length + (response.response?.length || 0)) / 4),
+            success: true
+          }],
+          execution_time: executionTime,
+          tokens_used: response.metrics?.tokens || Math.ceil((finalPrompt.length + (response.response?.length || 0)) / 4)
+        });
+      } catch (dbError) {
+        console.error('Failed to record execution in database:', dbError);
+        // Don't fail the request if recording fails
       }
       
     } catch (err: any) {
       console.error('Proxy request failed:', err);
       toast.error(`Request failed: ${err.message}`);
+      
+      // Record failed execution
+      if (user?.id) {
+        try {
+          const executionTime = Date.now() - Date.now(); // 0 for failed requests
+          await db.prompts.create({
+            user_id: user.id,
+            prompt: prompt,
+            agent_type: selectedAgent?.id || 'direct',
+            providers: [selectedProvider],
+            responses: [{
+              provider: selectedProvider,
+              response: '',
+              latency: 0,
+              tokens: 0,
+              success: false,
+              error: err.message
+            }],
+            execution_time: executionTime,
+            tokens_used: 0
+          });
+        } catch (dbError) {
+          console.error('Failed to record failed execution:', dbError);
+        }
+      }
     } finally {
       setIsLoading(false);
     }

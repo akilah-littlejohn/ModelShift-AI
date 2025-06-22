@@ -214,16 +214,7 @@ export class ProxyClient implements ModelShiftAIClient {
         useUserKey: this.useUserKey
       });
 
-      // Log the usage for analytics
-      await ProxyService.logProxyUsage({
-        providerId: this.providerId,
-        prompt,
-        model: this.customModel,
-        parameters: this.customParameters,
-        agentId: this.agentId,
-        userId: this.userId,
-        useUserKey: this.useUserKey
-      }, response);
+      // Removed analytics logging code
 
       if (!response.success) {
         throw new Error(response.error || 'Proxy request failed');

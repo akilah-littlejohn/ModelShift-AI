@@ -365,34 +365,7 @@ serve(async (req) => {
       usingUserKey
     });
 
-    // Log to analytics (optional - could be done asynchronously)
-    try {
-      await supabaseClient.from('analytics_events').insert({
-        id: `proxy_${requestId}`,
-        user_id: user.id,
-        event_type: 'proxy_call',
-        provider_id: providerId,
-        agent_id: agentId,
-        prompt_length: prompt.length,
-        response_length: generatedText?.length || 0,
-        success: true,
-        metrics: {
-          latency: responseTime,
-          tokens: Math.ceil((prompt.length + (generatedText?.length || 0)) / 4),
-          cost: 0 // Could be calculated based on provider pricing
-        },
-        metadata: {
-          model: model || 'default',
-          requestId,
-          proxy_mode: true,
-          using_user_key: usingUserKey
-        },
-        timestamp: new Date().toISOString()
-      });
-    } catch (logError) {
-      console.warn(`[${requestId}] Failed to log analytics:`, logError);
-      // Don't fail the request if logging fails
-    }
+    // Removed analytics logging code
 
     return new Response(
       JSON.stringify({ 

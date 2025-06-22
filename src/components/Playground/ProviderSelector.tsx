@@ -8,9 +8,10 @@ interface ProviderSelectorProps {
   selected: string[];
   onChange: (selected: string[]) => void;
   userApiKeys?: Record<string, boolean>;
+  singleSelect?: boolean; // New prop for single selection mode
 }
 
-export function ProviderSelector({ selected, onChange, userApiKeys }: ProviderSelectorProps) {
+export function ProviderSelector({ selected, onChange, userApiKeys, singleSelect = false }: ProviderSelectorProps) {
   const [customProviders, setCustomProviders] = useState<Provider[]>([]);
 
   useEffect(() => {
@@ -30,10 +31,22 @@ export function ProviderSelector({ selected, onChange, userApiKeys }: ProviderSe
   };
 
   const toggleProvider = (providerId: string) => {
-    if (selected.includes(providerId)) {
-      onChange(selected.filter(id => id !== providerId));
+    if (singleSelect) {
+      // Single selection mode
+      if (selected.includes(providerId)) {
+        // If already selected, deselect it
+        onChange([]);
+      } else {
+        // If not selected, make it the only selected item
+        onChange([providerId]);
+      }
     } else {
-      onChange([...selected, providerId]);
+      // Multi-selection mode (original behavior)
+      if (selected.includes(providerId)) {
+        onChange(selected.filter(id => id !== providerId));
+      } else {
+        onChange([...selected, providerId]);
+      }
     }
   };
 

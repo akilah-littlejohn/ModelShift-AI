@@ -701,10 +701,13 @@ Return ONLY the improved prompt text without any explanations, introductions, or
                       <ProviderSelector
                         selected={[provider]}
                         onChange={(providers) => {
-                          const newProviders = [...sideA.selectedProviders];
-                          newProviders[index] = providers[0];
-                          setSideA({ ...sideA, selectedProviders: newProviders });
+                          if (providers.length > 0) {
+                            const newProviders = [...sideA.selectedProviders];
+                            newProviders[index] = providers[0];
+                            setSideA({ ...sideA, selectedProviders: newProviders });
+                          }
                         }}
+                        singleSelect={true} // Enable single selection mode
                       />
                     </div>
                     <button
@@ -762,10 +765,13 @@ Return ONLY the improved prompt text without any explanations, introductions, or
                       <ProviderSelector
                         selected={[provider]}
                         onChange={(providers) => {
-                          const newProviders = [...sideB.selectedProviders];
-                          newProviders[index] = providers[0];
-                          setSideB({ ...sideB, selectedProviders: newProviders });
+                          if (providers.length > 0) {
+                            const newProviders = [...sideB.selectedProviders];
+                            newProviders[index] = providers[0];
+                            setSideB({ ...sideB, selectedProviders: newProviders });
+                          }
                         }}
+                        singleSelect={true} // Enable single selection mode
                       />
                     </div>
                     <button

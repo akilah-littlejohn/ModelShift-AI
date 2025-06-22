@@ -61,10 +61,6 @@ export function PlaygroundView() {
         useUserKey: connectionMode === 'browser', // Use user key in browser mode
       });
 
-      if (!response.success) {
-        throw new Error(response.error || 'Request failed');
-      }
-
       // Calculate execution time
       const executionTime = Date.now() - startTime;
       
@@ -145,7 +141,8 @@ export function PlaygroundView() {
               if (providers.length > 0) {
                 setSelectedProvider(providers[0]);
               }
-            }} 
+            }}
+            singleSelect={true} // Enable single selection mode
           />
         </div>
         <div className="w-full md:w-1/2">

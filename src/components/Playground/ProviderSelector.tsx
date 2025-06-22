@@ -38,6 +38,12 @@ export function ProviderSelector({ selected, onChange, userApiKeys }: ProviderSe
   };
 
   const hasValidCredentials = (providerId: string): boolean => {
+    // Check if we're in server proxy mode - in this case, we don't need user keys
+    const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'server';
+    if (connectionMode === 'server') {
+      return true; // In server mode, we assume server has keys configured
+    }
+    
     // First check if user has configured this provider
     if (userApiKeys && userApiKeys[providerId]) {
       return true;
@@ -46,11 +52,6 @@ export function ProviderSelector({ selected, onChange, userApiKeys }: ProviderSe
     // Fall back to legacy key vault
     const keyData = keyVault.retrieveDefault(providerId);
     if (!keyData) {
-      // Check if we're in server proxy mode - in this case, we don't need user keys
-      const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'server';
-      if (connectionMode === 'server') {
-        return true; // In server mode, we assume server has keys configured
-      }
       return false;
     }
 

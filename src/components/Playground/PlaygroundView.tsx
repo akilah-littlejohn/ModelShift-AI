@@ -6,6 +6,7 @@ import { AgentSelector } from './AgentSelector';
 import { ProxyService } from '../../lib/api/ProxyService';
 import { AgentService } from '../../lib/agents';
 import { db } from '../../lib/supabase';
+import { v4 as uuidv4 } from 'uuid';
 import type { MessageType } from './types';
 
 export function PlaygroundView() {
@@ -140,7 +141,11 @@ export function PlaygroundView() {
           <h3 className="text-lg font-medium mb-2">Select Provider</h3>
           <ProviderSelector 
             selected={[selectedProvider]} 
-            onChange={(providers) => setSelectedProvider(providers[0])} 
+            onChange={(providers) => {
+              if (providers.length > 0) {
+                setSelectedProvider(providers[0]);
+              }
+            }} 
           />
         </div>
         <div className="w-full md:w-1/2">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Swords, Play, X, Settings, Plus, Minus, RefreshCw, AlertTriangle, Info, Download, Copy, Check } from 'lucide-react';
+import { Swords, Play, X, Settings, Plus, Minus, RefreshCw, AlertTriangle, Info, Download, Copy, Check, Calendar, Filter } from 'lucide-react';
 import { ProviderSelector } from './ProviderSelector';
 import { AgentSelector } from './AgentSelector';
 import { ResponseComparison } from './ResponseComparison';

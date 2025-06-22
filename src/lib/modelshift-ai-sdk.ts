@@ -681,8 +681,8 @@ export const anthropicClaudeConfig: ProviderConfig = {
   buildHeaders: (keyData: Record<string, string>) => ({
     'x-api-key': keyData.apiKey,
     'anthropic-version': '2023-06-01',
-    'Content-Type': 'application/json'
-    // Note: Removed 'anthropic-dangerous-direct-browser-access' as it's not needed for proxy calls
+    'Content-Type': 'application/json',
+    'anthropic-dangerous-direct-browser-access': 'true'
   }),
   defaultModel: 'claude-3-sonnet-20240229',
   defaultParameters: {
@@ -775,8 +775,12 @@ export class ModelShiftAIClientFactory {
       console.log(`Creating direct browser client for ${provider}`);
       // For browser mode, we need API keys
       if (!keyData) {
-        const { keyVault } = await import('./encryption');
-        keyData = keyVault.retrieveDefault(provider);
+        try {
+          const keyVault = require('./encryption').keyVault;
+          keyData = keyVault.retrieveDefault(provider);
+        } catch (error) {
+          console.error('Failed to import keyVault:', error);
+        }
         
         if (!keyData) {
           throw new Error(`API keys required for direct browser mode. Please configure API keys in the API Keys section.`);
@@ -839,13 +843,14 @@ export class ModelShiftAIClientFactory {
       // For browser mode, we need API keys
       if (!keyData) {
         try {
-          const keyVault = require('./encryption').keyVault;
+          const { keyVault } = require('./encryption');
           keyData = keyVault.retrieveDefault(provider);
+          
+          if (!keyData) {
+            throw new Error(`API keys required for direct browser mode. Please configure API keys in the API Keys section.`);
+          }
         } catch (error) {
           console.error('Failed to import keyVault:', error);
-        }
-        
-        if (!keyData) {
           throw new Error(`API keys required for direct browser mode. Please configure API keys in the API Keys section.`);
         }
       }
@@ -874,9 +879,22 @@ export class ModelShiftAIClientFactory {
       if (!config) {
         throw new Error(`Provider '${provider}' not supported`);
       }
+      
+      // Try to get keys from keyVault if not provided
       if (!keyData) {
-        throw new Error(`API keys required for direct client mode. Please configure API keys in the API Keys section.`);
+        try {
+          const { keyVault } = require('./encryption');
+          keyData = keyVault.retrieveDefault(provider);
+          
+          if (!keyData) {
+            throw new Error(`API keys required for direct client mode. Please configure API keys in the API Keys section.`);
+          }
+        } catch (error) {
+          console.error('Failed to import keyVault:', error);
+          throw new Error(`API keys required for direct client mode. Please configure API keys in the API Keys section.`);
+        }
       }
+      
       return new ConfigurableClient(keyData, config);
     }
   }

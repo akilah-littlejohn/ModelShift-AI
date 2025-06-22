@@ -1,3 +1,4 @@
+// ModelShift AI Provider SDK Integration
 import { setValueAtPath, getValueAtPath, mergeAtPath } from './jsonPathUtils';
 import { ProxyService } from './api/ProxyService';
 import { DynamicProxyService } from './api/DynamicProxyService';
@@ -776,7 +777,7 @@ export class ModelShiftAIClientFactory {
       // For browser mode, we need API keys
       if (!keyData) {
         try {
-          const keyVault = require('./encryption').keyVault;
+          const { keyVault } = await import('./encryption');
           keyData = keyVault.retrieveDefault(provider);
         } catch (error) {
           console.error('Failed to import keyVault:', error);
@@ -821,9 +822,22 @@ export class ModelShiftAIClientFactory {
     if (!config) {
       throw new Error(`Provider '${provider}' not supported`);
     }
+    
+    // Try to get keys from keyVault if not provided
     if (!keyData) {
-      throw new Error(`API keys required for direct client mode. Please configure API keys in the API Keys section.`);
+      try {
+        const { keyVault } = await import('./encryption');
+        keyData = keyVault.retrieveDefault(provider);
+        
+        if (!keyData) {
+          throw new Error(`API keys required for direct client mode. Please configure API keys in the API Keys section.`);
+        }
+      } catch (error) {
+        console.error('Failed to import keyVault:', error);
+        throw new Error(`API keys required for direct client mode. Please configure API keys in the API Keys section.`);
+      }
     }
+    
     return new ConfigurableClient(keyData, config);
   }
 

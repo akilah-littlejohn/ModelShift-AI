@@ -73,7 +73,8 @@ const PROVIDERS: Record<string, ProviderConfig> = {
     }),
     parseResponse: (response: any) => response?.content?.[0]?.text || '',
     additionalHeaders: {
-      'anthropic-version': '2023-06-01'
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
     }
   },
   ibm: {

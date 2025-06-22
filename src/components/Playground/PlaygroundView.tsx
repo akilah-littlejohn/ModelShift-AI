@@ -6,11 +6,10 @@ import { AgentSelector } from './AgentSelector';
 import { ProxyService } from '../../lib/api/ProxyService';
 import { AgentService } from '../../lib/agents';
 import { db } from '../../lib/supabase';
-import { v4 as uuidv4 } from 'uuid';
 import type { MessageType } from './types';
 
 export function PlaygroundView() {
-  const { user, session } = useAuth();
+  const { user } = useAuth();
   const [messages, setMessages] = useState<MessageType[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);

@@ -214,8 +214,6 @@ export class ProxyClient implements ModelShiftAIClient {
         useUserKey: this.useUserKey
       });
 
-      // Removed analytics logging code
-
       if (!response.success) {
         throw new Error(response.error || 'Proxy request failed');
       }

@@ -45,7 +45,14 @@ export function ProviderSelector({ selected, onChange, userApiKeys }: ProviderSe
     
     // Fall back to legacy key vault
     const keyData = keyVault.retrieveDefault(providerId);
-    if (!keyData) return false;
+    if (!keyData) {
+      // Check if we're in server proxy mode - in this case, we don't need user keys
+      const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'server';
+      if (connectionMode === 'server') {
+        return true; // In server mode, we assume server has keys configured
+      }
+      return false;
+    }
 
     const allProviders = [...providers, ...customProviders];
     const provider = allProviders.find(p => p.id === providerId);

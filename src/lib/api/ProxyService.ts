@@ -121,14 +121,7 @@ export class ProxyService {
         let errorJson;
         try {
           errorJson = JSON.parse(errorText);
-          const errorMessage = errorJson.error || `Proxy service error: ${response.status}`;
-          
-          // Provide more helpful error messages for common issues
-          if (errorMessage.includes('No API key found')) {
-            throw new Error(`${errorMessage}\n\nTo fix this:\n1. Go to Settings → API Keys\n2. Add your API key for ${this.getProviderDisplayName(request.providerId)}\n3. Or configure server-side API keys in Supabase Edge Function secrets`);
-          }
-          
-          throw new Error(errorMessage);
+          throw new Error(errorJson.error || `Proxy service error: ${response.status}`);
         } catch (parseError) {
           // If not JSON, use the raw text or status
           throw new Error(errorText || `Proxy service error: ${response.status}`);
@@ -151,12 +144,6 @@ export class ProxyService {
 
       if (!data.success) {
         console.error('Proxy service returned error:', data.error);
-        
-        // Provide more helpful error messages for common issues
-        if (data.error && data.error.includes('No API key found')) {
-          throw new Error(`${data.error}\n\nTo fix this:\n1. Go to Settings → API Keys\n2. Add your API key for ${this.getProviderDisplayName(request.providerId)}\n3. Or configure server-side API keys in Supabase Edge Function secrets`);
-        }
-        
         throw new Error(data.error || 'Proxy service request failed');
       }
 
@@ -238,7 +225,17 @@ export class ProxyService {
       // Get API keys from key vault
       const keyData = keyVault.retrieveDefault(request.providerId);
       if (!keyData) {
-        throw new Error(`No API key found for ${provider.displayName}. Please add your API key in the API Keys section.\n\nTo fix this:\n1. Go to Settings → API Keys\n2. Click "Add API Key"\n3. Select ${provider.displayName}\n4. Enter your API key`);
+        // Provide a more helpful error message with instructions
+        const providerName = provider.displayName;
+        const errorMessage = `No API key found for ${providerName}. Please add your API key in the API Keys section.
+
+To fix this:
+1. Go to Settings → API Keys
+2. Click "Add API Key"
+3. Select ${providerName}
+4. Enter your API key`;
+        
+        throw new Error(errorMessage);
       }
       
       console.log(`Making direct browser request to ${provider.displayName}`);
@@ -303,11 +300,10 @@ export class ProxyService {
                 paramCurrent = paramCurrent[part];
               }
               
-              const lastParamPart = paramParts[paramParts.length - 1];
-              if (!paramCurrent[lastParamPart]) paramCurrent[lastParamPart] = {};
-              
-              // Merge parameters, ensuring we don't duplicate existing ones
-              Object.assign(paramCurrent[lastParamPart], request.parameters);
+              paramCurrent[paramParts[paramParts.length - 1]] = {
+                ...paramCurrent[paramParts[paramParts.length - 1]],
+                ...request.parameters
+              };
             } else {
               // If no specific path, merge at root level
               body = { ...body, ...request.parameters };

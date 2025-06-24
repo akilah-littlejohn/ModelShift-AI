@@ -90,6 +90,7 @@ export const providers: Provider[] = [
         generationConfig: {
           temperature: 0.5,
           topP: 1
+          // Removed maxOutputTokens from here to avoid duplication
         }
       },
       promptJsonPath: 'contents[0].parts[0].text',

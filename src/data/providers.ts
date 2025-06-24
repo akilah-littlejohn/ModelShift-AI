@@ -89,8 +89,7 @@ export const providers: Provider[] = [
         contents: [{ role: 'user', parts: [{ text: '' }] }],
         generationConfig: {
           temperature: 0.5,
-          topP: 1,
-          maxOutputTokens: 1000
+          topP: 1
         }
       },
       promptJsonPath: 'contents[0].parts[0].text',

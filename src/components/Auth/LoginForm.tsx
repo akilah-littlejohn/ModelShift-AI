@@ -1,15 +1,20 @@
 import React, { useState } from 'react';
-import { Brain, Mail, Lock, Eye, EyeOff, UserPlus, AlertCircle, Info } from 'lucide-react';
+import { Brain, Mail, Lock, Eye, EyeOff, UserPlus, AlertCircle, Info, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
+import { Link } from 'react-router-dom';
 
-export function LoginForm() {
+interface LoginFormProps {
+  isSignUp?: boolean;
+}
+
+export function LoginForm({ isSignUp = false }: LoginFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [activeTab, setActiveTab] = useState<'signin' | 'signup'>(isSignUp ? 'signup' : 'signin');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
   const { login } = useAuth();
@@ -26,7 +31,7 @@ export function LoginForm() {
     setIsLoading(true);
 
     try {
-      if (isSignUp) {
+      if (activeTab === 'signup') {
         // Sign up flow
         if (password !== confirmPassword) {
           throw new Error('Passwords do not match');
@@ -87,7 +92,7 @@ export function LoginForm() {
           toast.error('Network error: Unable to connect to authentication service. Please check your internet connection and Supabase configuration.');
         }
       } else if (error.message?.includes('Invalid login credentials')) {
-        if (isSignUp) {
+        if (activeTab === 'signup') {
           toast.error('Sign up failed. This email may already be registered. Try signing in instead.');
         } else {
           toast.error('Invalid email or password. Please check your credentials and try again.');
@@ -96,7 +101,7 @@ export function LoginForm() {
         toast.error('Please check your email and confirm your account before signing in.');
       } else if (error.message?.includes('User already registered')) {
         toast.error('An account with this email already exists. Please sign in instead.');
-        setIsSignUp(false); // Switch to sign in mode
+        setActiveTab('signin'); // Switch to sign in mode
       } else if (error.message?.includes('Signup is disabled')) {
         toast.error('Account registration is currently disabled. Please contact the administrator.');
       } else if (error.message?.includes('Email rate limit exceeded')) {
@@ -120,6 +125,14 @@ export function LoginForm() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 dark:from-neutral-900 dark:via-neutral-800 dark:to-neutral-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
+        {/* Back to Home Link */}
+        <div className="mb-6">
+          <Link to="/" className="inline-flex items-center text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors">
+            <ArrowLeft className="w-4 h-4 mr-1" />
+            <span>Back to Home</span>
+          </Link>
+        </div>
+        
         {/* Logo & Branding */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-2xl mb-4">
@@ -160,7 +173,7 @@ export function LoginForm() {
                   Supabase Authentication
                 </h3>
                 <p className="text-sm text-blue-700 dark:text-blue-300">
-                  {isSignUp 
+                  {activeTab === 'signup' 
                     ? 'Create a new account to access the ModelShift AI platform.'
                     : 'Sign in with your existing account or create a new one.'
                   }
@@ -172,19 +185,43 @@ export function LoginForm() {
 
         {/* Login/Signup Card */}
         <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-xl border border-neutral-200 dark:border-neutral-700 p-8">
+          {/* Tabs */}
+          <div className="flex border-b border-neutral-200 dark:border-neutral-700 mb-6">
+            <button
+              onClick={() => setActiveTab('signin')}
+              className={`flex-1 py-3 text-center font-medium ${
+                activeTab === 'signin'
+                  ? 'text-primary-600 dark:text-primary-400 border-b-2 border-primary-500'
+                  : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300'
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              onClick={() => setActiveTab('signup')}
+              className={`flex-1 py-3 text-center font-medium ${
+                activeTab === 'signup'
+                  ? 'text-primary-600 dark:text-primary-400 border-b-2 border-primary-500'
+                  : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300'
+              }`}
+            >
+              Sign Up
+            </button>
+          </div>
+
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-neutral-900 dark:text-white mb-2">
-              {isSignUp ? 'Create Account' : 'Welcome Back'}
+              {activeTab === 'signin' ? 'Welcome Back' : 'Create Account'}
             </h2>
             <p className="text-neutral-600 dark:text-neutral-400">
-              {isSignUp ? 'Sign up to access your AI playground' : 'Sign in to access your AI playground'}
+              {activeTab === 'signin' ? 'Sign in to access your AI playground' : 'Sign up to access your AI playground'}
               {isDemoMode && ' (Demo Mode)'}
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Name Field (Sign Up Only) */}
-            {isSignUp && (
+            {activeTab === 'signup' && (
               <div>
                 <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                   Full Name
@@ -247,7 +284,7 @@ export function LoginForm() {
             </div>
 
             {/* Confirm Password Field (Sign Up Only) */}
-            {isSignUp && (
+            {activeTab === 'signup' && (
               <div>
                 <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                   Confirm Password
@@ -277,43 +314,25 @@ export function LoginForm() {
                 <div className="flex items-center justify-center">
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                   <span className="ml-2">
-                    {isSignUp ? 'Creating Account...' : 'Signing In...'}
+                    {activeTab === 'signup' ? 'Creating Account...' : 'Signing In...'}
                   </span>
                 </div>
               ) : (
                 <>
-                  {isSignUp ? 'Create Account' : 'Sign In'}
+                  {activeTab === 'signup' ? 'Create Account' : 'Sign In'}
                   {isDemoMode && ' (Demo)'}
                 </>
               )}
             </button>
           </form>
 
-          {/* Toggle Sign Up/Sign In */}
-          <div className="mt-6 text-center">
-            <button
-              onClick={() => {
-                setIsSignUp(!isSignUp);
-                setPassword('');
-                setConfirmPassword('');
-                setName('');
-              }}
-              className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium transition-colors"
-            >
-              {isSignUp 
-                ? 'Already have an account? Sign in' 
-                : "Don't have an account? Sign up"
-              }
-            </button>
+          {/* Footer */}
+          <div className="text-center mt-8">
+            <p className="text-neutral-500 dark:text-neutral-400 text-sm">
+              © 2025 ModelShift AI. Built with advanced SaaS architecture.
+              {isDemoMode && ' • Demo Mode Active'}
+            </p>
           </div>
-        </div>
-
-        {/* Footer */}
-        <div className="text-center mt-8">
-          <p className="text-neutral-500 dark:text-neutral-400 text-sm">
-            © 2024 ModelShift AI. Built with advanced SaaS architecture.
-            {isDemoMode && ' • Demo Mode Active'}
-          </p>
         </div>
       </div>
     </div>

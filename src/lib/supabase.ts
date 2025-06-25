@@ -19,14 +19,20 @@ function validateEnvironmentVariables() {
     hasAnonKey: !!supabaseAnonKey,
     isDemoMode,
     isProduction,
-    nodeEnv: import.meta.env.MODE
+    nodeEnv: import.meta.env.MODE,
+    urlValue: supabaseUrl,
+    keyValue: supabaseAnonKey ? '[REDACTED]' : 'missing'
   });
+
+  // Check if we have placeholder values
+  const hasPlaceholderUrl = supabaseUrl === 'https://your-project-id.supabase.co' || !supabaseUrl;
+  const hasPlaceholderKey = supabaseAnonKey === 'your-anon-key-here' || !supabaseAnonKey;
 
   // In production, require all variables
   if (isProduction && !isDemoMode) {
     const missing = [];
-    if (!supabaseUrl) missing.push('VITE_SUPABASE_URL');
-    if (!supabaseAnonKey) missing.push('VITE_SUPABASE_ANON_KEY');
+    if (hasPlaceholderUrl) missing.push('VITE_SUPABASE_URL');
+    if (hasPlaceholderKey) missing.push('VITE_SUPABASE_ANON_KEY');
 
     if (missing.length > 0) {
       const errorMessage = `
@@ -46,17 +52,37 @@ Please add these to your .env file or deployment environment.
     }
   }
 
-  return { supabaseUrl, supabaseAnonKey, isDemoMode, isProduction };
+  // Force demo mode if we have placeholder values
+  const shouldUseDemoMode = isDemoMode || hasPlaceholderUrl || hasPlaceholderKey;
+
+  return { 
+    supabaseUrl, 
+    supabaseAnonKey, 
+    isDemoMode: shouldUseDemoMode, 
+    isProduction,
+    hasPlaceholderUrl,
+    hasPlaceholderKey
+  };
 }
 
 // Create environment-aware Supabase client
 function createSupabaseClient() {
-  const { supabaseUrl, supabaseAnonKey, isDemoMode, isProduction } = validateEnvironmentVariables();
+  const { 
+    supabaseUrl, 
+    supabaseAnonKey, 
+    isDemoMode, 
+    isProduction, 
+    hasPlaceholderUrl, 
+    hasPlaceholderKey 
+  } = validateEnvironmentVariables();
 
   // Demo mode or missing configuration in development
-  if (isDemoMode || (!supabaseUrl || !supabaseAnonKey)) {
+  if (isDemoMode || hasPlaceholderUrl || hasPlaceholderKey) {
     if (!isProduction) {
       console.warn('⚠️  Using mock Supabase client (development/demo mode)');
+      if (hasPlaceholderUrl || hasPlaceholderKey) {
+        console.warn('⚠️  Detected placeholder environment variables - using demo mode');
+      }
       return createMockSupabaseClient();
     } else {
       throw new Error('Supabase configuration required in production mode');
@@ -106,42 +132,55 @@ function createMockSupabaseClient() {
       },
       signInWithPassword: ({ email, password }: { email: string, password: string }) => {
         console.log('🔄 Mock signInWithPassword called for:', email);
+        
+        // Simulate a successful login
+        const mockUser = {
+          id: 'mock-user-id-' + Date.now(),
+          email: email,
+          user_metadata: { name: email.split('@')[0] },
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        
+        const mockSession = {
+          access_token: 'mock-token-' + Date.now(),
+          refresh_token: 'mock-refresh-token',
+          expires_in: 3600,
+          token_type: 'bearer',
+          user: mockUser
+        };
+        
         return Promise.resolve({ 
           data: { 
-            user: {
-              id: 'mock-user-id',
-              email: email,
-              user_metadata: { name: email.split('@')[0] }
-            },
-            session: {
-              access_token: 'mock-token',
-              user: {
-                id: 'mock-user-id',
-                email: email,
-                user_metadata: { name: email.split('@')[0] }
-              }
-            }
+            user: mockUser,
+            session: mockSession
           }, 
           error: null 
         });
       },
       signUp: ({ email, password, options }: { email: string, password: string, options?: any }) => {
         console.log('🔄 Mock signUp called for:', email);
+        
+        const mockUser = {
+          id: 'mock-user-id-' + Date.now(),
+          email: email,
+          user_metadata: options?.data || { name: email.split('@')[0] },
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        
+        const mockSession = {
+          access_token: 'mock-token-' + Date.now(),
+          refresh_token: 'mock-refresh-token',
+          expires_in: 3600,
+          token_type: 'bearer',
+          user: mockUser
+        };
+        
         return Promise.resolve({ 
           data: { 
-            user: {
-              id: 'mock-user-id',
-              email: email,
-              user_metadata: options?.data || { name: email.split('@')[0] }
-            },
-            session: {
-              access_token: 'mock-token',
-              user: {
-                id: 'mock-user-id',
-                email: email,
-                user_metadata: options?.data || { name: email.split('@')[0] }
-              }
-            }
+            user: mockUser,
+            session: mockSession
           }, 
           error: null 
         });

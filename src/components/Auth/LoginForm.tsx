@@ -14,6 +14,13 @@ export function LoginForm() {
   const [name, setName] = useState('');
   const { login } = useAuth();
 
+  // Check if we're in demo mode
+  const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true' || 
+                     import.meta.env.VITE_SUPABASE_URL === 'https://your-project-id.supabase.co' ||
+                     !import.meta.env.VITE_SUPABASE_URL ||
+                     import.meta.env.VITE_SUPABASE_ANON_KEY === 'your-anon-key-here' ||
+                     !import.meta.env.VITE_SUPABASE_ANON_KEY;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -49,7 +56,9 @@ export function LoginForm() {
 
         console.log('Sign up response:', data);
 
-        if (data.user && !data.session) {
+        if (isDemoMode) {
+          toast.success('Demo Account Created! You can now explore ModelShift AI features.');
+        } else if (data.user && !data.session) {
           // Email confirmation required
           toast.success('Please check your email to confirm your account!');
         } else if (data.session) {
@@ -60,13 +69,24 @@ export function LoginForm() {
         // Sign in flow
         console.log('Attempting sign in for:', email);
         await login(email, password);
-        toast.success('Welcome back to ModelShift AI!');
+        
+        if (isDemoMode) {
+          toast.success('Demo Login Successful! Exploring ModelShift AI in demo mode.');
+        } else {
+          toast.success('Welcome back to ModelShift AI!');
+        }
       }
     } catch (error: any) {
       console.error('Authentication error:', error);
       
       // Enhanced error handling with more specific messages
-      if (error.message?.includes('Invalid login credentials')) {
+      if (error.message?.includes('Failed to fetch') || error.message?.includes('Network request failed')) {
+        if (isDemoMode) {
+          toast.error('Demo mode: Authentication simulated. Please configure Supabase for full functionality.');
+        } else {
+          toast.error('Network error: Unable to connect to authentication service. Please check your internet connection and Supabase configuration.');
+        }
+      } else if (error.message?.includes('Invalid login credentials')) {
         if (isSignUp) {
           toast.error('Sign up failed. This email may already be registered. Try signing in instead.');
         } else {
@@ -85,8 +105,6 @@ export function LoginForm() {
         toast.error('Password must be at least 6 characters long.');
       } else if (error.message?.includes('Unable to validate email address')) {
         toast.error('Please enter a valid email address.');
-      } else if (error.message?.includes('Network request failed') || error.message?.includes('Failed to fetch')) {
-        toast.error('Network error. Please check your internet connection and try again.');
       } else if (error.message?.includes('Invalid API key') || error.message?.includes('Project not found')) {
         toast.error('Supabase configuration error. Please check your environment variables.');
       } else {
@@ -115,23 +133,42 @@ export function LoginForm() {
           </p>
         </div>
 
-        {/* Supabase Info */}
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
-          <div className="flex items-start space-x-3">
-            <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-1">
-                Supabase Authentication
-              </h3>
-              <p className="text-sm text-blue-700 dark:text-blue-300">
-                {isSignUp 
-                  ? 'Create a new account to access the ModelShift AI platform.'
-                  : 'Sign in with your existing account or create a new one.'
-                }
-              </p>
+        {/* Demo Mode Notice */}
+        {isDemoMode && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-6">
+            <div className="flex items-start space-x-3">
+              <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-medium text-amber-900 dark:text-amber-100 mb-1">
+                  Demo Mode Active
+                </h3>
+                <p className="text-sm text-amber-700 dark:text-amber-300">
+                  You're running in demo mode. Authentication is simulated. To enable full functionality, configure your Supabase environment variables.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Supabase Info */}
+        {!isDemoMode && (
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+            <div className="flex items-start space-x-3">
+              <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-1">
+                  Supabase Authentication
+                </h3>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  {isSignUp 
+                    ? 'Create a new account to access the ModelShift AI platform.'
+                    : 'Sign in with your existing account or create a new one.'
+                  }
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Login/Signup Card */}
         <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-xl border border-neutral-200 dark:border-neutral-700 p-8">
@@ -141,6 +178,7 @@ export function LoginForm() {
             </h2>
             <p className="text-neutral-600 dark:text-neutral-400">
               {isSignUp ? 'Sign up to access your AI playground' : 'Sign in to access your AI playground'}
+              {isDemoMode && ' (Demo Mode)'}
             </p>
           </div>
 
@@ -176,7 +214,7 @@ export function LoginForm() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-11 pr-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white transition-colors"
-                  placeholder="Enter your email"
+                  placeholder={isDemoMode ? "demo@example.com (any email works)" : "Enter your email"}
                   required
                 />
               </div>
@@ -194,7 +232,7 @@ export function LoginForm() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-11 pr-11 py-3 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white transition-colors"
-                  placeholder="Enter your password"
+                  placeholder={isDemoMode ? "password123 (any password works)" : "Enter your password"}
                   required
                   minLength={6}
                 />
@@ -243,7 +281,10 @@ export function LoginForm() {
                   </span>
                 </div>
               ) : (
-                isSignUp ? 'Create Account' : 'Sign In'
+                <>
+                  {isSignUp ? 'Create Account' : 'Sign In'}
+                  {isDemoMode && ' (Demo)'}
+                </>
               )}
             </button>
           </form>
@@ -271,6 +312,7 @@ export function LoginForm() {
         <div className="text-center mt-8">
           <p className="text-neutral-500 dark:text-neutral-400 text-sm">
             © 2024 ModelShift AI. Built with advanced SaaS architecture.
+            {isDemoMode && ' • Demo Mode Active'}
           </p>
         </div>
       </div>

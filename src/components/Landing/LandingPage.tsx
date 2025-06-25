@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Brain, Zap, Layers, Code, Lock, BarChart2, Sparkles, ArrowRight, CheckCircle } from 'lucide-react';
+import { Brain, Zap, Layers, Code, Lock, BarChart2, Sparkles, ArrowRight, CheckCircle, Globe, Shield, Cpu } from 'lucide-react';
 
 export function LandingPage() {
   return (
@@ -41,6 +41,103 @@ export function LandingPage() {
         <div className="absolute -top-24 -right-24 w-96 h-96 bg-primary-500/10 dark:bg-primary-500/5 rounded-full blur-3xl"></div>
         <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-secondary-500/10 dark:bg-secondary-500/5 rounded-full blur-3xl"></div>
       </header>
+
+      {/* Why Choose ModelShift AI Section */}
+      <section className="py-16 md:py-24 bg-neutral-50 dark:bg-neutral-900/50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-neutral-900 dark:text-white mb-4">
+              Why Choose ModelShift AI?
+            </h2>
+            <p className="text-lg text-neutral-600 dark:text-neutral-400 max-w-3xl mx-auto">
+              Our platform offers unique advantages that set us apart from other AI solutions
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Advantage 1 */}
+            <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-lg hover:shadow-xl transition-all duration-200">
+              <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/30 rounded-lg flex items-center justify-center mb-4">
+                <Layers className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-2">
+                True Multi-Provider Orchestration
+              </h3>
+              <p className="text-neutral-600 dark:text-neutral-400 mb-4">
+                Unlike single-vendor solutions, ModelShift AI lets you seamlessly switch between OpenAI, Google Gemini, Anthropic Claude, and IBM WatsonX through one unified interface.
+              </p>
+              <ul className="space-y-2">
+                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
+                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
+                  <span>Side-by-side model comparison</span>
+                </li>
+                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
+                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
+                  <span>No vendor lock-in</span>
+                </li>
+                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
+                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
+                  <span>Automatic fallback between providers</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Advantage 2 */}
+            <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-lg hover:shadow-xl transition-all duration-200">
+              <div className="w-12 h-12 bg-secondary-100 dark:bg-secondary-900/30 rounded-lg flex items-center justify-center mb-4">
+                <Shield className="w-6 h-6 text-secondary-600 dark:text-secondary-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-2">
+                Superior Security Architecture
+              </h3>
+              <p className="text-neutral-600 dark:text-neutral-400 mb-4">
+                Our BYOK (Bring Your Own Key) architecture ensures your API keys remain under your control. Choose between secure server-side proxy or direct browser mode for maximum flexibility.
+              </p>
+              <ul className="space-y-2">
+                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
+                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
+                  <span>End-to-end encryption</span>
+                </li>
+                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
+                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
+                  <span>No API key storage on our servers</span>
+                </li>
+                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
+                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
+                  <span>Enterprise-grade security controls</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Advantage 3 */}
+            <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-lg hover:shadow-xl transition-all duration-200">
+              <div className="w-12 h-12 bg-accent-100 dark:bg-accent-900/30 rounded-lg flex items-center justify-center mb-4">
+                <Cpu className="w-6 h-6 text-accent-600 dark:text-accent-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-2">
+                Advanced Prompt Engineering
+              </h3>
+              <p className="text-neutral-600 dark:text-neutral-400 mb-4">
+                Our platform offers sophisticated prompt engineering tools that competitors lack, including AI-assisted prompt improvement and structured prompt templates.
+              </p>
+              <ul className="space-y-2">
+                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
+                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
+                  <span>AI-powered prompt enhancement</span>
+                </li>
+                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
+                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
+                  <span>Reusable prompt templates</span>
+                </li>
+                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
+                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
+                  <span>Structured prompt engineering framework</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Features Section */}
       <section className="py-16 md:py-24">
@@ -220,8 +317,184 @@ export function LandingPage() {
         </div>
       </section>
 
+      {/* Competitive Edge Section */}
+      <section className="py-16 bg-gradient-to-r from-primary-50 to-secondary-50 dark:from-primary-900/20 dark:to-secondary-900/20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-neutral-900 dark:text-white mb-4">
+              The ModelShift AI Advantage
+            </h2>
+            <p className="text-lg text-neutral-600 dark:text-neutral-400 max-w-3xl mx-auto">
+              What sets us apart from other AI platforms in the market
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Competitive Edge 1 */}
+            <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-lg">
+              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-4 flex items-center">
+                <Globe className="w-5 h-5 text-primary-500 mr-2" />
+                <span>True Provider Independence</span>
+              </h3>
+              <p className="text-neutral-600 dark:text-neutral-400 mb-4">
+                Unlike platforms that lock you into a single AI provider, ModelShift AI gives you the freedom to use multiple providers simultaneously. This means:
+              </p>
+              <ul className="space-y-3">
+                <li className="flex items-start">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-medium text-neutral-800 dark:text-neutral-200">Cost Optimization</span>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                      Use more affordable models for simple tasks and premium models for complex reasoning, saving up to 70% on API costs.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-medium text-neutral-800 dark:text-neutral-200">Resilience Against Outages</span>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                      Automatic failover between providers ensures your AI services remain operational even when a provider experiences downtime.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-medium text-neutral-800 dark:text-neutral-200">Best-of-Breed Selection</span>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                      Choose the best model for each specific task rather than compromising with a one-size-fits-all approach.
+                    </p>
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            {/* Competitive Edge 2 */}
+            <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-lg">
+              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-4 flex items-center">
+                <Cpu className="w-5 h-5 text-secondary-500 mr-2" />
+                <span>Advanced Prompt Engineering Tools</span>
+              </h3>
+              <p className="text-neutral-600 dark:text-neutral-400 mb-4">
+                Our platform offers sophisticated prompt engineering capabilities that most competitors lack:
+              </p>
+              <ul className="space-y-3">
+                <li className="flex items-start">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-medium text-neutral-800 dark:text-neutral-200">AI-Assisted Prompt Improvement</span>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                      Our system can analyze and enhance your prompts automatically, improving results by up to 40%.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-medium text-neutral-800 dark:text-neutral-200">Structured Prompt Framework</span>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                      Our proprietary prompt engineering framework helps you create more effective prompts with less effort.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-medium text-neutral-800 dark:text-neutral-200">Debate Arena</span>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                      Unique feature that allows you to compare different AI models in a structured debate format, revealing strengths and weaknesses.
+                    </p>
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            {/* Competitive Edge 3 */}
+            <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-lg">
+              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-4 flex items-center">
+                <Shield className="w-5 h-5 text-accent-500 mr-2" />
+                <span>Enterprise-Grade Security</span>
+              </h3>
+              <p className="text-neutral-600 dark:text-neutral-400 mb-4">
+                ModelShift AI offers security features that exceed industry standards:
+              </p>
+              <ul className="space-y-3">
+                <li className="flex items-start">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-medium text-neutral-800 dark:text-neutral-200">BYOK Architecture</span>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                      Your API keys are encrypted and never stored in plain text, with the option to keep them entirely client-side.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-medium text-neutral-800 dark:text-neutral-200">Dual Connection Modes</span>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                      Choose between secure server proxy mode or direct browser mode based on your security requirements.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-medium text-neutral-800 dark:text-neutral-200">Row-Level Security</span>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                      Database-level security ensures users can only access their own data, preventing data leakage.
+                    </p>
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            {/* Competitive Edge 4 */}
+            <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-lg">
+              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-4 flex items-center">
+                <Code className="w-5 h-5 text-purple-500 mr-2" />
+                <span>Developer-First Approach</span>
+              </h3>
+              <p className="text-neutral-600 dark:text-neutral-400 mb-4">
+                Built by developers, for developers, with features that make integration seamless:
+              </p>
+              <ul className="space-y-3">
+                <li className="flex items-start">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-medium text-neutral-800 dark:text-neutral-200">Comprehensive SDK</span>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                      TypeScript and Python SDKs with full type safety and detailed documentation.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-medium text-neutral-800 dark:text-neutral-200">Configuration Portability</span>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                      Export and import configurations between environments and team members with ease.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start">
+                  <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-medium text-neutral-800 dark:text-neutral-200">Custom Provider Support</span>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                      Create and integrate custom AI providers beyond our built-in options, including private deployments.
+                    </p>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Providers Section */}
-      <section className="py-16 bg-neutral-100 dark:bg-neutral-800/50">
+      <section className="py-16 md:py-24 bg-neutral-100 dark:bg-neutral-800/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-neutral-900 dark:text-white mb-4">

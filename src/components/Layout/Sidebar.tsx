@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { AgentService } from '../../lib/agents';
 import * as Icons from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface SidebarProps {
   activeView: string;
@@ -44,17 +45,18 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
                 const isActive = activeView === item.id;
                 return (
                   <li key={item.id}>
-                    <button
-                      onClick={() => onViewChange(item.id)}
+                    <Link
+                      to={`/${item.id === 'playground' ? '' : item.id}`}
                       className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                         isActive
                           ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
                           : 'text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
                       }`}
+                      onClick={() => onViewChange(item.id)}
                     >
                       <item.icon className="w-5 h-5" />
                       <span>{item.name}</span>
-                    </button>
+                    </Link>
                   </li>
                 );
               })}
@@ -68,12 +70,13 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
                 <h3 className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
                   Quick Access
                 </h3>
-                <button
-                  onClick={() => onViewChange('agents')}
+                <Link
+                  to="/agents"
                   className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
+                  onClick={() => onViewChange('agents')}
                 >
                   View All
-                </button>
+                </Link>
               </div>
               <ul className="space-y-1">
                 {agents.map((agent) => {

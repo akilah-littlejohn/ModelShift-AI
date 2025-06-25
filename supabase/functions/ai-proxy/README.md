@@ -9,6 +9,7 @@ This Edge Function serves as a secure proxy between the frontend and various AI 
 - **Authentication**: Ensures all requests are properly authenticated
 - **Error Handling**: Provides detailed error messages for troubleshooting
 - **Metrics**: Tracks response time, token usage, and estimated costs
+- **Health Check**: Provides a health check endpoint to verify configuration
 
 ## Configuration
 
@@ -106,15 +107,55 @@ You can check the status of the function and which providers are configured by s
 }
 ```
 
-This will return information about which providers have API keys configured on the server.
+This will return information about which providers have API keys configured on the server:
+
+```json
+{
+  "success": true,
+  "configuredProviders": ["openai", "gemini"],
+  "errors": [
+    "Anthropic Claude: Missing ANTHROPIC_API_KEY in Supabase secrets",
+    "IBM WatsonX: Missing IBM_API_KEY in Supabase secrets"
+  ],
+  "requestId": "req_1234567890",
+  "serverInfo": {
+    "timestamp": "2024-06-25T12:34:56.789Z",
+    "environment": "production",
+    "version": "1.0.1"
+  }
+}
+```
+
+## Security Considerations
+
+- All requests must include a valid Supabase authentication token
+- User API keys are encrypted before storage and decrypted on-the-fly
+- The function uses the Supabase service role key to access the database
+- CORS headers are properly configured to allow cross-origin requests
+
+## Error Handling
+
+The function includes detailed error handling for various scenarios:
+
+- Authentication failures
+- Missing or invalid API keys
+- Provider API errors
+- Network timeouts
+- Rate limiting
+- Server errors
+
+Each error response includes a detailed message to help diagnose the issue.
 
 ## Debugging
 
-The function includes detailed logging to help diagnose issues:
+Check the Supabase Edge Function logs for detailed information about requests and errors:
 
-- Authentication failures
-- API key retrieval problems
-- Provider API errors
-- Response parsing issues
+```bash
+supabase functions logs ai-proxy --follow
+```
 
-Check the Supabase Edge Function logs for detailed information.
+## Performance Optimization
+
+- Requests have a 60-second timeout to prevent hanging connections
+- Token usage and cost are estimated for analytics
+- Analytics events are logged asynchronously to avoid impacting response time

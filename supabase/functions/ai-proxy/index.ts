@@ -149,6 +149,99 @@ function estimateCost(providerId: string, inputTokens: number, outputTokens: num
   return (inputTokens * rates.input + outputTokens * rates.output) / 1000;
 }
 
+/**
+ * Validate the request body
+ * Returns an error message if validation fails, null if validation passes
+ */
+function validateRequest(body: any): string | null {
+  if (!body) {
+    return 'Missing request body';
+  }
+  
+  if (!body.providerId) {
+    return 'Missing required field: providerId';
+  }
+  
+  if (body.providerId !== 'health-check' && !body.prompt) {
+    return 'Missing required field: prompt';
+  }
+  
+  return null;
+}
+
+/**
+ * Verify authentication with Supabase
+ * Returns the user if authentication is successful, throws an error if not
+ */
+async function verifyAuthentication(authHeader: string | null, supabaseClient: any): Promise<any> {
+  if (!authHeader) {
+    throw new Error('Missing authorization header. Please ensure you are signed in and your session is valid.');
+  }
+
+  const token = authHeader.replace('Bearer ', '');
+  const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+  
+  if (authError) {
+    throw new Error(`Authentication failed: ${authError.message}`);
+  }
+  
+  if (!user) {
+    throw new Error('Invalid or expired authentication token. Please sign in again.');
+  }
+  
+  return user;
+}
+
+/**
+ * Log analytics event to Supabase
+ * This is a non-critical operation, so we don't throw errors if it fails
+ */
+async function logAnalyticsEvent(
+  supabaseClient: any,
+  requestId: string,
+  userId: string,
+  providerId: string,
+  agentId: string | undefined,
+  prompt: string,
+  response: string,
+  success: boolean,
+  error: string | undefined,
+  responseTime: number,
+  inputTokens: number,
+  outputTokens: number,
+  estimatedCost: number,
+  usingUserKey: boolean,
+  userKeyId: string | null
+): Promise<void> {
+  try {
+    await supabaseClient.from('analytics_events').insert({
+      id: `proxy_${requestId}`,
+      user_id: userId,
+      event_type: 'proxy_call',
+      provider_id: providerId,
+      agent_id: agentId,
+      prompt_length: prompt.length,
+      response_length: response?.length || 0,
+      success,
+      error_type: error ? 'api_error' : undefined,
+      metrics: {
+        latency: responseTime,
+        tokens: inputTokens + outputTokens,
+        cost: estimatedCost
+      },
+      metadata: {
+        error,
+        using_user_key: usingUserKey,
+        user_key_id: userKeyId
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (analyticsError) {
+    console.warn(`Failed to log analytics event: ${analyticsError}`);
+    // Don't throw - this is a non-critical operation
+  }
+}
+
 serve(async (req) => {
   // CRITICAL: Handle CORS preflight requests first
   if (req.method === 'OPTIONS') {
@@ -171,21 +264,7 @@ serve(async (req) => {
 
     // Verify authentication
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      throw new Error('Missing authorization header. Please ensure you are signed in and your session is valid.');
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
-    
-    if (authError) {
-      console.error(`[${requestId}] Authentication failed:`, authError);
-      throw new Error(`Authentication failed: ${authError.message}`);
-    }
-    
-    if (!user) {
-      throw new Error('Invalid or expired authentication token. Please sign in again.');
-    }
+    const user = await verifyAuthentication(authHeader, supabaseClient);
 
     console.log(`[${requestId}] Authenticated request from user: ${user.id} (${user.email})`);
 
@@ -197,16 +276,13 @@ serve(async (req) => {
       throw new Error('Invalid request body. Please provide a valid JSON payload.');
     }
     
-    const { providerId, prompt, model, parameters, agentId, userId, useUserKey = false } = requestBody;
-
-    // Validate request
-    if (!providerId) {
-      throw new Error('Missing required field: providerId. Please specify which AI provider to use.');
+    // Validate request body
+    const validationError = validateRequest(requestBody);
+    if (validationError) {
+      throw new Error(validationError);
     }
     
-    if (!prompt) {
-      throw new Error('Missing required field: prompt. Please provide a prompt for the AI model.');
-    }
+    const { providerId, prompt, model, parameters, agentId, userId, useUserKey = false } = requestBody;
 
     // Verify user ID matches authenticated user
     if (userId && userId !== user.id) {
@@ -245,7 +321,8 @@ serve(async (req) => {
           requestId,
           serverInfo: {
             timestamp: new Date().toISOString(),
-            environment: Deno.env.get('ENVIRONMENT') || 'production'
+            environment: Deno.env.get('ENVIRONMENT') || 'production',
+            version: '1.0.1' // Added version number for tracking
           }
         }),
         {
@@ -496,32 +573,23 @@ serve(async (req) => {
     });
 
     // Try to log analytics event (don't fail if this fails)
-    try {
-      await supabaseClient.from('analytics_events').insert({
-        id: `proxy_${requestId}`,
-        user_id: user.id,
-        event_type: 'proxy_call',
-        provider_id: providerId,
-        agent_id: agentId,
-        prompt_length: prompt.length,
-        response_length: generatedText?.length || 0,
-        success: true,
-        metrics: {
-          latency: responseTime,
-          tokens: inputTokens + outputTokens,
-          cost: estimatedCost
-        },
-        metadata: {
-          model: model || 'default',
-          using_user_key: usingUserKey,
-          user_key_id: userKeyId
-        },
-        timestamp: new Date().toISOString()
-      });
-    } catch (analyticsError) {
-      console.warn(`[${requestId}] Failed to log analytics event:`, analyticsError);
-      // Don't fail the request if analytics logging fails
-    }
+    await logAnalyticsEvent(
+      supabaseClient,
+      requestId,
+      user.id,
+      providerId,
+      agentId,
+      prompt,
+      generatedText || '',
+      true,
+      undefined,
+      responseTime,
+      inputTokens,
+      outputTokens,
+      estimatedCost,
+      usingUserKey,
+      userKeyId
+    );
 
     return new Response(
       JSON.stringify({ 

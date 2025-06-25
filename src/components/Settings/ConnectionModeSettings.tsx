@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Server, Globe, Zap, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Server, Globe, Zap, AlertTriangle, RefreshCw, CheckCircle, XCircle, Info } from 'lucide-react';
 import { ProxyService } from '../../lib/api/ProxyService';
 import toast from 'react-hot-toast';
 
@@ -25,9 +25,24 @@ export function ConnectionModeSettings() {
     try {
       const health = await ProxyService.checkProxyHealth();
       setProxyHealth(health);
+      
+      // Show toast based on health status
+      if (health.available) {
+        toast.success('Server connection is available');
+      } else if (health.authenticated && health.errors.length > 0) {
+        toast.error(`Server connection issue: ${health.errors[0]}`);
+      } else if (!health.authenticated) {
+        toast.error('Authentication issue: Please sign in again');
+      }
     } catch (error) {
       console.error('Failed to check proxy health:', error);
       toast.error('Failed to check server connection status');
+      setProxyHealth({
+        available: false,
+        authenticated: false,
+        configuredProviders: [],
+        errors: [error instanceof Error ? error.message : 'Unknown error']
+      });
     } finally {
       setIsLoading(false);
     }
@@ -58,7 +73,7 @@ export function ConnectionModeSettings() {
               Connection Modes Explained
             </h3>
             <p className="text-sm text-blue-700 dark:text-blue-300">
-              <strong>Server Proxy Mode:</strong> API requests are routed through Supabase Edge Functions, keeping your API keys secure on the server. This is the recommended mode for production.
+              <strong>Server Proxy Mode:</strong> API requests are routed through secure Supabase Edge Functions, keeping your API keys secure on the server. This is the recommended mode for production.
             </p>
             <p className="text-sm text-blue-700 dark:text-blue-300 mt-2">
               <strong>Direct Browser Mode:</strong> API requests are made directly from your browser to the AI providers. This requires you to add your API keys in the API Keys section and may be subject to CORS limitations.
@@ -80,7 +95,7 @@ export function ConnectionModeSettings() {
           >
             {isLoading ? (
               <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <RefreshCw className="w-4 h-4 animate-spin" />
                 <span>Checking...</span>
               </>
             ) : (
@@ -95,14 +110,22 @@ export function ConnectionModeSettings() {
         {proxyHealth ? (
           <div className="space-y-4">
             <div className="flex items-center space-x-2">
-              <div className={`w-3 h-3 rounded-full ${proxyHealth.available ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              {proxyHealth.available ? (
+                <CheckCircle className="w-5 h-5 text-green-500" />
+              ) : (
+                <XCircle className="w-5 h-5 text-red-500" />
+              )}
               <span className="font-medium text-neutral-900 dark:text-white">
                 Server Proxy: {proxyHealth.available ? 'Available' : 'Unavailable'}
               </span>
             </div>
 
             <div className="flex items-center space-x-2">
-              <div className={`w-3 h-3 rounded-full ${proxyHealth.authenticated ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              {proxyHealth.authenticated ? (
+                <CheckCircle className="w-5 h-5 text-green-500" />
+              ) : (
+                <XCircle className="w-5 h-5 text-red-500" />
+              )}
               <span className="font-medium text-neutral-900 dark:text-white">
                 Authentication: {proxyHealth.authenticated ? 'Authenticated' : 'Not Authenticated'}
               </span>
@@ -124,15 +147,20 @@ export function ConnectionModeSettings() {
             )}
 
             {proxyHealth.errors.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                  Server Issues:
-                </h3>
-                <ul className="text-sm text-red-600 dark:text-red-400 space-y-1 pl-5 list-disc">
-                  {proxyHealth.errors.map((error, index) => (
-                    <li key={index}>{error}</li>
-                  ))}
-                </ul>
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                <div className="flex items-start space-x-2">
+                  <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
+                      Server Issues:
+                    </h3>
+                    <ul className="text-sm text-red-600 dark:text-red-400 space-y-1 pl-5 list-disc">
+                      {proxyHealth.errors.map((error, index) => (
+                        <li key={index}>{error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -243,6 +271,27 @@ export function ConnectionModeSettings() {
               <li>Check that API keys are configured in Supabase secrets</li>
               <li>Verify your authentication is working properly</li>
               <li>Try switching to Direct Browser Mode and adding your API keys</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* Additional Help Section */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+        <div className="flex items-start space-x-3">
+          <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-1">
+              Need Help?
+            </h3>
+            <p className="text-sm text-blue-700 dark:text-blue-300 mb-2">
+              If you're still having issues after troubleshooting:
+            </p>
+            <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1 list-disc pl-5">
+              <li>Check the Supabase Edge Function logs in your Supabase dashboard</li>
+              <li>Verify your environment variables in your .env.local file</li>
+              <li>Run the diagnostic script: <code className="bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded">node scripts/check-supabase.js</code></li>
+              <li>Check the browser console for detailed error messages</li>
             </ul>
           </div>
         </div>

@@ -29,8 +29,6 @@ export interface ProxyResponse {
 }
 
 export class ProxyService {
-  private static readonly EDGE_FUNCTION_URL = '/functions/v1/ai-proxy';
-  
   /**
    * Make an authenticated API call through the Supabase Edge Function
    */
@@ -45,11 +43,23 @@ export class ProxyService {
         return this.callProviderDirectly(request);
       }
       
-      // Get the current session for authentication
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      // Get the current session for authentication with timeout
+      const sessionPromise = supabase.auth.getSession();
+      const sessionTimeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Session timeout after 5 seconds')), 5000)
+      );
+      
+      let sessionResult;
+      try {
+        sessionResult = await Promise.race([sessionPromise, sessionTimeoutPromise]) as any;
+      } catch (timeoutError) {
+        throw new Error('Authentication timeout: Unable to verify session. Please check your Supabase configuration or try refreshing the page.');
+      }
+      
+      const { data: { session }, error: sessionError } = sessionResult;
       
       if (sessionError) {
-        throw new Error(`Authentication error: ${sessionError.message}`);
+        throw new Error(`Authentication error: ${sessionError.message}. Please sign in again.`);
       }
       
       if (!session) {
@@ -89,12 +99,15 @@ export class ProxyService {
       });
 
       // Get the correct URL for the Edge Function
-      const proxyUrl = import.meta.env.VITE_SUPABASE_URL 
-        ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-proxy`
-        : '/api/ai-proxy'; // Fallback for local development
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      if (!supabaseUrl) {
+        throw new Error('Supabase URL not configured. Please check your environment variables.');
+      }
+      
+      const proxyUrl = `${supabaseUrl}/functions/v1/ai-proxy`;
 
-      // Make the authenticated request to the Edge Function
-      const response = await fetch(proxyUrl, {
+      // Make the authenticated request to the Edge Function with timeout
+      const fetchPromise = fetch(proxyUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -102,6 +115,20 @@ export class ProxyService {
         },
         body: JSON.stringify(requestBody)
       });
+      
+      const fetchTimeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout after 60 seconds')), 60000)
+      );
+      
+      let response;
+      try {
+        response = await Promise.race([fetchPromise, fetchTimeoutPromise]) as Response;
+      } catch (fetchError) {
+        if (fetchError.message.includes('timeout')) {
+          throw new Error(`Request to ${request.providerId} timed out after 60 seconds. The service may be experiencing high load or your prompt may be too complex.`);
+        }
+        throw new Error(`Network error when calling ${request.providerId}: ${fetchError.message}`);
+      }
 
       const latency = Date.now() - startTime;
 
@@ -135,11 +162,11 @@ export class ProxyService {
       } catch (parseError) {
         const rawText = await responseClone.text();
         console.error('Failed to parse JSON response:', rawText);
-        throw new Error('Invalid response format from proxy service');
+        throw new Error('Invalid response format from proxy service. Please check the Edge Function logs.');
       }
 
       if (!data) {
-        throw new Error('No response data from proxy service');
+        throw new Error('No response data from proxy service. Please check the Edge Function logs.');
       }
 
       if (!data.success) {
@@ -147,10 +174,10 @@ export class ProxyService {
         throw new Error(data.error || 'Proxy service request failed');
       }
 
-      // Estimate tokens and cost (basic estimation)
-      const estimatedTokens = Math.ceil((request.prompt.length + (data.response?.length || 0)) / 4);
-      const estimatedCost = this.estimateCost(request.providerId, estimatedTokens);
-
+      // Extract metrics from response or estimate them
+      const inputTokens = Math.ceil(request.prompt.length / 4);
+      const outputTokens = Math.ceil((data.response?.length || 0) / 4);
+      
       const proxyResponse: ProxyResponse = {
         success: true,
         response: data.response,
@@ -159,8 +186,8 @@ export class ProxyService {
         usingUserKey: data.using_user_key,
         metrics: {
           latency,
-          tokens: data.metrics?.tokens || estimatedTokens,
-          cost: data.metrics?.cost || estimatedCost
+          tokens: data.metrics?.tokens || (inputTokens + outputTokens),
+          cost: data.metrics?.cost || this.estimateCost(request.providerId, inputTokens + outputTokens)
         },
         metadata: {
           requestId: data.requestId,
@@ -172,8 +199,8 @@ export class ProxyService {
       console.log(`Proxy request completed successfully:`, {
         providerId: request.providerId,
         latency,
-        tokens: estimatedTokens,
-        cost: estimatedCost,
+        tokens: proxyResponse.metrics?.tokens,
+        cost: proxyResponse.metrics?.cost,
         usingUserKey: data.using_user_key
       });
 
@@ -184,10 +211,21 @@ export class ProxyService {
       
       console.error('Proxy service error:', error);
       
+      // Enhance error messages for common issues
+      let errorMessage = error.message;
+      
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        errorMessage = `Network error: Unable to connect to the AI proxy service. Please check your internet connection and Supabase configuration.`;
+      } else if (error.message.includes('timeout')) {
+        errorMessage = `Request timeout: The operation took too long to complete. Please try again with a shorter prompt or try later when the service is less busy.`;
+      } else if (error.message.includes('not found') && error.message.includes('function')) {
+        errorMessage = `Edge Function not found: The ai-proxy function is not deployed. Please deploy the function to your Supabase project.`;
+      }
+      
       // Return error response with metrics
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown proxy service error',
+        error: errorMessage,
         provider: request.providerId,
         model: request.model,
         metrics: {
@@ -356,8 +394,9 @@ To fix this:
       const latency = Date.now() - startTime;
       
       // Estimate tokens and cost
-      const estimatedTokens = Math.ceil((request.prompt.length + response.length) / 4);
-      const estimatedCost = this.estimateCost(request.providerId, estimatedTokens);
+      const inputTokens = Math.ceil(request.prompt.length / 4);
+      const outputTokens = Math.ceil(response.length / 4);
+      const estimatedCost = this.estimateCost(request.providerId, inputTokens + outputTokens);
       
       return {
         success: true,
@@ -367,7 +406,7 @@ To fix this:
         usingUserKey: true,
         metrics: {
           latency,
-          tokens: estimatedTokens,
+          tokens: inputTokens + outputTokens,
           cost: estimatedCost
         },
         metadata: {
@@ -381,9 +420,24 @@ To fix this:
       
       console.error('Direct browser request failed:', error);
       
+      // Enhance error messages for common issues
+      let errorMessage = error.message;
+      
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        errorMessage = `Network error: Unable to connect to the AI provider directly. This may be due to CORS restrictions. Try switching to Server Proxy Mode in Settings.`;
+      } else if (error.message.includes('timeout')) {
+        errorMessage = `Request timeout: The operation took too long to complete. Please try again with a shorter prompt or try later when the service is less busy.`;
+      } else if (error.message.includes('API key')) {
+        // Keep the original message as it's already specific
+      } else if (error.message.includes('401') || error.message.includes('Authentication failed')) {
+        errorMessage = `Authentication failed: Your API key for ${request.providerId} appears to be invalid. Please check your API key in the API Keys section.`;
+      } else if (error.message.includes('429') || error.message.includes('Rate limit')) {
+        errorMessage = `Rate limit exceeded: You've made too many requests to ${request.providerId} in a short period. Please wait a few minutes and try again.`;
+      }
+      
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error in direct browser request',
+        error: errorMessage,
         provider: request.providerId,
         model: request.model,
         metrics: {
@@ -424,18 +478,27 @@ To fix this:
           available: false,
           authenticated: false,
           configuredProviders: [],
-          errors: ['Session timeout - unable to verify authentication']
+          errors: ['Session timeout - unable to verify authentication. Please check your internet connection and try again.']
         };
       }
       
-      const { data: { session } } = sessionResult;
+      const { data: { session }, error: sessionError } = sessionResult;
+      
+      if (sessionError) {
+        return {
+          available: false,
+          authenticated: false,
+          configuredProviders: [],
+          errors: [`Authentication error: ${sessionError.message}`]
+        };
+      }
       
       if (!session) {
         return {
           available: false,
           authenticated: false,
           configuredProviders: [],
-          errors: ['No active session']
+          errors: ['No active session. Please sign in to use the AI proxy.']
         };
       }
 
@@ -449,7 +512,7 @@ To fix this:
           available: false,
           authenticated: true,
           configuredProviders: [],
-          errors: ['Supabase not configured for proxy mode']
+          errors: ['Supabase not configured for proxy mode. Please set up your Supabase environment variables.']
         };
       }
 
@@ -547,16 +610,10 @@ To fix this:
   }
 
   /**
-   * Get all available providers (those defined in the frontend configuration)
-   */
-  static getAvailableProviders(): Provider[] {
-    return providers.filter(provider => provider.isAvailable);
-  }
-
-  /**
    * Estimate cost based on provider and tokens
    */
   private static estimateCost(providerId: string, tokens: number): number {
+    // Pricing per 1K tokens (as of 2024)
     const pricing: Record<string, number> = {
       openai: 0.06, // GPT-4 output pricing per 1K tokens
       gemini: 0.0015, // Gemini 2.0 Flash output pricing per 1K tokens
@@ -566,18 +623,5 @@ To fix this:
     
     const pricePerToken = pricing[providerId] || 0.05; // Default fallback
     return (tokens * pricePerToken) / 1000;
-  }
-
-  /**
-   * Get provider display name
-   */
-  private static getProviderDisplayName(providerId: string): string {
-    const names: Record<string, string> = {
-      openai: 'OpenAI',
-      gemini: 'Google Gemini',
-      claude: 'Anthropic Claude',
-      ibm: 'IBM WatsonX'
-    };
-    return names[providerId] || providerId;
   }
 }

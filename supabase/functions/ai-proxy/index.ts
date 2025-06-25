@@ -15,7 +15,7 @@ interface RequestBody {
   parameters?: Record<string, any>;
   agentId?: string;
   userId?: string;
-  useUserKey?: boolean; // New flag to indicate whether to use user's API key
+  useUserKey?: boolean; // Flag to indicate whether to use user's API key
 }
 
 interface ProviderConfig {
@@ -100,18 +100,53 @@ const PROVIDERS: Record<string, ProviderConfig> = {
 // Encryption utilities for API keys
 const encryptionKey = Deno.env.get('ENCRYPTION_KEY') || 'modelshift-ai-secure-key-2024';
 
+/**
+ * Decrypt an encrypted API key
+ * This is a simplified implementation - in production, use a proper encryption library
+ */
 function decrypt(encryptedText: string): string {
-  // This is a simplified implementation - in production, use a proper encryption library
-  // For demo purposes, we're using a basic XOR encryption
-  const textBytes = atob(encryptedText);
-  const keyBytes = encryptionKey.repeat(Math.ceil(textBytes.length / encryptionKey.length)).slice(0, textBytes.length);
-  
-  let decrypted = '';
-  for (let i = 0; i < textBytes.length; i++) {
-    decrypted += String.fromCharCode(textBytes.charCodeAt(i) ^ keyBytes.charCodeAt(i));
+  try {
+    // This is a simplified implementation - in production, use a proper encryption library
+    // For demo purposes, we're using a basic XOR encryption
+    const textBytes = atob(encryptedText);
+    const keyBytes = encryptionKey.repeat(Math.ceil(textBytes.length / encryptionKey.length)).slice(0, textBytes.length);
+    
+    let decrypted = '';
+    for (let i = 0; i < textBytes.length; i++) {
+      decrypted += String.fromCharCode(textBytes.charCodeAt(i) ^ keyBytes.charCodeAt(i));
+    }
+    
+    return decrypted;
+  } catch (error) {
+    console.error('Decryption error:', error);
+    throw new Error('Failed to decrypt API key. The key may be corrupted or using an incompatible encryption format.');
   }
+}
+
+/**
+ * Estimate token count from text length
+ * This is a very rough estimation - actual token count depends on the tokenizer used by each model
+ */
+function estimateTokenCount(text: string): number {
+  // A very rough estimation: ~4 characters per token for English text
+  return Math.ceil(text.length / 4);
+}
+
+/**
+ * Estimate cost based on provider and token count
+ */
+function estimateCost(providerId: string, inputTokens: number, outputTokens: number): number {
+  // Pricing per 1K tokens (as of 2024)
+  const pricing: Record<string, { input: number; output: number }> = {
+    openai: { input: 0.03, output: 0.06 }, // GPT-4
+    gemini: { input: 0.0005, output: 0.0015 }, // Gemini 2.0 Flash
+    claude: { input: 0.015, output: 0.075 }, // Claude 3 Sonnet
+    ibm: { input: 0.02, output: 0.04 } // IBM Granite
+  };
   
-  return decrypted;
+  const rates = pricing[providerId] || { input: 0.01, output: 0.02 }; // Default fallback
+  
+  return (inputTokens * rates.input + outputTokens * rates.output) / 1000;
 }
 
 serve(async (req) => {
@@ -125,38 +160,57 @@ serve(async (req) => {
 
   try {
     // Initialize Supabase client for authentication
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error('Supabase configuration missing. Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in your Edge Function secrets.');
+    }
+    
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
     // Verify authentication
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      throw new Error('Missing authorization header');
+      throw new Error('Missing authorization header. Please ensure you are signed in and your session is valid.');
     }
 
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
     
-    if (authError || !user) {
+    if (authError) {
       console.error(`[${requestId}] Authentication failed:`, authError);
-      throw new Error('Invalid authentication token');
+      throw new Error(`Authentication failed: ${authError.message}`);
+    }
+    
+    if (!user) {
+      throw new Error('Invalid or expired authentication token. Please sign in again.');
     }
 
-    console.log(`[${requestId}] Authenticated request from user: ${user.email}`);
+    console.log(`[${requestId}] Authenticated request from user: ${user.id} (${user.email})`);
 
     // Parse request body
-    const { providerId, prompt, model, parameters, agentId, userId, useUserKey = false }: RequestBody = await req.json();
+    let requestBody: RequestBody;
+    try {
+      requestBody = await req.json();
+    } catch (error) {
+      throw new Error('Invalid request body. Please provide a valid JSON payload.');
+    }
+    
+    const { providerId, prompt, model, parameters, agentId, userId, useUserKey = false } = requestBody;
 
     // Validate request
-    if (!providerId || !prompt) {
-      throw new Error('Missing required fields: providerId and prompt');
+    if (!providerId) {
+      throw new Error('Missing required field: providerId. Please specify which AI provider to use.');
+    }
+    
+    if (!prompt) {
+      throw new Error('Missing required field: prompt. Please provide a prompt for the AI model.');
     }
 
     // Verify user ID matches authenticated user
     if (userId && userId !== user.id) {
-      throw new Error('User ID mismatch');
+      throw new Error('User ID mismatch. The provided userId does not match the authenticated user.');
     }
 
     // Handle health check
@@ -168,19 +222,31 @@ serve(async (req) => {
         return hasApiKey && hasProjectId;
       });
 
-      const errors = Object.keys(PROVIDERS).filter(id => {
-        const config = PROVIDERS[id];
-        const hasApiKey = !!Deno.env.get(config.apiKeyEnvVar);
-        const hasProjectId = !config.requiresProjectId || !!Deno.env.get('IBM_PROJECT_ID');
-        return !hasApiKey || !hasProjectId;
-      }).map(id => `${PROVIDERS[id].name}: Missing ${PROVIDERS[id].apiKeyEnvVar}${PROVIDERS[id].requiresProjectId ? ' or IBM_PROJECT_ID' : ''}`);
+      const errors = Object.keys(PROVIDERS)
+        .filter(id => {
+          const config = PROVIDERS[id];
+          const hasApiKey = !!Deno.env.get(config.apiKeyEnvVar);
+          const hasProjectId = !config.requiresProjectId || !!Deno.env.get('IBM_PROJECT_ID');
+          return !hasApiKey || !hasProjectId;
+        })
+        .map(id => {
+          const config = PROVIDERS[id];
+          if (config.requiresProjectId && !Deno.env.get('IBM_PROJECT_ID')) {
+            return `${config.name}: Missing IBM_PROJECT_ID in Supabase secrets`;
+          }
+          return `${config.name}: Missing ${config.apiKeyEnvVar} in Supabase secrets`;
+        });
 
       return new Response(
         JSON.stringify({
           success: true,
           configuredProviders,
           errors,
-          requestId
+          requestId,
+          serverInfo: {
+            timestamp: new Date().toISOString(),
+            environment: Deno.env.get('ENVIRONMENT') || 'production'
+          }
         }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -192,7 +258,7 @@ serve(async (req) => {
     // Get provider configuration
     const providerConfig = PROVIDERS[providerId];
     if (!providerConfig) {
-      throw new Error(`Unsupported provider: ${providerId}`);
+      throw new Error(`Unsupported provider: ${providerId}. Available providers are: ${Object.keys(PROVIDERS).join(', ')}`);
     }
 
     // Determine which API key to use
@@ -206,6 +272,8 @@ serve(async (req) => {
 
     if (shouldTryUserKey) {
       try {
+        console.log(`[${requestId}] Attempting to use user's API key for ${providerConfig.name}`);
+        
         // Get the user's API key for this provider
         const { data: userKeys, error: userKeyError } = await supabaseClient
           .from('user_api_keys')
@@ -218,13 +286,22 @@ serve(async (req) => {
         
         if (userKeyError) {
           console.error(`[${requestId}] Error fetching user API key:`, userKeyError);
-        } else if (userKeys && userKeys.length > 0) {
+          throw new Error(`Failed to retrieve your API key: ${userKeyError.message}`);
+        } 
+        
+        if (!userKeys || userKeys.length === 0) {
+          console.log(`[${requestId}] No user API key found for ${providerConfig.name}`);
+          if (useUserKey) {
+            throw new Error(`No API key found for ${providerConfig.name}. Please add your API key in the API Keys section.`);
+          }
+          // If useUserKey is false, we'll fall back to server key
+        } else {
           try {
             apiKey = decrypt(userKeys[0].encrypted_key);
             userKeyId = userKeys[0].id;
             usingUserKey = true;
             
-            console.log(`[${requestId}] Using user's API key for ${providerConfig.name}`);
+            console.log(`[${requestId}] Using user's API key for ${providerConfig.name} (Key ID: ${userKeyId})`);
             
             // Update last_used_at timestamp
             await supabaseClient
@@ -233,12 +310,17 @@ serve(async (req) => {
               .eq('id', userKeyId);
           } catch (decryptError) {
             console.error(`[${requestId}] Error decrypting user API key:`, decryptError);
-            // Don't throw here, fall back to server key if available
+            throw new Error(`Failed to decrypt your API key for ${providerConfig.name}. Please try adding your API key again in the API Keys section.`);
           }
         }
       } catch (error) {
+        if (error.message.includes('Failed to decrypt') || error.message.includes('No API key found')) {
+          // These are specific errors we want to propagate
+          throw error;
+        }
+        
         console.error(`[${requestId}] Error in user key lookup:`, error);
-        // Don't throw here, fall back to server key if available
+        throw new Error(`Error accessing your API keys: ${error.message}`);
       }
     }
 
@@ -253,7 +335,7 @@ serve(async (req) => {
     if (!apiKey) {
       const errorMessage = serverApiKey 
         ? `Failed to decrypt your API key for ${providerConfig.name}. Please try adding your API key again in the API Keys section.`
-        : `No API key found for ${providerConfig.name}. Please add your API key in the API Keys section or configure server-side keys.`;
+        : `No API key found for ${providerConfig.name}. Please add your API key in the API Keys section or configure ${providerConfig.apiKeyEnvVar} in Supabase Edge Function secrets.`;
       
       throw new Error(errorMessage);
     }
@@ -280,22 +362,25 @@ serve(async (req) => {
           if (!userKeyError && userKeys && userKeys.length > 0) {
             try {
               projectId = decrypt(userKeys[0].encrypted_key);
+              console.log(`[${requestId}] Using user's IBM Project ID`);
             } catch (decryptError) {
               console.error(`[${requestId}] Error decrypting user project ID:`, decryptError);
+              throw new Error('Failed to decrypt your IBM Project ID. Please try adding it again in the API Keys section.');
             }
           }
         } catch (error) {
           console.error(`[${requestId}] Error in project ID lookup:`, error);
+          throw new Error(`Error accessing your IBM Project ID: ${error.message}`);
         }
       }
       
       // If no project ID was found, return an error
       if (!projectId) {
-        throw new Error(`No Project ID found for ${providerConfig.name}. Please add your Project ID in the API Keys section or configure IBM_PROJECT_ID server-side.`);
+        throw new Error(`No Project ID found for ${providerConfig.name}. Please add your Project ID in the API Keys section or configure IBM_PROJECT_ID in Supabase Edge Function secrets.`);
       }
     }
 
-    console.log(`[${requestId}] Making API call to ${providerConfig.name}`);
+    console.log(`[${requestId}] Making API call to ${providerConfig.name} (${model || 'default model'})`);
 
     // Build request
     const requestBody = providerConfig.buildRequest(prompt, model, parameters);
@@ -324,20 +409,41 @@ serve(async (req) => {
       endpoint += `?key=${apiKey}`;
     }
 
-    // Make API request
-    const apiResponse = await fetch(endpoint, {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify(requestBody),
-    });
+    // Make API request with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60-second timeout
+    
+    let apiResponse: Response;
+    try {
+      apiResponse = await fetch(endpoint, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
+    } catch (fetchError) {
+      if (fetchError.name === 'AbortError') {
+        throw new Error(`Request to ${providerConfig.name} timed out after 60 seconds. The service may be experiencing high load.`);
+      }
+      throw new Error(`Network error when calling ${providerConfig.name} API: ${fetchError.message}`);
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     const responseTime = Date.now() - startTime;
 
     if (!apiResponse.ok) {
       let errorText = '';
+      let errorData = null;
+      
       try {
-        const errorData = await apiResponse.json();
-        errorText = errorData.error?.message || errorData.message || `HTTP ${apiResponse.status}`;
+        const responseText = await apiResponse.text();
+        try {
+          errorData = JSON.parse(responseText);
+          errorText = errorData.error?.message || errorData.message || responseText;
+        } catch (e) {
+          errorText = responseText;
+        }
       } catch (e) {
         errorText = `HTTP ${apiResponse.status}`;
       }
@@ -346,34 +452,76 @@ serve(async (req) => {
       
       // Enhanced error messages for common issues
       if (apiResponse.status === 401) {
-        throw new Error(`Authentication failed for ${providerConfig.name}: Invalid API key`);
+        throw new Error(`Authentication failed for ${providerConfig.name}: Invalid API key. Please check your API key and try again.`);
       } else if (apiResponse.status === 403) {
-        throw new Error(`Access forbidden for ${providerConfig.name}: Check API key permissions`);
+        throw new Error(`Access forbidden for ${providerConfig.name}: Your API key doesn't have permission for this operation. Please check your API key permissions.`);
       } else if (apiResponse.status === 429) {
-        throw new Error(`Rate limit exceeded for ${providerConfig.name}: Too many requests`);
+        throw new Error(`Rate limit exceeded for ${providerConfig.name}: Too many requests in a short period. Please try again later or upgrade your API plan.`);
       } else if (apiResponse.status >= 500) {
-        throw new Error(`Server error for ${providerConfig.name}: Service temporarily unavailable`);
+        throw new Error(`Server error for ${providerConfig.name}: The service is temporarily unavailable. Please try again later.`);
       } else {
         throw new Error(`API call failed for ${providerConfig.name}: ${errorText}`);
       }
     }
 
-    const responseData = await apiResponse.json();
+    let responseData;
+    try {
+      responseData = await apiResponse.json();
+    } catch (jsonError) {
+      throw new Error(`Failed to parse response from ${providerConfig.name}: ${jsonError.message}`);
+    }
+    
     const generatedText = providerConfig.parseResponse(responseData);
 
     if (!generatedText) {
       console.warn(`[${requestId}] No text generated from ${providerConfig.name} response:`, responseData);
     }
 
+    // Estimate token usage and cost
+    const inputTokens = estimateTokenCount(prompt);
+    const outputTokens = estimateTokenCount(generatedText || '');
+    const estimatedCost = estimateCost(providerId, inputTokens, outputTokens);
+
     // Log successful request
     console.log(`[${requestId}] Request completed successfully:`, {
       provider: providerConfig.name,
       model: model || 'default',
       responseTime,
+      inputTokens,
+      outputTokens,
+      estimatedCost,
       responseLength: generatedText?.length || 0,
       userId: user.id,
       usingUserKey
     });
+
+    // Try to log analytics event (don't fail if this fails)
+    try {
+      await supabaseClient.from('analytics_events').insert({
+        id: `proxy_${requestId}`,
+        user_id: user.id,
+        event_type: 'proxy_call',
+        provider_id: providerId,
+        agent_id: agentId,
+        prompt_length: prompt.length,
+        response_length: generatedText?.length || 0,
+        success: true,
+        metrics: {
+          latency: responseTime,
+          tokens: inputTokens + outputTokens,
+          cost: estimatedCost
+        },
+        metadata: {
+          model: model || 'default',
+          using_user_key: usingUserKey,
+          user_key_id: userKeyId
+        },
+        timestamp: new Date().toISOString()
+      });
+    } catch (analyticsError) {
+      console.warn(`[${requestId}] Failed to log analytics event:`, analyticsError);
+      // Don't fail the request if analytics logging fails
+    }
 
     return new Response(
       JSON.stringify({ 
@@ -385,6 +533,8 @@ serve(async (req) => {
         using_user_key: usingUserKey,
         metrics: {
           responseTime,
+          tokens: inputTokens + outputTokens,
+          cost: estimatedCost,
           timestamp: new Date().toISOString()
         }
       }),
@@ -399,11 +549,29 @@ serve(async (req) => {
     
     console.error(`[${requestId}] AI Proxy Edge Function error:`, error);
     
+    // Determine if this is a known error type or an unexpected error
+    const isKnownError = error.message && (
+      error.message.includes('API key') || 
+      error.message.includes('Authentication') ||
+      error.message.includes('Missing') ||
+      error.message.includes('Invalid') ||
+      error.message.includes('Unsupported') ||
+      error.message.includes('No Project ID') ||
+      error.message.includes('Rate limit') ||
+      error.message.includes('Access forbidden') ||
+      error.message.includes('Server error')
+    );
+    
+    // For unexpected errors, add more context
+    const errorMessage = isKnownError 
+      ? error.message 
+      : `Unexpected error in AI proxy: ${error.message}. Please try again or contact support if the issue persists.`;
+    
     // Always return error with CORS headers
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message || 'Internal server error',
+        error: errorMessage,
         provider: 'unknown',
         requestId,
         metrics: {

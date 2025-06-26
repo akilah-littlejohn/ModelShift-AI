@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 
 export function ConnectionModeSettings() {
   const [connectionMode, setConnectionMode] = useState(() => {
-    return localStorage.getItem('modelshift-connection-mode') || 'server';
+    return localStorage.getItem('modelshift-connection-mode') || 'browser';
   });
   const [proxyHealth, setProxyHealth] = useState<{
     available: boolean;

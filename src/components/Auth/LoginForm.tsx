@@ -68,6 +68,8 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
         console.log('Sign up response:', data);
 
         if (isDemoMode || isDemo) {
+          // Set default connection mode to browser for demo users
+          localStorage.setItem('modelshift-connection-mode', 'browser');
           toast.success('Demo Account Created! You can now explore ModelShift AI features.');
           navigate('/playground');
         } else if (data.user && !data.session) {
@@ -75,6 +77,8 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
           toast.success('Please check your email to confirm your account!');
         } else if (data.session) {
           // Auto-confirmed, user is logged in
+          // Set default connection mode to browser for new users
+          localStorage.setItem('modelshift-connection-mode', 'browser');
           toast.success('Account created successfully! Welcome to ModelShift AI!');
           navigate('/playground');
         }
@@ -84,6 +88,8 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
         
         if (isDemoMode || isDemo) {
           // In demo mode, just simulate a login
+          // Set default connection mode to browser for demo users
+          localStorage.setItem('modelshift-connection-mode', 'browser');
           toast.success('Demo Login Successful! Exploring ModelShift AI in demo mode.');
           navigate('/playground');
         } else {
@@ -98,6 +104,8 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
       // Enhanced error handling with more specific messages
       if (error.message?.includes('Failed to fetch') || error.message?.includes('Network request failed')) {
         if (isDemoMode || isDemo) {
+          // Set default connection mode to browser for demo users
+          localStorage.setItem('modelshift-connection-mode', 'browser');
           toast.success('Demo mode: Authentication simulated. Redirecting to playground...');
           navigate('/playground');
         } else {
@@ -124,6 +132,8 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
         toast.error('Please enter a valid email address.');
       } else if (error.message?.includes('Invalid API key') || error.message?.includes('Project not found')) {
         if (isDemoMode || isDemo) {
+          // Set default connection mode to browser for demo users
+          localStorage.setItem('modelshift-connection-mode', 'browser');
           toast.success('Demo mode: Authentication simulated. Redirecting to playground...');
           navigate('/playground');
         } else {
@@ -134,6 +144,8 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
         const errorMsg = error.message || 'Authentication failed. Please try again.';
         
         if (isDemoMode || isDemo) {
+          // Set default connection mode to browser for demo users
+          localStorage.setItem('modelshift-connection-mode', 'browser');
           toast.success('Demo mode: Authentication simulated. Redirecting to playground...');
           navigate('/playground');
         } else {

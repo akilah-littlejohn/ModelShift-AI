@@ -125,8 +125,27 @@ function createMockSupabaseClient() {
     auth: {
       getSession: () => {
         console.log('🔄 Mock getSession called');
+        // Return a mock session for demo mode
+        const mockUser = {
+          id: 'mock-user-id-' + Date.now(),
+          email: 'demo@example.com',
+          user_metadata: { name: 'Demo User' },
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        
+        const mockSession = {
+          access_token: 'mock-token-' + Date.now(),
+          refresh_token: 'mock-refresh-token',
+          expires_in: 3600,
+          token_type: 'bearer',
+          user: mockUser
+        };
+        
         return Promise.resolve({ 
-          data: { session: null }, 
+          data: { 
+            session: mockSession
+          }, 
           error: null 
         });
       },
@@ -191,7 +210,26 @@ function createMockSupabaseClient() {
       },
       onAuthStateChange: (callback: Function) => {
         console.log('🔄 Mock onAuthStateChange called');
-        setTimeout(() => callback('INITIAL_SESSION', null), 100);
+        
+        // Create a mock session for demo mode
+        const mockUser = {
+          id: 'mock-user-id-' + Date.now(),
+          email: 'demo@example.com',
+          user_metadata: { name: 'Demo User' },
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        
+        const mockSession = {
+          access_token: 'mock-token-' + Date.now(),
+          refresh_token: 'mock-refresh-token',
+          expires_in: 3600,
+          token_type: 'bearer',
+          user: mockUser
+        };
+        
+        // Trigger the callback with the mock session
+        setTimeout(() => callback('SIGNED_IN', { session: mockSession }), 100);
         
         return { 
           data: { 
@@ -203,8 +241,18 @@ function createMockSupabaseClient() {
       },
       getUser: () => {
         console.log('🔄 Mock getUser called');
+        
+        // Return a mock user for demo mode
+        const mockUser = {
+          id: 'mock-user-id-' + Date.now(),
+          email: 'demo@example.com',
+          user_metadata: { name: 'Demo User' },
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        
         return Promise.resolve({
-          data: { user: null },
+          data: { user: mockUser },
           error: null
         });
       }
@@ -216,14 +264,52 @@ function createMockSupabaseClient() {
           eq: (column: string, value: any) => ({
             single: () => {
               console.log(`🔄 Mock select ${columns} from ${table} where ${column} = ${value}`);
+              
+              // For users table, return a mock user
+              if (table === 'users') {
+                return Promise.resolve({ 
+                  data: {
+                    id: value,
+                    email: 'demo@example.com',
+                    name: 'Demo User',
+                    plan: 'free',
+                    usage_limit: 100,
+                    usage_count: 0,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                  }, 
+                  error: null
+                });
+              }
+              
               return Promise.resolve({ 
                 data: null, 
                 error: { code: 'PGRST116', message: 'Mock: No rows found' } 
               });
             },
-            limit: (count: number) => Promise.resolve({ data: [], error: null }),
+            limit: (count: number) => {
+              // For prompt_executions table, return mock data
+              if (table === 'prompt_executions') {
+                return Promise.resolve({ 
+                  data: [], 
+                  error: null 
+                });
+              }
+              
+              return Promise.resolve({ data: [], error: null });
+            },
             order: (column: string, options?: any) => ({
-              limit: (count: number) => Promise.resolve({ data: [], error: null })
+              limit: (count: number) => {
+                // For prompt_executions table, return mock data
+                if (table === 'prompt_executions') {
+                  return Promise.resolve({ 
+                    data: [], 
+                    error: null 
+                  });
+                }
+                
+                return Promise.resolve({ data: [], error: null });
+              }
             })
           }),
           gte: (column: string, value: any) => ({
@@ -259,10 +345,39 @@ function createMockSupabaseClient() {
         console.log(`🔄 Mock function invoke: ${functionName}`, options);
         
         if (functionName === 'ai-proxy') {
+          // For health check, return a successful response
+          if (options?.body?.providerId === 'health-check') {
+            return Promise.resolve({ 
+              data: {
+                success: true,
+                configuredProviders: ['openai', 'gemini', 'claude', 'ibm'],
+                errors: [],
+                requestId: 'mock-request-id',
+                serverInfo: {
+                  timestamp: new Date().toISOString(),
+                  environment: 'development',
+                  version: '1.0.1'
+                }
+              }, 
+              error: null 
+            });
+          }
+          
+          // For actual provider calls, return a mock response
           return Promise.resolve({ 
             data: {
-              success: false,
-              error: 'Mock mode: Supabase not configured. Please configure your environment variables.'
+              success: true,
+              response: `This is a mock response from ${options?.body?.providerId} in demo mode. In production, this would be a real response from the AI provider.`,
+              provider: options?.body?.providerId,
+              model: options?.body?.model || 'default',
+              requestId: 'mock-request-id',
+              using_user_key: false,
+              metrics: {
+                responseTime: 500,
+                tokens: 100,
+                cost: 0.002,
+                timestamp: new Date().toISOString()
+              }
             }, 
             error: null 
           });

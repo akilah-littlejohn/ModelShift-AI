@@ -290,7 +290,7 @@ export function ConnectionModeSettings() {
             <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1 list-disc pl-5">
               <li>Check the Supabase Edge Function logs in your Supabase dashboard</li>
               <li>Verify your environment variables in your .env.local file</li>
-              <li>Run the diagnostic script: <code className="bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded">node scripts/check-supabase.js</code></li>
+              <li>Run the diagnostic script: <code className="bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded">node scripts/check-supabase.cjs</code></li>
               <li>Check the browser console for detailed error messages</li>
             </ul>
           </div>

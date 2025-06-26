@@ -37,7 +37,7 @@ export class ProxyService {
     
     try {
       // Check if we should use direct browser mode
-      const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'server';
+      const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'browser';
       if (connectionMode === 'browser') {
         console.log('Using direct browser mode for API call');
         return this.callProviderDirectly(request);

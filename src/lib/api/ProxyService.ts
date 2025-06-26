@@ -46,33 +46,27 @@ export class ProxyService {
       // Get the current session for authentication with timeout
       const sessionPromise = supabase.auth.getSession();
       const sessionTimeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Session timeout after 10 seconds')), 10000)
+        setTimeout(() => reject(new Error('Session timeout after 30 seconds')), 30000)
       );
       
       let sessionResult;
       try {
         sessionResult = await Promise.race([sessionPromise, sessionTimeoutPromise]) as any;
       } catch (timeoutError) {
-        console.error('Session timeout error:', timeoutError);
-        // Fall back to direct browser mode
-        console.log('Falling back to direct browser mode due to session timeout');
-        return this.callProviderDirectly(request);
+        console.error('Session verification timeout:', timeoutError);
+        throw new Error('Authentication timeout: Unable to verify session. Please check your Supabase configuration or try refreshing the page.');
       }
       
       const { data: { session }, error: sessionError } = sessionResult;
       
       if (sessionError) {
         console.error('Session error:', sessionError);
-        // Fall back to direct browser mode
-        console.log('Falling back to direct browser mode due to session error');
-        return this.callProviderDirectly(request);
+        throw new Error(`Authentication error: ${sessionError.message}. Please sign in again.`);
       }
       
       if (!session) {
-        console.error('No active session');
-        // Fall back to direct browser mode
-        console.log('Falling back to direct browser mode due to no active session');
-        return this.callProviderDirectly(request);
+        console.error('No active session found');
+        throw new Error('No active session. Please sign in to use the AI proxy.');
       }
 
       // Check if the user has an API key for this provider
@@ -110,10 +104,7 @@ export class ProxyService {
       // Get the correct URL for the Edge Function
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       if (!supabaseUrl) {
-        console.error('Supabase URL not configured');
-        // Fall back to direct browser mode
-        console.log('Falling back to direct browser mode due to missing Supabase URL');
-        return this.callProviderDirectly(request);
+        throw new Error('Supabase URL not configured. Please check your environment variables.');
       }
       
       const proxyUrl = `${supabaseUrl}/functions/v1/ai-proxy`;
@@ -129,7 +120,7 @@ export class ProxyService {
       });
       
       const fetchTimeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Request timeout after 60 seconds')), 60000)
+        setTimeout(() => reject(new Error('Request timeout after 120 seconds')), 120000)
       );
       
       let response;
@@ -137,9 +128,10 @@ export class ProxyService {
         response = await Promise.race([fetchPromise, fetchTimeoutPromise]) as Response;
       } catch (fetchError) {
         console.error('Fetch error:', fetchError);
-        // Fall back to direct browser mode
-        console.log('Falling back to direct browser mode due to fetch error');
-        return this.callProviderDirectly(request);
+        if (fetchError.message.includes('timeout')) {
+          throw new Error(`Request to ${request.providerId} timed out after 120 seconds. The service may be experiencing high load or your prompt may be too complex.`);
+        }
+        throw new Error(`Network error when calling ${request.providerId}: ${fetchError.message}`);
       }
 
       const latency = Date.now() - startTime;
@@ -232,18 +224,6 @@ export class ProxyService {
       const latency = Date.now() - startTime;
       
       console.error('Proxy service error:', error);
-      
-      // Check if we should try direct browser mode as fallback
-      const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'server';
-      if (connectionMode === 'server') {
-        try {
-          console.log('Attempting fallback to direct browser mode after proxy error');
-          return await this.callProviderDirectly(request);
-        } catch (directError) {
-          console.error('Direct browser mode fallback also failed:', directError);
-          // Continue with the original error
-        }
-      }
       
       // Enhance error messages for common issues
       let errorMessage = error.message;
@@ -501,7 +481,7 @@ To fix this:
       // Check if user is authenticated with timeout
       const sessionPromise = supabase.auth.getSession();
       const sessionTimeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Session timeout after 10 seconds')), 10000)
+        setTimeout(() => reject(new Error('Session timeout after 30 seconds')), 30000)
       );
       
       let sessionResult;
@@ -566,7 +546,7 @@ To fix this:
         });
         
         const functionTimeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Health check timeout after 15 seconds')), 15000)
+          setTimeout(() => reject(new Error('Health check timeout after 30 seconds')), 30000)
         );
 
         let functionResult;

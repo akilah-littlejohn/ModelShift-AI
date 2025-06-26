@@ -16,6 +16,7 @@ export function CustomProviderEditor({ onClose, onSave }: CustomProviderEditorPr
   const [testResult, setTestResult] = useState<{ success: boolean; message: string; response?: string } | null>(null);
   const [showApiKeys, setShowApiKeys] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [requestBodyText, setRequestBodyText] = useState('{}');
 
   // Basic provider info
   const [basicInfo, setBasicInfo] = useState({
@@ -80,6 +81,7 @@ export function CustomProviderEditor({ onClose, onSave }: CustomProviderEditorPr
   };
 
   const handleRequestBodyChange = (value: string) => {
+    setRequestBodyText(value);
     try {
       const parsed = JSON.parse(value);
       setApiConfig(prev => ({ ...prev, requestBodyStructure: parsed }));
@@ -466,9 +468,7 @@ export function CustomProviderEditor({ onClose, onSave }: CustomProviderEditorPr
             Request Body Structure (JSON) *
           </label>
           <textarea
-            value={typeof apiConfig.requestBodyStructure === 'object' 
-              ? JSON.stringify(apiConfig.requestBodyStructure, null, 2) 
-              : '{}'}
+            value={requestBodyText}
             onChange={(e) => handleRequestBodyChange(e.target.value)}
             placeholder='{"model": "gpt-3.5-turbo", "messages": []}'
             rows={6}

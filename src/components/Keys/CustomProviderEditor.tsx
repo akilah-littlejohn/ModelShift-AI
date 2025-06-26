@@ -79,6 +79,16 @@ export function CustomProviderEditor({ onClose, onSave }: CustomProviderEditorPr
     }
   };
 
+  const handleRequestBodyChange = (value: string) => {
+    try {
+      const parsed = JSON.parse(value);
+      setApiConfig(prev => ({ ...prev, requestBodyStructure: parsed }));
+    } catch (error) {
+      // Don't update on invalid JSON, but store the raw value temporarily
+      console.error('Invalid JSON:', error);
+    }
+  };
+
   const testConfiguration = async () => {
     setIsLoading(true);
     setTestResult(null);
@@ -459,15 +469,7 @@ export function CustomProviderEditor({ onClose, onSave }: CustomProviderEditorPr
             value={typeof apiConfig.requestBodyStructure === 'object' 
               ? JSON.stringify(apiConfig.requestBodyStructure, null, 2) 
               : '{}'}
-            onChange={(e) => {
-              try {
-                const parsed = JSON.parse(e.target.value);
-                setApiConfig(prev => ({ ...prev, requestBodyStructure: parsed }));
-              } catch (error) {
-                // Don't update on invalid JSON, but allow editing to continue
-                console.error('Invalid JSON:', error);
-              }
-            }}
+            onChange={(e) => handleRequestBodyChange(e.target.value)}
             placeholder='{"model": "gpt-3.5-turbo", "messages": []}'
             rows={6}
             className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white resize-none font-mono text-sm"

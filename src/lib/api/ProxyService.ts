@@ -46,24 +46,33 @@ export class ProxyService {
       // Get the current session for authentication with timeout
       const sessionPromise = supabase.auth.getSession();
       const sessionTimeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Session timeout after 5 seconds')), 5000)
+        setTimeout(() => reject(new Error('Session timeout after 10 seconds')), 10000)
       );
       
       let sessionResult;
       try {
         sessionResult = await Promise.race([sessionPromise, sessionTimeoutPromise]) as any;
       } catch (timeoutError) {
-        throw new Error('Authentication timeout: Unable to verify session. Please check your Supabase configuration or try refreshing the page.');
+        console.error('Session timeout error:', timeoutError);
+        // Fall back to direct browser mode
+        console.log('Falling back to direct browser mode due to session timeout');
+        return this.callProviderDirectly(request);
       }
       
       const { data: { session }, error: sessionError } = sessionResult;
       
       if (sessionError) {
-        throw new Error(`Authentication error: ${sessionError.message}. Please sign in again.`);
+        console.error('Session error:', sessionError);
+        // Fall back to direct browser mode
+        console.log('Falling back to direct browser mode due to session error');
+        return this.callProviderDirectly(request);
       }
       
       if (!session) {
-        throw new Error('No active session. Please sign in to use the AI proxy.');
+        console.error('No active session');
+        // Fall back to direct browser mode
+        console.log('Falling back to direct browser mode due to no active session');
+        return this.callProviderDirectly(request);
       }
 
       // Check if the user has an API key for this provider
@@ -101,7 +110,10 @@ export class ProxyService {
       // Get the correct URL for the Edge Function
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       if (!supabaseUrl) {
-        throw new Error('Supabase URL not configured. Please check your environment variables.');
+        console.error('Supabase URL not configured');
+        // Fall back to direct browser mode
+        console.log('Falling back to direct browser mode due to missing Supabase URL');
+        return this.callProviderDirectly(request);
       }
       
       const proxyUrl = `${supabaseUrl}/functions/v1/ai-proxy`;
@@ -124,10 +136,10 @@ export class ProxyService {
       try {
         response = await Promise.race([fetchPromise, fetchTimeoutPromise]) as Response;
       } catch (fetchError) {
-        if (fetchError.message.includes('timeout')) {
-          throw new Error(`Request to ${request.providerId} timed out after 60 seconds. The service may be experiencing high load or your prompt may be too complex.`);
-        }
-        throw new Error(`Network error when calling ${request.providerId}: ${fetchError.message}`);
+        console.error('Fetch error:', fetchError);
+        // Fall back to direct browser mode
+        console.log('Falling back to direct browser mode due to fetch error');
+        return this.callProviderDirectly(request);
       }
 
       const latency = Date.now() - startTime;
@@ -148,10 +160,20 @@ export class ProxyService {
         let errorJson;
         try {
           errorJson = JSON.parse(errorText);
-          throw new Error(errorJson.error || `Proxy service error: ${response.status}`);
+          
+          // If we got a proper error response from our proxy, use it
+          if (errorJson.error) {
+            throw new Error(errorJson.error);
+          } else {
+            throw new Error(`Proxy service error: ${response.status}`);
+          }
         } catch (parseError) {
           // If not JSON, use the raw text or status
-          throw new Error(errorText || `Proxy service error: ${response.status}`);
+          if (errorText && errorText.length > 0) {
+            throw new Error(errorText);
+          } else {
+            throw new Error(`Proxy service error: ${response.status}`);
+          }
         }
       }
 
@@ -162,11 +184,11 @@ export class ProxyService {
       } catch (parseError) {
         const rawText = await responseClone.text();
         console.error('Failed to parse JSON response:', rawText);
-        throw new Error('Invalid response format from proxy service. Please check the Edge Function logs.');
+        throw new Error('Invalid response format from proxy service');
       }
 
       if (!data) {
-        throw new Error('No response data from proxy service. Please check the Edge Function logs.');
+        throw new Error('No response data from proxy service');
       }
 
       if (!data.success) {
@@ -210,6 +232,18 @@ export class ProxyService {
       const latency = Date.now() - startTime;
       
       console.error('Proxy service error:', error);
+      
+      // Check if we should try direct browser mode as fallback
+      const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'server';
+      if (connectionMode === 'server') {
+        try {
+          console.log('Attempting fallback to direct browser mode after proxy error');
+          return await this.callProviderDirectly(request);
+        } catch (directError) {
+          console.error('Direct browser mode fallback also failed:', directError);
+          // Continue with the original error
+        }
+      }
       
       // Enhance error messages for common issues
       let errorMessage = error.message;
@@ -467,13 +501,14 @@ To fix this:
       // Check if user is authenticated with timeout
       const sessionPromise = supabase.auth.getSession();
       const sessionTimeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Session timeout after 5 seconds')), 5000)
+        setTimeout(() => reject(new Error('Session timeout after 10 seconds')), 10000)
       );
       
       let sessionResult;
       try {
         sessionResult = await Promise.race([sessionPromise, sessionTimeoutPromise]) as any;
       } catch (timeoutError) {
+        console.error('Session timeout during health check:', timeoutError);
         return {
           available: false,
           authenticated: false,
@@ -485,6 +520,7 @@ To fix this:
       const { data: { session }, error: sessionError } = sessionResult;
       
       if (sessionError) {
+        console.error('Session error during health check:', sessionError);
         return {
           available: false,
           authenticated: false,
@@ -494,6 +530,7 @@ To fix this:
       }
       
       if (!session) {
+        console.error('No active session during health check');
         return {
           available: false,
           authenticated: false,
@@ -508,6 +545,7 @@ To fix this:
       
       if (!supabaseUrl || !supabaseAnonKey || 
           supabaseUrl.includes('demo') || supabaseAnonKey.includes('demo')) {
+        console.error('Supabase not configured for proxy mode');
         return {
           available: false,
           authenticated: true,
@@ -518,6 +556,7 @@ To fix this:
 
       // Test the ai-proxy function with a health check
       try {
+        console.log('Testing ai-proxy function with health check');
         const functionPromise = supabase.functions.invoke('ai-proxy', {
           body: {
             providerId: 'health-check',
@@ -527,15 +566,27 @@ To fix this:
         });
         
         const functionTimeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Health check timeout after 10 seconds')), 10000)
+          setTimeout(() => reject(new Error('Health check timeout after 15 seconds')), 15000)
         );
 
-        const { data, error } = await Promise.race([
-          functionPromise,
-          functionTimeoutPromise
-        ]) as any;
+        let functionResult;
+        try {
+          functionResult = await Promise.race([functionPromise, functionTimeoutPromise]) as any;
+        } catch (timeoutError) {
+          console.error('Function timeout during health check:', timeoutError);
+          return {
+            available: false,
+            authenticated: true,
+            configuredProviders: [],
+            errors: ['Health check timeout - the Edge Function took too long to respond. The service may be experiencing high load.']
+          };
+        }
+
+        const { data, error } = functionResult;
 
         if (error) {
+          console.error('Function error during health check:', error);
+          
           // Extract detailed error information
           let errorMessage = 'ai-proxy function error';
           
@@ -579,9 +630,34 @@ To fix this:
           };
         }
 
+        if (!data) {
+          console.error('No data returned from health check');
+          return {
+            available: false,
+            authenticated: true,
+            configuredProviders: [],
+            errors: ['No response data from health check']
+          };
+        }
+
+        if (!data.success) {
+          console.error('Health check returned error:', data.error);
+          return {
+            available: false,
+            authenticated: true,
+            configuredProviders: [],
+            errors: [data.error || 'Health check failed']
+          };
+        }
+
         // Parse the health check response
-        const configuredProviders = data?.configuredProviders || [];
-        const errors = data?.errors || [];
+        const configuredProviders = data.configuredProviders || [];
+        const errors = data.errors || [];
+
+        console.log('Health check successful:', {
+          configuredProviders,
+          errors
+        });
 
         return {
           available: true,
@@ -591,6 +667,7 @@ To fix this:
         };
 
       } catch (testError) {
+        console.error('Test error during health check:', testError);
         return {
           available: false,
           authenticated: true,
@@ -600,6 +677,7 @@ To fix this:
       }
 
     } catch (error) {
+      console.error('Error during health check:', error);
       return {
         available: false,
         authenticated: false,

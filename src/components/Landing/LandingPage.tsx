@@ -1,8 +1,30 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Brain, Zap, Layers, Code, Lock, BarChart2, Sparkles, ArrowRight, CheckCircle, Globe, Shield, Cpu } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
 export function LandingPage() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const handleGetStarted = () => {
+    if (user) {
+      navigate('/playground');
+    } else {
+      navigate('/signup');
+    }
+  };
+
+  const handleTryDemo = () => {
+    if (user) {
+      navigate('/playground');
+    } else {
+      // For non-authenticated users, we'll use a special demo login flow
+      // For now, just redirect to login with a demo flag
+      navigate('/login?demo=true');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-neutral-50 dark:from-neutral-900 dark:to-neutral-950">
       {/* Hero Section */}
@@ -21,18 +43,18 @@ export function LandingPage() {
               The multi-LLM SaaS platform for AI orchestration, comparison, and management
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
-              <Link
-                to="/signup"
+              <button
+                onClick={handleGetStarted}
                 className="px-6 py-3 bg-gradient-to-r from-primary-500 to-secondary-500 text-white rounded-lg font-medium hover:from-primary-600 hover:to-secondary-600 transition-all duration-200 shadow-lg hover:shadow-xl"
               >
                 Get Started Free
-              </Link>
-              <Link
-                to="/playground"
+              </button>
+              <button
+                onClick={handleTryDemo}
                 className="px-6 py-3 bg-white dark:bg-neutral-800 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-800 rounded-lg font-medium hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all duration-200 shadow-md hover:shadow-lg"
               >
                 Try Demo
-              </Link>
+              </button>
             </div>
           </div>
         </div>
@@ -585,18 +607,18 @@ export function LandingPage() {
                 Join thousands of developers, researchers, and businesses using ModelShift AI to build better AI-powered applications.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <Link
-                  to="/signup"
+                <button
+                  onClick={handleGetStarted}
                   className="px-8 py-3 bg-white text-primary-600 rounded-lg font-medium hover:bg-neutral-100 transition-all duration-200 shadow-lg hover:shadow-xl"
                 >
                   Get Started Free
-                </Link>
-                <Link
-                  to="/docs"
+                </button>
+                <button
+                  onClick={handleTryDemo}
                   className="px-8 py-3 bg-transparent text-white border border-white/30 rounded-lg font-medium hover:bg-white/10 transition-all duration-200"
                 >
-                  View Documentation
-                </Link>
+                  Try Demo
+                </button>
               </div>
             </div>
           </div>

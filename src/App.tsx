@@ -20,21 +20,6 @@ import { PricingPage } from './components/Landing/PricingPage';
 function AppContent() {
   const { user, isLoading } = useAuth();
   const [activeView, setActiveView] = useState('playground');
-  const [showLanding, setShowLanding] = useState(true);
-
-  // Check if we should show the landing page or the app
-  useEffect(() => {
-    // If user is logged in, don't show landing page
-    if (user) {
-      setShowLanding(false);
-    }
-    
-    // Check URL path - if it's not the root, don't show landing page
-    const path = window.location.pathname;
-    if (path !== '/' && path !== '/pricing') {
-      setShowLanding(false);
-    }
-  }, [user]);
 
   if (isLoading) {
     return (
@@ -47,8 +32,8 @@ function AppContent() {
     );
   }
 
-  // Show landing page for non-authenticated users on root path
-  if (showLanding && !user) {
+  // If user is not logged in, show landing page or login form based on route
+  if (!user) {
     return (
       <Router>
         <Routes>
@@ -60,11 +45,6 @@ function AppContent() {
         </Routes>
       </Router>
     );
-  }
-
-  // Show login form for non-authenticated users
-  if (!user) {
-    return <LoginForm />;
   }
 
   // Show app for authenticated users

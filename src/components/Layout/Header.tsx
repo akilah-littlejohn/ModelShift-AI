@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Brain, Moon, Sun, User, LogOut, Menu, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -8,6 +8,7 @@ export function Header() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
+  const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Check if we're on a landing page
@@ -17,6 +18,11 @@ export function Header() {
   if (isLandingPage && !user) {
     return <LandingHeader theme={theme} toggleTheme={toggleTheme} />;
   }
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/');
+  };
 
   return (
     <header className="border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
@@ -92,7 +98,7 @@ export function Header() {
                 </div>
                 <div className="p-1">
                   <button 
-                    onClick={logout}
+                    onClick={handleLogout}
                     className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
                   >
                     <LogOut className="w-4 h-4" />
@@ -139,7 +145,7 @@ export function Header() {
                 </div>
               </div>
               <button 
-                onClick={logout}
+                onClick={handleLogout}
                 className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors mt-2"
               >
                 <LogOut className="w-4 h-4" />
@@ -155,6 +161,7 @@ export function Header() {
 
 function LandingHeader({ theme, toggleTheme }: { theme: string; toggleTheme: () => void }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const navigate = useNavigate();
   
   return (
     <header className="bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">

@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { AgentService } from '../../lib/agents';
 import * as Icons from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 interface SidebarProps {
   activeView: string;
@@ -19,17 +19,23 @@ interface SidebarProps {
 }
 
 const navigation = [
-  { id: 'playground', name: 'AI Playground', icon: Brain },
-  { id: 'debate', name: 'AI Debate Arena', icon: Swords },
-  { id: 'agents', name: 'Prompt Agent Management', icon: Bot },
-  { id: 'keys', name: 'API Keys', icon: Key },
-  { id: 'history', name: 'History', icon: History },
-  { id: 'sdk-docs', name: 'SDK Docs', icon: FileText },
-  { id: 'settings', name: 'Settings', icon: UserCog },
+  { id: 'playground', name: 'AI Playground', icon: Brain, path: '/' },
+  { id: 'debate', name: 'AI Debate Arena', icon: Swords, path: '/debate' },
+  { id: 'agents', name: 'Prompt Agent Management', icon: Bot, path: '/agents' },
+  { id: 'keys', name: 'API Keys', icon: Key, path: '/keys' },
+  { id: 'history', name: 'History', icon: History, path: '/history' },
+  { id: 'sdk-docs', name: 'SDK Docs', icon: FileText, path: '/sdk-docs' },
+  { id: 'settings', name: 'Settings', icon: UserCog, path: '/settings' },
 ];
 
 export function Sidebar({ activeView, onViewChange }: SidebarProps) {
   const agents = AgentService.getAllAgents().slice(0, 6); // Show first 6 agents
+  const navigate = useNavigate();
+
+  const handleNavigation = (item: { id: string, path: string }) => {
+    onViewChange(item.id);
+    navigate(item.path);
+  };
 
   return (
     <div className="w-64 bg-white dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 flex flex-col">
@@ -45,18 +51,17 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
                 const isActive = activeView === item.id;
                 return (
                   <li key={item.id}>
-                    <Link
-                      to={`/${item.id === 'playground' ? '' : item.id}`}
+                    <button
+                      onClick={() => handleNavigation(item)}
                       className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                         isActive
                           ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
                           : 'text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
                       }`}
-                      onClick={() => onViewChange(item.id)}
                     >
                       <item.icon className="w-5 h-5" />
                       <span>{item.name}</span>
-                    </Link>
+                    </button>
                   </li>
                 );
               })}
@@ -70,13 +75,12 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
                 <h3 className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
                   Quick Access
                 </h3>
-                <Link
-                  to="/agents"
+                <button
+                  onClick={() => handleNavigation({ id: 'agents', path: '/agents' })}
                   className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
-                  onClick={() => onViewChange('agents')}
                 >
                   View All
-                </Link>
+                </button>
               </div>
               <ul className="space-y-1">
                 {agents.map((agent) => {

@@ -3,7 +3,7 @@ import { Brain, Mail, Lock, Eye, EyeOff, UserPlus, AlertCircle, Info, ArrowLeft 
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 
 interface LoginFormProps {
   isSignUp?: boolean;
@@ -18,6 +18,8 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
   const { login } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // Check if we're in demo mode
   const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true' || 
@@ -25,6 +27,10 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
                      !import.meta.env.VITE_SUPABASE_URL ||
                      import.meta.env.VITE_SUPABASE_ANON_KEY === 'your-anon-key-here' ||
                      !import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  // Check if we're in demo login mode from URL params
+  const searchParams = new URLSearchParams(location.search);
+  const isDemo = searchParams.get('demo') === 'true';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,24 +67,29 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
 
         console.log('Sign up response:', data);
 
-        if (isDemoMode) {
+        if (isDemoMode || isDemo) {
           toast.success('Demo Account Created! You can now explore ModelShift AI features.');
+          navigate('/playground');
         } else if (data.user && !data.session) {
           // Email confirmation required
           toast.success('Please check your email to confirm your account!');
         } else if (data.session) {
           // Auto-confirmed, user is logged in
           toast.success('Account created successfully! Welcome to ModelShift AI!');
+          navigate('/playground');
         }
       } else {
         // Sign in flow
         console.log('Attempting sign in for:', email);
-        await login(email, password);
         
-        if (isDemoMode) {
+        if (isDemoMode || isDemo) {
+          // In demo mode, just simulate a login
           toast.success('Demo Login Successful! Exploring ModelShift AI in demo mode.');
+          navigate('/playground');
         } else {
+          await login(email, password);
           toast.success('Welcome back to ModelShift AI!');
+          navigate('/playground');
         }
       }
     } catch (error: any) {
@@ -86,8 +97,9 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
       
       // Enhanced error handling with more specific messages
       if (error.message?.includes('Failed to fetch') || error.message?.includes('Network request failed')) {
-        if (isDemoMode) {
-          toast.error('Demo mode: Authentication simulated. Please configure Supabase for full functionality.');
+        if (isDemoMode || isDemo) {
+          toast.success('Demo mode: Authentication simulated. Redirecting to playground...');
+          navigate('/playground');
         } else {
           toast.error('Network error: Unable to connect to authentication service. Please check your internet connection and Supabase configuration.');
         }
@@ -111,11 +123,22 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
       } else if (error.message?.includes('Unable to validate email address')) {
         toast.error('Please enter a valid email address.');
       } else if (error.message?.includes('Invalid API key') || error.message?.includes('Project not found')) {
-        toast.error('Supabase configuration error. Please check your environment variables.');
+        if (isDemoMode || isDemo) {
+          toast.success('Demo mode: Authentication simulated. Redirecting to playground...');
+          navigate('/playground');
+        } else {
+          toast.error('Supabase configuration error. Please check your environment variables.');
+        }
       } else {
         // Generic error with helpful context
         const errorMsg = error.message || 'Authentication failed. Please try again.';
-        toast.error(errorMsg);
+        
+        if (isDemoMode || isDemo) {
+          toast.success('Demo mode: Authentication simulated. Redirecting to playground...');
+          navigate('/playground');
+        } else {
+          toast.error(errorMsg);
+        }
       }
     } finally {
       setIsLoading(false);
@@ -147,7 +170,7 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
         </div>
 
         {/* Demo Mode Notice */}
-        {isDemoMode && (
+        {(isDemoMode || isDemo) && (
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-6">
             <div className="flex items-start space-x-3">
               <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
@@ -164,7 +187,7 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
         )}
 
         {/* Supabase Info */}
-        {!isDemoMode && (
+        {!isDemoMode && !isDemo && (
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
             <div className="flex items-start space-x-3">
               <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
@@ -215,7 +238,7 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
             </h2>
             <p className="text-neutral-600 dark:text-neutral-400">
               {activeTab === 'signin' ? 'Sign in to access your AI playground' : 'Sign up to access your AI playground'}
-              {isDemoMode && ' (Demo Mode)'}
+              {(isDemoMode || isDemo) && ' (Demo Mode)'}
             </p>
           </div>
 
@@ -251,7 +274,7 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-11 pr-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white transition-colors"
-                  placeholder={isDemoMode ? "demo@example.com (any email works)" : "Enter your email"}
+                  placeholder={(isDemoMode || isDemo) ? "demo@example.com (any email works)" : "Enter your email"}
                   required
                 />
               </div>
@@ -269,7 +292,7 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-11 pr-11 py-3 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white transition-colors"
-                  placeholder={isDemoMode ? "password123 (any password works)" : "Enter your password"}
+                  placeholder={(isDemoMode || isDemo) ? "password123 (any password works)" : "Enter your password"}
                   required
                   minLength={6}
                 />
@@ -320,7 +343,7 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
               ) : (
                 <>
                   {activeTab === 'signup' ? 'Create Account' : 'Sign In'}
-                  {isDemoMode && ' (Demo)'}
+                  {(isDemoMode || isDemo) && ' (Demo)'}
                 </>
               )}
             </button>
@@ -330,7 +353,7 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
           <div className="text-center mt-8">
             <p className="text-neutral-500 dark:text-neutral-400 text-sm">
               © 2025 ModelShift AI. Built with advanced SaaS architecture.
-              {isDemoMode && ' • Demo Mode Active'}
+              {(isDemoMode || isDemo) && ' • Demo Mode Active'}
             </p>
           </div>
         </div>

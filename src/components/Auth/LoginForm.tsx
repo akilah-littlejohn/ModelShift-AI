@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Brain, Mail, Lock, Eye, EyeOff, UserPlus, AlertTriangle, Info, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -17,7 +17,7 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
   const [activeTab, setActiveTab] = useState<'signin' | 'signup'>(isSignUp ? 'signup' : 'signin');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
-  const { login } = useAuth();
+  const { user, login, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -31,6 +31,14 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
   // Check if we're in demo login mode from URL params
   const searchParams = new URLSearchParams(location.search);
   const isDemo = searchParams.get('demo') === 'true';
+
+  // Force redirect to /playground if user is already authenticated
+  useEffect(() => {
+    if (user && !loading && ['/login', '/signup'].includes(location.pathname)) {
+      console.log('User already authenticated, redirecting to /playground');
+      navigate('/playground');
+    }
+  }, [user, loading, navigate, location.pathname]);
 
   const handleDemoLogin = () => {
     // Set default connection mode to browser for demo users
@@ -113,7 +121,7 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
           // Set default connection mode to browser for new users
           localStorage.setItem('modelshift-connection-mode', 'browser');
           toast.success('Account created successfully! Welcome to ModelShift AI!');
-          navigate('/playground');
+          // The useEffect will handle the redirect once user state is updated
         }
       } else {
         // Sign in flow
@@ -126,7 +134,7 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
         
         await login(email, password);
         toast.success('Welcome back to ModelShift AI!');
-        navigate('/playground');
+        // The useEffect will handle the redirect once user state is updated
       }
     } catch (error: any) {
       console.error('Authentication error:', error);

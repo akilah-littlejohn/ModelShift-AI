@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Brain, Mail, Lock, Eye, EyeOff, UserPlus, AlertCircle, Info, ArrowLeft } from 'lucide-react';
+import { Brain, Mail, Lock, Eye, EyeOff, UserPlus, AlertTriangle, Info, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
@@ -173,7 +173,7 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
         {(isDemoMode || isDemo) && (
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-6">
             <div className="flex items-start space-x-3">
-              <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+              <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
               <div>
                 <h3 className="font-medium text-amber-900 dark:text-amber-100 mb-1">
                   Demo Mode Active

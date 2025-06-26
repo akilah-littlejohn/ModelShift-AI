@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Brain, Zap, Layers, Code, Lock, BarChart2, Sparkles, ArrowRight, CheckCircle, Globe, Shield, Cpu } from 'lucide-react';
+import { Brain, Zap, Layers, Code, Lock, BarChart2, Sparkles, CheckCircle, Globe, Shield, Cpu } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 export function LandingPage() {
@@ -20,7 +20,6 @@ export function LandingPage() {
       navigate('/playground');
     } else {
       // For non-authenticated users, we'll use a special demo login flow
-      // For now, just redirect to login with a demo flag
       navigate('/login?demo=true');
     }
   };
@@ -154,184 +153,6 @@ export function LandingPage() {
                 <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
                   <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
                   <span>Structured prompt engineering framework</span>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="py-16 md:py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-neutral-900 dark:text-white mb-4">
-              One Platform, Multiple AI Models
-            </h2>
-            <p className="text-lg text-neutral-600 dark:text-neutral-400 max-w-3xl mx-auto">
-              Compare responses from leading AI providers side-by-side and build powerful workflows
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {/* Feature 1 */}
-            <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-lg hover:shadow-xl transition-all duration-200">
-              <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/30 rounded-lg flex items-center justify-center mb-4">
-                <Layers className="w-6 h-6 text-primary-600 dark:text-primary-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-2">
-                Multi-Provider Support
-              </h3>
-              <p className="text-neutral-600 dark:text-neutral-400 mb-4">
-                Seamlessly integrate with OpenAI, Google Gemini, Anthropic Claude, and IBM WatsonX through a unified interface.
-              </p>
-              <ul className="space-y-2">
-                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>Side-by-side model comparison</span>
-                </li>
-                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>Unified API for all providers</span>
-                </li>
-                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>Bring your own API keys</span>
-                </li>
-              </ul>
-            </div>
-
-            {/* Feature 2 */}
-            <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-lg hover:shadow-xl transition-all duration-200">
-              <div className="w-12 h-12 bg-secondary-100 dark:bg-secondary-900/30 rounded-lg flex items-center justify-center mb-4">
-                <Zap className="w-6 h-6 text-secondary-600 dark:text-secondary-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-2">
-                Prompt Agent Management
-              </h3>
-              <p className="text-neutral-600 dark:text-neutral-400 mb-4">
-                Create, customize, and manage prompt agents with specialized templates and behaviors for different use cases.
-              </p>
-              <ul className="space-y-2">
-                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>Custom prompt templates</span>
-                </li>
-                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>Advanced prompt engineering</span>
-                </li>
-                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>Reusable prompt patterns</span>
-                </li>
-              </ul>
-            </div>
-
-            {/* Feature 3 */}
-            <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-lg hover:shadow-xl transition-all duration-200">
-              <div className="w-12 h-12 bg-accent-100 dark:bg-accent-900/30 rounded-lg flex items-center justify-center mb-4">
-                <BarChart2 className="w-6 h-6 text-accent-600 dark:text-accent-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-2">
-                Analytics Dashboard
-              </h3>
-              <p className="text-neutral-600 dark:text-neutral-400 mb-4">
-                Track usage, costs, and performance metrics across all your AI interactions in one centralized dashboard.
-              </p>
-              <ul className="space-y-2">
-                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>Usage tracking and metrics</span>
-                </li>
-                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>Cost estimation</span>
-                </li>
-                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>Performance comparison</span>
-                </li>
-              </ul>
-            </div>
-
-            {/* Feature 4 */}
-            <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-lg hover:shadow-xl transition-all duration-200">
-              <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center mb-4">
-                <Sparkles className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-2">
-                AI Debate Arena
-              </h3>
-              <p className="text-neutral-600 dark:text-neutral-400 mb-4">
-                Compare different AI models in a structured debate format to evaluate reasoning, knowledge, and capabilities.
-              </p>
-              <ul className="space-y-2">
-                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>Multi-round debates</span>
-                </li>
-                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>Position comparison</span>
-                </li>
-                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>Export debate transcripts</span>
-                </li>
-              </ul>
-            </div>
-
-            {/* Feature 5 */}
-            <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-lg hover:shadow-xl transition-all duration-200">
-              <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center mb-4">
-                <Code className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-2">
-                Developer SDK
-              </h3>
-              <p className="text-neutral-600 dark:text-neutral-400 mb-4">
-                Integrate ModelShift AI into your applications with our comprehensive SDK and API documentation.
-              </p>
-              <ul className="space-y-2">
-                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>TypeScript/JavaScript SDK</span>
-                </li>
-                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>Python SDK (coming soon)</span>
-                </li>
-                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>RESTful API access</span>
-                </li>
-              </ul>
-            </div>
-
-            {/* Feature 6 */}
-            <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-lg hover:shadow-xl transition-all duration-200">
-              <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center mb-4">
-                <Lock className="w-6 h-6 text-green-600 dark:text-green-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-2">
-                Secure API Key Management
-              </h3>
-              <p className="text-neutral-600 dark:text-neutral-400 mb-4">
-                Securely store and manage your API keys with enterprise-grade encryption and access controls.
-              </p>
-              <ul className="space-y-2">
-                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>End-to-end encryption</span>
-                </li>
-                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>BYOK architecture</span>
-                </li>
-                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>Server-side proxy mode</span>
                 </li>
               </ul>
             </div>
@@ -664,11 +485,6 @@ export function LandingPage() {
                     Documentation
                   </Link>
                 </li>
-                <li>
-                  <Link to="/changelog" className="text-neutral-600 dark:text-neutral-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">
-                    Changelog
-                  </Link>
-                </li>
               </ul>
             </div>
 
@@ -692,11 +508,6 @@ export function LandingPage() {
                     SDK
                   </Link>
                 </li>
-                <li>
-                  <Link to="/support" className="text-neutral-600 dark:text-neutral-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">
-                    Support
-                  </Link>
-                </li>
               </ul>
             </div>
 
@@ -708,11 +519,6 @@ export function LandingPage() {
                 <li>
                   <Link to="/about" className="text-neutral-600 dark:text-neutral-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">
                     About
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/careers" className="text-neutral-600 dark:text-neutral-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">
-                    Careers
                   </Link>
                 </li>
                 <li>

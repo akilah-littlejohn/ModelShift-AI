@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Brain, Zap, Layers, Code, Lock, BarChart2, Sparkles, CheckCircle, Globe, Shield, Cpu } from 'lucide-react';
+import { Brain, Zap, Layers, Code, Lock, BarChart2, Sparkles, CheckCircle, Globe, Shield, Cpu, Repeat, Terminal, Workflow, Wrench, Compass } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 export function LandingPage() {
@@ -34,12 +34,46 @@ export function LandingPage() {
             </div>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-neutral-900 dark:text-white mb-6">
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary-500 to-secondary-500">
-                ModelShift AI
+                Postman for AI Models
               </span>
             </h1>
             <p className="text-xl md:text-2xl text-neutral-600 dark:text-neutral-300 max-w-3xl mx-auto mb-8">
-              The multi-LLM SaaS platform for AI orchestration, comparison, and management
+              Test, configure, and manage multi-model LLM workflows with a developer-first platform
             </p>
+            
+            {/* Key Benefits */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-10">
+              <div className="flex flex-col items-center p-4">
+                <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/30 rounded-lg flex items-center justify-center mb-3">
+                  <Terminal className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+                </div>
+                <h3 className="font-semibold text-neutral-900 dark:text-white mb-1">Rapid Testing</h3>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                  Compare responses across models in seconds, not minutes
+                </p>
+              </div>
+              
+              <div className="flex flex-col items-center p-4">
+                <div className="w-12 h-12 bg-secondary-100 dark:bg-secondary-900/30 rounded-lg flex items-center justify-center mb-3">
+                  <Workflow className="w-6 h-6 text-secondary-600 dark:text-secondary-400" />
+                </div>
+                <h3 className="font-semibold text-neutral-900 dark:text-white mb-1">Seamless Switching</h3>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                  Swap between providers with zero code changes
+                </p>
+              </div>
+              
+              <div className="flex flex-col items-center p-4">
+                <div className="w-12 h-12 bg-accent-100 dark:bg-accent-900/30 rounded-lg flex items-center justify-center mb-3">
+                  <Wrench className="w-6 h-6 text-accent-600 dark:text-accent-400" />
+                </div>
+                <h3 className="font-semibold text-neutral-900 dark:text-white mb-1">Config Export</h3>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                  Generate production-ready code in multiple languages
+                </p>
+              </div>
+            </div>
+            
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
               <button
                 onClick={handleGetStarted}
@@ -62,29 +96,29 @@ export function LandingPage() {
         <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-secondary-500/10 dark:bg-secondary-500/5 rounded-full blur-3xl"></div>
       </header>
 
-      {/* Why Choose ModelShift AI Section */}
+      {/* Developer-First Section */}
       <section className="py-16 md:py-24 bg-neutral-50 dark:bg-neutral-900/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-neutral-900 dark:text-white mb-4">
-              Why Choose ModelShift AI?
+              Built for Developers, by Developers
             </h2>
             <p className="text-lg text-neutral-600 dark:text-neutral-400 max-w-3xl mx-auto">
-              Our platform offers unique advantages that set us apart from other AI solutions
+              ModelShift AI gives you the tools to build, test, and deploy AI integrations faster
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Advantage 1 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {/* Feature 1 */}
             <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-lg hover:shadow-xl transition-all duration-200">
               <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/30 rounded-lg flex items-center justify-center mb-4">
-                <Layers className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+                <Compass className="w-6 h-6 text-primary-600 dark:text-primary-400" />
               </div>
               <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-2">
-                True Multi-Provider Orchestration
+                API Explorer
               </h3>
               <p className="text-neutral-600 dark:text-neutral-400 mb-4">
-                Unlike single-vendor solutions, ModelShift AI lets you seamlessly switch between OpenAI, Google Gemini, Anthropic Claude, and IBM WatsonX through one unified interface.
+                Test AI models with a powerful interface designed for developers. Compare responses side-by-side.
               </p>
               <ul className="space-y-2">
                 <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
@@ -93,25 +127,25 @@ export function LandingPage() {
                 </li>
                 <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
                   <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>No vendor lock-in</span>
+                  <span>Parameter customization</span>
                 </li>
                 <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
                   <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>Automatic fallback between providers</span>
+                  <span>Response metrics and analysis</span>
                 </li>
               </ul>
             </div>
 
-            {/* Advantage 2 */}
+            {/* Feature 2 */}
             <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-lg hover:shadow-xl transition-all duration-200">
               <div className="w-12 h-12 bg-secondary-100 dark:bg-secondary-900/30 rounded-lg flex items-center justify-center mb-4">
                 <Shield className="w-6 h-6 text-secondary-600 dark:text-secondary-400" />
               </div>
               <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-2">
-                Superior Security Architecture
+                Secure Key Management
               </h3>
               <p className="text-neutral-600 dark:text-neutral-400 mb-4">
-                Our BYOK (Bring Your Own Key) architecture ensures your API keys remain under your control. Choose between secure server-side proxy or direct browser mode for maximum flexibility.
+                Manage API keys with enterprise-grade security. Your keys, your control.
               </p>
               <ul className="space-y-2">
                 <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
@@ -120,38 +154,65 @@ export function LandingPage() {
                 </li>
                 <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
                   <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>No API key storage on our servers</span>
+                  <span>BYOK architecture</span>
                 </li>
                 <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
                   <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>Enterprise-grade security controls</span>
+                  <span>Server or client-side modes</span>
                 </li>
               </ul>
             </div>
 
-            {/* Advantage 3 */}
+            {/* Feature 3 */}
             <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-lg hover:shadow-xl transition-all duration-200">
               <div className="w-12 h-12 bg-accent-100 dark:bg-accent-900/30 rounded-lg flex items-center justify-center mb-4">
-                <Cpu className="w-6 h-6 text-accent-600 dark:text-accent-400" />
+                <Repeat className="w-6 h-6 text-accent-600 dark:text-accent-400" />
               </div>
               <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-2">
-                Advanced Prompt Engineering
+                Provider Switching
               </h3>
               <p className="text-neutral-600 dark:text-neutral-400 mb-4">
-                Our platform offers sophisticated prompt engineering tools that competitors lack, including AI-assisted prompt improvement and structured prompt templates.
+                Seamlessly switch between OpenAI, Gemini, Claude, and IBM WatsonX with one interface.
               </p>
               <ul className="space-y-2">
                 <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
                   <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>AI-powered prompt enhancement</span>
+                  <span>Unified API abstraction</span>
                 </li>
                 <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
                   <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>Reusable prompt templates</span>
+                  <span>No vendor lock-in</span>
                 </li>
                 <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
                   <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span>Structured prompt engineering framework</span>
+                  <span>Cost optimization</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Feature 4 */}
+            <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-lg hover:shadow-xl transition-all duration-200">
+              <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center mb-4">
+                <Code className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-2">
+                Code Generation
+              </h3>
+              <p className="text-neutral-600 dark:text-neutral-400 mb-4">
+                Export configurations as production-ready code in multiple languages and frameworks.
+              </p>
+              <ul className="space-y-2">
+                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
+                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
+                  <span>TypeScript/JavaScript</span>
+                </li>
+                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
+                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
+                  <span>Python/Django/Flask</span>
+                </li>
+                <li className="flex items-center text-sm text-neutral-600 dark:text-neutral-400">
+                  <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
+                  <span>Next.js/Express</span>
                 </li>
               </ul>
             </div>
@@ -159,8 +220,8 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Competitive Edge Section */}
-      <section className="py-16 bg-gradient-to-r from-primary-50 to-secondary-50 dark:from-primary-900/20 dark:to-secondary-900/20">
+      {/* Why Choose ModelShift AI Section */}
+      <section className="py-16 md:py-24 bg-gradient-to-r from-primary-50 to-secondary-50 dark:from-primary-900/20 dark:to-secondary-900/20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-neutral-900 dark:text-white mb-4">

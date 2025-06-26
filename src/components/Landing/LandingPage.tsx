@@ -448,7 +448,7 @@ export function LandingPage() {
       {/* Footer */}
       <footer className="bg-neutral-100 dark:bg-neutral-900 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
               <div className="flex items-center space-x-2 mb-4">
                 <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-lg flex items-center justify-center">
@@ -482,52 +482,6 @@ export function LandingPage() {
                 <li>
                   <Link to="/docs" className="text-neutral-600 dark:text-neutral-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">
                     Documentation
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-neutral-900 dark:text-white uppercase tracking-wider mb-4">
-                Resources
-              </h3>
-              <ul className="space-y-2">
-                <li>
-                  <Link to="/blog" className="text-neutral-600 dark:text-neutral-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">
-                    Blog
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/tutorials" className="text-neutral-600 dark:text-neutral-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">
-                    Tutorials
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/sdk" className="text-neutral-600 dark:text-neutral-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">
-                    SDK
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-neutral-900 dark:text-white uppercase tracking-wider mb-4">
-                Company
-              </h3>
-              <ul className="space-y-2">
-                <li>
-                  <Link to="/about" className="text-neutral-600 dark:text-neutral-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">
-                    About
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/privacy" className="text-neutral-600 dark:text-neutral-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">
-                    Privacy
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/terms" className="text-neutral-600 dark:text-neutral-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">
-                    Terms
                   </Link>
                 </li>
               </ul>

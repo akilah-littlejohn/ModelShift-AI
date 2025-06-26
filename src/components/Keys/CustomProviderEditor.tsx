@@ -456,13 +456,16 @@ export function CustomProviderEditor({ onClose, onSave }: CustomProviderEditorPr
             Request Body Structure (JSON) *
           </label>
           <textarea
-            value={JSON.stringify(apiConfig.requestBodyStructure, null, 2)}
+            value={typeof apiConfig.requestBodyStructure === 'object' 
+              ? JSON.stringify(apiConfig.requestBodyStructure, null, 2) 
+              : '{}'}
             onChange={(e) => {
               try {
                 const parsed = JSON.parse(e.target.value);
                 setApiConfig(prev => ({ ...prev, requestBodyStructure: parsed }));
               } catch (error) {
-                // Invalid JSON, don't update
+                // Don't update on invalid JSON, but allow editing to continue
+                console.error('Invalid JSON:', error);
               }
             }}
             placeholder='{"model": "gpt-3.5-turbo", "messages": []}'

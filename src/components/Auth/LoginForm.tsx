@@ -34,11 +34,11 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
 
   // Force redirect to /playground if user is already authenticated
   useEffect(() => {
-    if (user && !loading && ['/login', '/signup'].includes(location.pathname)) {
+    if (user && !loading) {
       console.log('User already authenticated, redirecting to /playground');
-      navigate('/playground');
+      navigate('/playground', { replace: true });
     }
-  }, [user, loading, navigate, location.pathname]);
+  }, [user, loading, navigate]);
 
   const handleDemoLogin = () => {
     // Set default connection mode to browser for demo users

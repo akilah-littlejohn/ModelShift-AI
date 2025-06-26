@@ -5,6 +5,7 @@ import { DynamicProxyService } from './api/DynamicProxyService';
 import { apiKeysDb } from './api-keys/api-keys-db';
 import { serverEncryption } from './api-keys/encryption';
 import { isDevelopment, getProxyUrl } from './devProxy';
+import { sanitizeHeaders } from './headerSanitizer';
 import type { ApiConfiguration } from '../types';
 
 export interface ModelShiftAIClient {
@@ -147,7 +148,8 @@ export class DynamicProxyClient implements ModelShiftAIClient {
           headers[provider.apiConfig.authHeaderName] = `${provider.apiConfig.authHeaderPrefix || ''}${keyData.apiKey}`;
         }
         
-        return headers;
+        // Sanitize headers to ensure they only contain valid characters
+        return sanitizeHeaders(headers);
       },
       buildEndpoint: (keyData: Record<string, string>) => {
         let endpoint = provider.apiConfig.baseUrl + provider.apiConfig.endpointPath;
@@ -280,7 +282,8 @@ export class ProxyClient implements ModelShiftAIClient {
           headers[provider.apiConfig.authHeaderName] = `${provider.apiConfig.authHeaderPrefix || ''}${keyData.apiKey}`;
         }
         
-        return headers;
+        // Sanitize headers to ensure they only contain valid characters
+        return sanitizeHeaders(headers);
       },
       buildEndpoint: (keyData: Record<string, string>) => {
         let endpoint = provider.apiConfig.baseUrl + provider.apiConfig.endpointPath;
@@ -391,6 +394,12 @@ export class ConfigurableClient implements ModelShiftAIClient {
             'Network error occurred. Please check your internet connection and try again.'
           );
         }
+        if (error.message.includes('Failed to execute \'fetch\'') && error.message.includes('headers')) {
+          throw new Error(
+            'Invalid header value detected. Please ensure your API keys and headers contain only valid ASCII characters. ' +
+            'If you\'re using a copied API key, try manually typing it to avoid invisible Unicode characters.'
+          );
+        }
       }
       
       // Re-throw other errors as-is (including our enhanced API errors)
@@ -406,13 +415,19 @@ export class ConfigurableClient implements ModelShiftAIClient {
   }
 
   private buildHeaders(): Record<string, string> {
+    let headers: Record<string, string>;
+    
     if (this.config.buildHeaders) {
-      return this.config.buildHeaders(this.keyData);
+      headers = this.config.buildHeaders(this.keyData);
+    } else {
+      headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.keyData.apiKey}`
+      };
     }
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${this.keyData.apiKey}`
-    };
+    
+    // Sanitize headers to ensure they only contain valid characters
+    return sanitizeHeaders(headers);
   }
 }
 
@@ -492,20 +507,28 @@ export class DataDrivenClient implements ModelShiftAIClient {
     } catch (error) {
       console.error('Error during generate():', error);
       
-      if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        if (isDevelopment()) {
+      if (error instanceof TypeError) {
+        if (error.message === 'Failed to fetch') {
+          if (isDevelopment()) {
+            throw new Error(
+              'Network request failed. This is likely due to CORS restrictions. ' +
+              'The development proxy should handle this automatically. ' +
+              'Please ensure the Vite development server is running correctly.'
+            );
+          } else {
+            throw new Error(
+              'Network request failed. This may be due to CORS restrictions in the development environment. ' +
+              'In a production environment, you would need to either:\n' +
+              '1. Use a backend proxy to make API calls\n' +
+              '2. Configure CORS headers on your server\n' +
+              '3. Use the provider\'s official SDK with proper authentication'
+            );
+          }
+        }
+        if (error.message.includes('Failed to execute \'fetch\'') && error.message.includes('headers')) {
           throw new Error(
-            'Network request failed. This is likely due to CORS restrictions. ' +
-            'The development proxy should handle this automatically. ' +
-            'Please ensure the Vite development server is running correctly.'
-          );
-        } else {
-          throw new Error(
-            'Network request failed. This may be due to CORS restrictions in the development environment. ' +
-            'In a production environment, you would need to either:\n' +
-            '1. Use a backend proxy to make API calls\n' +
-            '2. Configure CORS headers on your server\n' +
-            '3. Use the provider\'s official SDK with proper authentication'
+            'Invalid header value detected. Please ensure your API keys and headers contain only valid ASCII characters. ' +
+            'If you\'re using a copied API key, try manually typing it to avoid invisible Unicode characters.'
           );
         }
       }
@@ -535,7 +558,8 @@ export class DataDrivenClient implements ModelShiftAIClient {
       headers[this.apiConfig.authHeaderName] = authValue;
     }
     
-    return headers;
+    // Sanitize headers to ensure they only contain valid characters
+    return sanitizeHeaders(headers);
   }
 
   private buildRequestBody(prompt: string): any {
@@ -616,12 +640,20 @@ export const anthropicClaudeConfig: ProviderConfig = {
     messages: [{ role: 'user', content: prompt }]
   }),
   parseResponse: (response: any) => response?.content?.[0]?.text ?? '',
-  buildHeaders: (keyData: Record<string, string>) => ({
-    'x-api-key': keyData.apiKey,
-    'anthropic-version': '2023-06-01',
-    'Content-Type': 'application/json',
-    'anthropic-dangerous-direct-browser-access': 'true'
-  }),
+  buildHeaders: (keyData: Record<string, string>) => {
+    // Ensure we're using ASCII-safe header values
+    const headers = {
+      'Content-Type': 'application/json',
+      'x-api-key': keyData.apiKey,
+      'anthropic-version': '2023-06-01'
+    };
+    
+    // Remove the dangerous header that was causing issues
+    // This header is not needed and was causing problems
+    // 'anthropic-dangerous-direct-browser-access': 'true'
+    
+    return headers;
+  },
   defaultModel: 'claude-3-sonnet-20240229',
   defaultParameters: {
     max_tokens: 1000,

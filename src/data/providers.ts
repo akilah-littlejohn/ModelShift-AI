@@ -135,8 +135,8 @@ export const providers: Provider[] = [
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
+        'anthropic-version': '2023-06-01'
+        // Removed problematic header: 'anthropic-dangerous-direct-browser-access': 'true'
       },
       authHeaderName: 'x-api-key',
       authHeaderPrefix: '',

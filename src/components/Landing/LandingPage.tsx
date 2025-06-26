@@ -19,7 +19,6 @@ export function LandingPage() {
     if (user) {
       navigate('/playground');
     } else {
-      // For non-authenticated users, we'll use a special demo login flow
       navigate('/login?demo=true');
     }
   };

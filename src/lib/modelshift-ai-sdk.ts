@@ -4,6 +4,7 @@ import { ProxyService } from './api/ProxyService';
 import { DynamicProxyService } from './api/DynamicProxyService';
 import { apiKeysDb } from './api-keys/api-keys-db';
 import { serverEncryption } from './api-keys/encryption';
+import { isDevelopment, getProxyUrl } from './devProxy';
 import type { ApiConfiguration } from '../types';
 
 export interface ModelShiftAIClient {
@@ -18,13 +19,6 @@ export interface ProviderConfig {
   buildEndpoint?: (keyData: Record<string, string>) => string;
   defaultModel?: string;
   defaultParameters?: Record<string, any>;
-}
-
-// Helper function to determine if we're in development and should use proxy
-function isDevelopment(): boolean {
-  return import.meta.env.DEV || window.location.hostname === 'localhost' || 
-         window.location.hostname.includes('webcontainer') ||
-         window.location.hostname.includes('stackblitz');
 }
 
 // Helper function to check if Supabase proxy is properly configured
@@ -314,7 +308,7 @@ export class ConfigurableClient implements ModelShiftAIClient {
     
     try {
       const originalEndpoint = this.getEndpoint();
-      const endpoint = this.getProxyUrl(originalEndpoint);
+      const endpoint = getProxyUrl(originalEndpoint);
       const headers = this.buildHeaders();
       const body = this.config.buildRequestBody(prompt, this.keyData);
 
@@ -420,40 +414,6 @@ export class ConfigurableClient implements ModelShiftAIClient {
       'Authorization': `Bearer ${this.keyData.apiKey}`
     };
   }
-
-  // Enhanced proxy URL mapping for development CORS bypass
-  private getProxyUrl(originalUrl: string): string {
-    if (!isDevelopment()) {
-      return originalUrl;
-    }
-
-    console.log(`Converting URL for development proxy: ${originalUrl}`);
-
-    // Map external API URLs to proxy paths
-    if (originalUrl.includes('api.openai.com')) {
-      const proxyUrl = originalUrl.replace('https://api.openai.com', '/api/openai');
-      console.log(`OpenAI proxy URL: ${proxyUrl}`);
-      return proxyUrl;
-    }
-    if (originalUrl.includes('api.anthropic.com')) {
-      const proxyUrl = originalUrl.replace('https://api.anthropic.com', '/api/anthropic');
-      console.log(`Anthropic proxy URL: ${proxyUrl}`);
-      return proxyUrl;
-    }
-    if (originalUrl.includes('generativelanguage.googleapis.com')) {
-      const proxyUrl = originalUrl.replace('https://generativelanguage.googleapis.com', '/api/gemini');
-      console.log(`Gemini proxy URL: ${proxyUrl}`);
-      return proxyUrl;
-    }
-    if (originalUrl.includes('us-south.ml.cloud.ibm.com')) {
-      const proxyUrl = originalUrl.replace('https://us-south.ml.cloud.ibm.com', '/api/ibm');
-      console.log(`IBM proxy URL: ${proxyUrl}`);
-      return proxyUrl;
-    }
-
-    console.log(`No proxy mapping found, using original URL: ${originalUrl}`);
-    return originalUrl;
-  }
 }
 
 // Data-Driven Configurable Client with enhanced CORS handling
@@ -470,7 +430,7 @@ export class DataDrivenClient implements ModelShiftAIClient {
     
     try {
       const originalEndpoint = this.buildEndpoint();
-      const endpoint = this.getProxyUrl(originalEndpoint);
+      const endpoint = getProxyUrl(originalEndpoint);
       const headers = this.buildHeaders();
       const body = this.buildRequestBody(prompt);
 
@@ -604,29 +564,6 @@ export class DataDrivenClient implements ModelShiftAIClient {
     }
     
     return body;
-  }
-
-  // Enhanced proxy URL mapping for development CORS bypass
-  private getProxyUrl(originalUrl: string): string {
-    if (!isDevelopment()) {
-      return originalUrl;
-    }
-
-    // Map external API URLs to proxy paths
-    if (originalUrl.includes('api.openai.com')) {
-      return originalUrl.replace('https://api.openai.com', '/api/openai');
-    }
-    if (originalUrl.includes('api.anthropic.com')) {
-      return originalUrl.replace('https://api.anthropic.com', '/api/anthropic');
-    }
-    if (originalUrl.includes('generativelanguage.googleapis.com')) {
-      return originalUrl.replace('https://generativelanguage.googleapis.com', '/api/gemini');
-    }
-    if (originalUrl.includes('us-south.ml.cloud.ibm.com')) {
-      return originalUrl.replace('https://us-south.ml.cloud.ibm.com', '/api/ibm');
-    }
-
-    return originalUrl;
   }
 }
 

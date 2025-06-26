@@ -1,6 +1,7 @@
 import { supabase } from '../supabase';
 import { apiKeysDb } from '../api-keys/api-keys-db';
 import { serverEncryption } from '../api-keys/encryption';
+import { getProxyUrl, isDevelopment } from '../devProxy';
 import type { Provider } from '../../types';
 
 export interface ProxyRequest {
@@ -102,7 +103,8 @@ export class ProxyService {
         throw new Error('Supabase URL not configured. Please check your environment variables.');
       }
       
-      const proxyUrl = `${supabaseUrl}/functions/v1/ai-proxy`;
+      const originalProxyUrl = `${supabaseUrl}/functions/v1/ai-proxy`;
+      const proxyUrl = getProxyUrl(originalProxyUrl);
 
       // Make the authenticated request to the Edge Function with timeout
       const fetchPromise = fetch(proxyUrl, {
@@ -321,42 +323,6 @@ To fix this:
             current[lastPart] = prompt;
           }
           
-          // Set model if provided
-          if (request.model && provider.apiConfig.modelJsonPath) {
-            const modelParts = provider.apiConfig.modelJsonPath.split('.');
-            let modelCurrent = body;
-            
-            for (let i = 0; i < modelParts.length - 1; i++) {
-              const part = modelParts[i];
-              if (!modelCurrent[part]) modelCurrent[part] = {};
-              modelCurrent = modelCurrent[part];
-            }
-            
-            modelCurrent[modelParts[modelParts.length - 1]] = request.model;
-          }
-          
-          // Merge parameters if provided
-          if (request.parameters) {
-            if (provider.apiConfig.parametersJsonPath) {
-              const paramParts = provider.apiConfig.parametersJsonPath.split('.');
-              let paramCurrent = body;
-              
-              for (let i = 0; i < paramParts.length - 1; i++) {
-                const part = paramParts[i];
-                if (!paramCurrent[part]) paramCurrent[part] = {};
-                paramCurrent = paramCurrent[part];
-              }
-              
-              paramCurrent[paramParts[paramParts.length - 1]] = {
-                ...paramCurrent[paramParts[paramParts.length - 1]],
-                ...request.parameters
-              };
-            } else {
-              // If no specific path, merge at root level
-              body = { ...body, ...request.parameters };
-            }
-          }
-          
           return body;
         },
         parseResponse: (response: any) => {
@@ -532,89 +498,41 @@ To fix this:
       // Test the ai-proxy function with a health check
       try {
         console.log('Testing ai-proxy function with health check');
-        const functionPromise = supabase.functions.invoke('ai-proxy', {
-          body: {
+        
+        // Build the health check request
+        const originalEndpoint = `${supabaseUrl}/functions/v1/ai-proxy`;
+        const proxyEndpoint = getProxyUrl(originalEndpoint);
+        
+        console.log(`Health check endpoint: ${proxyEndpoint}`);
+        
+        // Use direct fetch instead of supabase.functions.invoke
+        const response = await fetch(proxyEndpoint, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
             providerId: 'health-check',
             prompt: 'test',
             userId: session.user.id
-          }
+          })
         });
         
-        const functionTimeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Health check timeout after 30 seconds')), 30000)
-        );
-
-        let functionResult;
-        try {
-          functionResult = await Promise.race([functionPromise, functionTimeoutPromise]) as any;
-        } catch (timeoutError) {
-          console.error('Function timeout during health check:', timeoutError);
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Health check failed with status ${response.status}:`, errorText);
+          
           return {
             available: false,
             authenticated: true,
             configuredProviders: [],
-            errors: ['Health check timeout - the Edge Function took too long to respond. The service may be experiencing high load.']
+            errors: [`Health check failed with status ${response.status}: ${errorText}`]
           };
         }
-
-        const { data, error } = functionResult;
-
-        if (error) {
-          console.error('Function error during health check:', error);
-          
-          // Extract detailed error information
-          let errorMessage = 'ai-proxy function error';
-          
-          // First check if we have data with error info
-          if (data && data.error) {
-            errorMessage = data.error;
-          }
-          // Then check error context
-          else if (error.context) {
-            try {
-              let contextError = null;
-              
-              if (typeof error.context === 'string') {
-                try {
-                  const contextData = JSON.parse(error.context);
-                  contextError = contextData.error || contextData.message || contextData.details;
-                } catch {
-                  contextError = error.context;
-                }
-              } else if (typeof error.context === 'object') {
-                contextError = error.context.error || error.context.message || error.context.details;
-              }
-              
-              if (contextError && typeof contextError === 'string' && contextError.trim()) {
-                errorMessage = contextError;
-              }
-            } catch (parseError) {
-              console.warn('Could not parse health check error context:', parseError);
-            }
-          }
-          
-          if (errorMessage === 'ai-proxy function error' && error.message) {
-            errorMessage = error.message;
-          }
-
-          return {
-            available: false,
-            authenticated: true,
-            configuredProviders: [],
-            errors: [errorMessage]
-          };
-        }
-
-        if (!data) {
-          console.error('No data returned from health check');
-          return {
-            available: false,
-            authenticated: true,
-            configuredProviders: [],
-            errors: ['No response data from health check']
-          };
-        }
-
+        
+        const data = await response.json();
+        
         if (!data.success) {
           console.error('Health check returned error:', data.error);
           return {
@@ -676,5 +594,18 @@ To fix this:
     
     const pricePerToken = pricing[providerId] || 0.05; // Default fallback
     return (tokens * pricePerToken) / 1000;
+  }
+
+  /**
+   * Get provider display name
+   */
+  private static getProviderDisplayName(providerId: string): string {
+    const names: Record<string, string> = {
+      openai: 'OpenAI',
+      gemini: 'Google Gemini',
+      claude: 'Anthropic Claude',
+      ibm: 'IBM WatsonX'
+    };
+    return names[providerId] || providerId;
   }
 }

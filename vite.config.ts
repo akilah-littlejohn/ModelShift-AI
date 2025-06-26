@@ -20,6 +20,16 @@ export default defineConfig({
           'Origin': 'https://owzbrgcwyuugzjafadjy.supabase.co'
         }
       },
+      // Proxy for Supabase Edge Functions
+      '/api/supabase-functions': {
+        target: 'https://owzbrgcwyuugzjafadjy.supabase.co/functions/v1',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/supabase-functions/, ''),
+        secure: true,
+        headers: {
+          'Origin': 'https://owzbrgcwyuugzjafadjy.supabase.co'
+        }
+      },
       // Proxy for OpenAI API (for development CORS bypass)
       '/api/openai': {
         target: 'https://api.openai.com',

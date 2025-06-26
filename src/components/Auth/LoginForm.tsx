@@ -32,6 +32,39 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
   const searchParams = new URLSearchParams(location.search);
   const isDemo = searchParams.get('demo') === 'true';
 
+  const handleDemoLogin = () => {
+    // Set default connection mode to browser for demo users
+    localStorage.setItem('modelshift-connection-mode', 'browser');
+    
+    // Create a mock session in localStorage to persist across page refreshes
+    const mockUser = {
+      id: 'demo-user-id-' + Date.now(),
+      email: 'demo@example.com',
+      user_metadata: { name: 'Demo User' },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    
+    const mockSession = {
+      access_token: 'demo-token-' + Date.now(),
+      refresh_token: 'demo-refresh-token',
+      expires_in: 3600,
+      token_type: 'bearer',
+      user: mockUser
+    };
+    
+    // Store the mock session in localStorage
+    localStorage.setItem('supabase.auth.token', JSON.stringify({
+      currentSession: mockSession,
+      expiresAt: Date.now() + 3600000
+    }));
+    
+    toast.success('Demo Login Successful! Exploring ModelShift AI in demo mode.');
+    
+    // Force a page reload to ensure the auth context picks up the new session
+    window.location.href = '/playground';
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -48,6 +81,11 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
         }
 
         console.log('Attempting sign up for:', email);
+
+        if (isDemoMode || isDemo) {
+          handleDemoLogin();
+          return;
+        }
 
         const { data, error } = await supabase.auth.signUp({
           email,
@@ -67,12 +105,7 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
 
         console.log('Sign up response:', data);
 
-        if (isDemoMode || isDemo) {
-          // Set default connection mode to browser for demo users
-          localStorage.setItem('modelshift-connection-mode', 'browser');
-          toast.success('Demo Account Created! You can now explore ModelShift AI features.');
-          navigate('/playground');
-        } else if (data.user && !data.session) {
+        if (data.user && !data.session) {
           // Email confirmation required
           toast.success('Please check your email to confirm your account!');
         } else if (data.session) {
@@ -87,16 +120,13 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
         console.log('Attempting sign in for:', email);
         
         if (isDemoMode || isDemo) {
-          // In demo mode, just simulate a login
-          // Set default connection mode to browser for demo users
-          localStorage.setItem('modelshift-connection-mode', 'browser');
-          toast.success('Demo Login Successful! Exploring ModelShift AI in demo mode.');
-          navigate('/playground');
-        } else {
-          await login(email, password);
-          toast.success('Welcome back to ModelShift AI!');
-          navigate('/playground');
+          handleDemoLogin();
+          return;
         }
+        
+        await login(email, password);
+        toast.success('Welcome back to ModelShift AI!');
+        navigate('/playground');
       }
     } catch (error: any) {
       console.error('Authentication error:', error);
@@ -104,10 +134,7 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
       // Enhanced error handling with more specific messages
       if (error.message?.includes('Failed to fetch') || error.message?.includes('Network request failed')) {
         if (isDemoMode || isDemo) {
-          // Set default connection mode to browser for demo users
-          localStorage.setItem('modelshift-connection-mode', 'browser');
-          toast.success('Demo mode: Authentication simulated. Redirecting to playground...');
-          navigate('/playground');
+          handleDemoLogin();
         } else {
           toast.error('Network error: Unable to connect to authentication service. Please check your internet connection and Supabase configuration.');
         }
@@ -132,10 +159,7 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
         toast.error('Please enter a valid email address.');
       } else if (error.message?.includes('Invalid API key') || error.message?.includes('Project not found')) {
         if (isDemoMode || isDemo) {
-          // Set default connection mode to browser for demo users
-          localStorage.setItem('modelshift-connection-mode', 'browser');
-          toast.success('Demo mode: Authentication simulated. Redirecting to playground...');
-          navigate('/playground');
+          handleDemoLogin();
         } else {
           toast.error('Supabase configuration error. Please check your environment variables.');
         }
@@ -144,10 +168,7 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
         const errorMsg = error.message || 'Authentication failed. Please try again.';
         
         if (isDemoMode || isDemo) {
-          // Set default connection mode to browser for demo users
-          localStorage.setItem('modelshift-connection-mode', 'browser');
-          toast.success('Demo mode: Authentication simulated. Redirecting to playground...');
-          navigate('/playground');
+          handleDemoLogin();
         } else {
           toast.error(errorMsg);
         }
@@ -158,7 +179,7 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 dark:from-neutral-900 dark:via-neutral-800 dark:to-neutral-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-b from-white to-neutral-50 dark:from-neutral-900 dark:to-neutral-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Back to Home Link */}
         <div className="mb-6">

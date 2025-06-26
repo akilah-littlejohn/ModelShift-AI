@@ -4,7 +4,7 @@
  * ModelShift AI - Supabase Configuration Checker
  * 
  * This script checks your Supabase configuration and helps diagnose common issues.
- * Run it with: node scripts/check-supabase.js
+ * Run it with: node scripts/check-supabase.cjs
  */
 
 const https = require('https');

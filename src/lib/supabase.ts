@@ -206,6 +206,19 @@ function createMockSupabaseClient() {
       },
       signOut: () => {
         console.log('🔄 Mock signOut called');
+        // Clear demo token from localStorage
+        try {
+          const stored = localStorage.getItem('supabase.auth.token');
+          if (stored) {
+            const tokenObj = JSON.parse(stored);
+            const access_token = tokenObj?.currentSession?.access_token;
+            if (access_token && access_token.startsWith('demo-token')) {
+              localStorage.removeItem('supabase.auth.token');
+            }
+          }
+        } catch (e) {
+          console.error('Error handling mock signOut:', e);
+        }
         return Promise.resolve({ error: null });
       },
       onAuthStateChange: (callback: Function) => {
@@ -221,12 +234,34 @@ function createMockSupabaseClient() {
         };
         
         const mockSession = {
-          access_token: 'mock-token-' + Date.now(),
+          access_token: 'demo-token-' + Date.now(),
           refresh_token: 'mock-refresh-token',
           expires_in: 3600,
           token_type: 'bearer',
           user: mockUser
         };
+        
+        // Check if we already have a demo session in localStorage
+        try {
+          const stored = localStorage.getItem('supabase.auth.token');
+          if (stored) {
+            const tokenObj = JSON.parse(stored);
+            const storedSession = tokenObj?.currentSession;
+            if (storedSession && storedSession.access_token && storedSession.access_token.startsWith('demo-token')) {
+              // Use the stored session instead
+              setTimeout(() => callback('SIGNED_IN', { session: storedSession }), 100);
+              return { 
+                data: { 
+                  subscription: { 
+                    unsubscribe: () => console.log('🔄 Mock auth subscription unsubscribed') 
+                  } 
+                } 
+              };
+            }
+          }
+        } catch (e) {
+          console.error('Error checking for stored demo session:', e);
+        }
         
         // Trigger the callback with the mock session
         setTimeout(() => callback('SIGNED_IN', { session: mockSession }), 100);
@@ -241,6 +276,24 @@ function createMockSupabaseClient() {
       },
       getUser: () => {
         console.log('🔄 Mock getUser called');
+        
+        // Check if we have a demo session in localStorage
+        try {
+          const stored = localStorage.getItem('supabase.auth.token');
+          if (stored) {
+            const tokenObj = JSON.parse(stored);
+            const storedSession = tokenObj?.currentSession;
+            if (storedSession && storedSession.access_token && storedSession.access_token.startsWith('demo-token')) {
+              // Return the stored user
+              return Promise.resolve({
+                data: { user: storedSession.user },
+                error: null
+              });
+            }
+          }
+        } catch (e) {
+          console.error('Error checking for stored demo user:', e);
+        }
         
         // Return a mock user for demo mode
         const mockUser = {

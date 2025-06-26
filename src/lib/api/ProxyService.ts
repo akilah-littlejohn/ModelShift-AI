@@ -59,14 +59,9 @@ export class ProxyService {
       
       const { data: { session }, error: sessionError } = sessionResult;
       
-      if (sessionError) {
-        console.error('Session error:', sessionError);
-        throw new Error(`Authentication error: ${sessionError.message}. Please sign in again.`);
-      }
-      
-      if (!session) {
-        console.error('No active session found');
-        throw new Error('No active session. Please sign in to use the AI proxy.');
+      if (sessionError || !session) {
+        console.error(`[Auth Error] ${sessionError?.message || 'No active session'}`);
+        throw new Error('Authentication error: Please sign in again.');
       }
 
       // Check if the user has an API key for this provider

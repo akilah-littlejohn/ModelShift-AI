@@ -19,9 +19,7 @@ function validateEnvironmentVariables() {
     hasAnonKey: !!supabaseAnonKey,
     isDemoMode,
     isProduction,
-    nodeEnv: import.meta.env.MODE,
-    urlValue: supabaseUrl,
-    keyValue: supabaseAnonKey ? '[REDACTED]' : 'missing'
+    nodeEnv: import.meta.env.MODE
   });
 
   // Check if we have placeholder values
@@ -89,7 +87,7 @@ function createSupabaseClient() {
     }
   }
 
-  console.log('✅ Creating real Supabase client');
+  console.log('✅ Creating real Supabase client with URL:', supabaseUrl);
   
   try {
     return createClient(supabaseUrl, supabaseAnonKey, {

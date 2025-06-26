@@ -12,22 +12,22 @@ export default defineConfig({
     proxy: {
       // Proxy for Supabase API
       '/api/supabase': {
-        target: 'https://owzbrgcwyuugzjafadjy.supabase.co',
+        target: process.env.VITE_SUPABASE_URL || 'https://owzbrgcwyuugzjafadjy.supabase.co',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/supabase/, ''),
         secure: true,
         headers: {
-          'Origin': 'https://owzbrgcwyuugzjafadjy.supabase.co'
+          'Origin': process.env.VITE_SUPABASE_URL || 'https://owzbrgcwyuugzjafadjy.supabase.co'
         }
       },
       // Proxy for Supabase Edge Functions
       '/api/supabase-functions': {
-        target: 'https://owzbrgcwyuugzjafadjy.supabase.co/functions/v1',
+        target: `${process.env.VITE_SUPABASE_URL || 'https://owzbrgcwyuugzjafadjy.supabase.co'}/functions/v1`,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/supabase-functions/, ''),
         secure: true,
         headers: {
-          'Origin': 'https://owzbrgcwyuugzjafadjy.supabase.co'
+          'Origin': process.env.VITE_SUPABASE_URL || 'https://owzbrgcwyuugzjafadjy.supabase.co'
         }
       },
       // Proxy for OpenAI API (for development CORS bypass)

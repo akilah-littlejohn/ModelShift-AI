@@ -118,7 +118,16 @@ serve(async (req) => {
     // Verify authentication
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      throw new Error('Missing authorization header');
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Missing authorization header' 
+        }),
+        { 
+          status: 401, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
     const token = authHeader.replace('Bearer ', '');
@@ -126,12 +135,37 @@ serve(async (req) => {
     
     if (authError || !user) {
       console.error(`[${requestId}] Authentication failed:`, authError);
-      throw new Error('Invalid authentication token');
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Invalid authentication token' 
+        }),
+        { 
+          status: 401, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
     console.log(`[${requestId}] Authenticated request from user: ${user.email}`);
 
     // Parse dynamic request
+    let requestData: DynamicProviderRequest;
+    try {
+      requestData = await req.json();
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Invalid request body. Please provide a valid JSON payload.' 
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+    
     const {
       providerConfig,
       prompt,
@@ -140,16 +174,34 @@ serve(async (req) => {
       agentId,
       userId,
       apiKeys
-    }: DynamicProviderRequest = await req.json();
+    } = requestData;
 
     // Validate request
     if (!providerConfig || !prompt || !apiKeys) {
-      throw new Error('Missing required fields: providerConfig, prompt, and apiKeys');
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Missing required fields: providerConfig, prompt, and apiKeys' 
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
     // Verify user ID matches authenticated user
     if (userId && userId !== user.id) {
-      throw new Error('User ID mismatch');
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'User ID mismatch' 
+        }),
+        { 
+          status: 403, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
     const { apiConfig } = providerConfig;
@@ -206,11 +258,36 @@ serve(async (req) => {
     });
 
     // Make the dynamic API request
-    const apiResponse = await fetch(endpoint, {
-      method: apiConfig.method,
-      headers: headers,
-      body: JSON.stringify(requestBody),
-    });
+    let apiResponse: Response;
+    try {
+      apiResponse = await fetch(endpoint, {
+        method: apiConfig.method,
+        headers: headers,
+        body: JSON.stringify(requestBody),
+      });
+    } catch (fetchError) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Network error when calling ${providerConfig.name} API: ${fetchError.message}`,
+          provider: providerConfig.id,
+          metrics: {
+            latency: Date.now() - startTime,
+            tokens: 0,
+            cost: 0
+          },
+          metadata: {
+            requestId,
+            timestamp: new Date().toISOString(),
+            dynamic_provider: true
+          }
+        }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
 
     const responseTime = Date.now() - startTime;
 
@@ -241,20 +318,68 @@ serve(async (req) => {
       console.error(`[${requestId}] API call failed for ${providerConfig.name}: ${apiResponse.status} - ${errorText}`);
       
       // Enhanced error messages for common issues
+      let errorMessage = '';
       if (apiResponse.status === 401) {
-        throw new Error(`Authentication failed for ${providerConfig.name}: Invalid API key`);
+        errorMessage = `Authentication failed for ${providerConfig.name}: Invalid API key`;
       } else if (apiResponse.status === 403) {
-        throw new Error(`Access forbidden for ${providerConfig.name}: Check API key permissions`);
+        errorMessage = `Access forbidden for ${providerConfig.name}: Check API key permissions`;
       } else if (apiResponse.status === 429) {
-        throw new Error(`Rate limit exceeded for ${providerConfig.name}: Too many requests`);
+        errorMessage = `Rate limit exceeded for ${providerConfig.name}: Too many requests`;
       } else if (apiResponse.status >= 500) {
-        throw new Error(`Server error for ${providerConfig.name}: Service temporarily unavailable`);
+        errorMessage = `Server error for ${providerConfig.name}: Service temporarily unavailable`;
       } else {
-        throw new Error(`API call failed for ${providerConfig.name}: ${errorText}`);
+        errorMessage = `API call failed for ${providerConfig.name}: ${errorText}`;
       }
+      
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: errorMessage,
+          provider: providerConfig.id,
+          metrics: {
+            latency: responseTime,
+            tokens: 0,
+            cost: 0
+          },
+          metadata: {
+            requestId,
+            timestamp: new Date().toISOString(),
+            dynamic_provider: true
+          }
+        }),
+        { 
+          status: apiResponse.status, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
-    const responseData = await apiResponse.json();
+    let responseData;
+    try {
+      responseData = await apiResponse.json();
+    } catch (jsonError) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Failed to parse response from ${providerConfig.name}: ${jsonError.message}`,
+          provider: providerConfig.id,
+          metrics: {
+            latency: responseTime,
+            tokens: 0,
+            cost: 0
+          },
+          metadata: {
+            requestId,
+            timestamp: new Date().toISOString(),
+            dynamic_provider: true
+          }
+        }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
     
     // Extract response using dynamic path
     const generatedText = getValueAtPath(responseData, apiConfig.responseJsonPath);

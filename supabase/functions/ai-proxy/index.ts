@@ -273,20 +273,47 @@ serve(async (req) => {
     try {
       requestBody = await req.json();
     } catch (error) {
-      throw new Error('Invalid request body. Please provide a valid JSON payload.');
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Invalid request body. Please provide a valid JSON payload.' 
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
     
     // Validate request body
     const validationError = validateRequest(requestBody);
     if (validationError) {
-      throw new Error(validationError);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: validationError 
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
     
     const { providerId, prompt, model, parameters, agentId, userId, useUserKey = false } = requestBody;
 
     // Verify user ID matches authenticated user
     if (userId && userId !== user.id) {
-      throw new Error('User ID mismatch. The provided userId does not match the authenticated user.');
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'User ID mismatch. The provided userId does not match the authenticated user.' 
+        }),
+        { 
+          status: 403, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
     // Handle health check
@@ -335,7 +362,16 @@ serve(async (req) => {
     // Get provider configuration
     const providerConfig = PROVIDERS[providerId];
     if (!providerConfig) {
-      throw new Error(`Unsupported provider: ${providerId}. Available providers are: ${Object.keys(PROVIDERS).join(', ')}`);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Unsupported provider: ${providerId}. Available providers are: ${Object.keys(PROVIDERS).join(', ')}` 
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
     // Determine which API key to use
@@ -414,7 +450,22 @@ serve(async (req) => {
         ? `Failed to decrypt your API key for ${providerConfig.name}. Please try adding your API key again in the API Keys section.`
         : `No API key found for ${providerConfig.name}. Please add your API key in the API Keys section or configure ${providerConfig.apiKeyEnvVar} in Supabase Edge Function secrets.`;
       
-      throw new Error(errorMessage);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: errorMessage,
+          provider: providerId,
+          requestId,
+          metrics: {
+            responseTime: Date.now() - startTime,
+            timestamp: new Date().toISOString()
+          }
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
     // Check additional requirements (e.g., IBM Project ID)
@@ -453,7 +504,22 @@ serve(async (req) => {
       
       // If no project ID was found, return an error
       if (!projectId) {
-        throw new Error(`No Project ID found for ${providerConfig.name}. Please add your Project ID in the API Keys section or configure IBM_PROJECT_ID in Supabase Edge Function secrets.`);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: `No Project ID found for ${providerConfig.name}. Please add your Project ID in the API Keys section or configure IBM_PROJECT_ID in Supabase Edge Function secrets.`,
+            provider: providerId,
+            requestId,
+            metrics: {
+              responseTime: Date.now() - startTime,
+              timestamp: new Date().toISOString()
+            }
+          }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
       }
     }
 
@@ -499,10 +565,43 @@ serve(async (req) => {
         signal: controller.signal
       });
     } catch (fetchError) {
+      clearTimeout(timeoutId);
+      
       if (fetchError.name === 'AbortError') {
-        throw new Error(`Request to ${providerConfig.name} timed out after 60 seconds. The service may be experiencing high load.`);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: `Request to ${providerConfig.name} timed out after 60 seconds. The service may be experiencing high load.`,
+            provider: providerId,
+            requestId,
+            metrics: {
+              responseTime: Date.now() - startTime,
+              timestamp: new Date().toISOString()
+            }
+          }),
+          { 
+            status: 408, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
       }
-      throw new Error(`Network error when calling ${providerConfig.name} API: ${fetchError.message}`);
+      
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Network error when calling ${providerConfig.name} API: ${fetchError.message}`,
+          provider: providerId,
+          requestId,
+          metrics: {
+            responseTime: Date.now() - startTime,
+            timestamp: new Date().toISOString()
+          }
+        }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     } finally {
       clearTimeout(timeoutId);
     }
@@ -528,24 +627,57 @@ serve(async (req) => {
       console.error(`[${requestId}] API call failed for ${providerConfig.name}: ${apiResponse.status} - ${errorText}`);
       
       // Enhanced error messages for common issues
+      let errorMessage = '';
       if (apiResponse.status === 401) {
-        throw new Error(`Authentication failed for ${providerConfig.name}: Invalid API key. Please check your API key and try again.`);
+        errorMessage = `Authentication failed for ${providerConfig.name}: Invalid API key. Please check your API key and try again.`;
       } else if (apiResponse.status === 403) {
-        throw new Error(`Access forbidden for ${providerConfig.name}: Your API key doesn't have permission for this operation. Please check your API key permissions.`);
+        errorMessage = `Access forbidden for ${providerConfig.name}: Your API key doesn't have permission for this operation. Please check your API key permissions.`;
       } else if (apiResponse.status === 429) {
-        throw new Error(`Rate limit exceeded for ${providerConfig.name}: Too many requests in a short period. Please try again later or upgrade your API plan.`);
+        errorMessage = `Rate limit exceeded for ${providerConfig.name}: Too many requests in a short period. Please try again later or upgrade your API plan.`;
       } else if (apiResponse.status >= 500) {
-        throw new Error(`Server error for ${providerConfig.name}: The service is temporarily unavailable. Please try again later.`);
+        errorMessage = `Server error for ${providerConfig.name}: The service is temporarily unavailable. Please try again later.`;
       } else {
-        throw new Error(`API call failed for ${providerConfig.name}: ${errorText}`);
+        errorMessage = `API call failed for ${providerConfig.name}: ${errorText}`;
       }
+      
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: errorMessage,
+          provider: providerId,
+          requestId,
+          metrics: {
+            responseTime,
+            timestamp: new Date().toISOString()
+          }
+        }),
+        { 
+          status: apiResponse.status, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
     let responseData;
     try {
       responseData = await apiResponse.json();
     } catch (jsonError) {
-      throw new Error(`Failed to parse response from ${providerConfig.name}: ${jsonError.message}`);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Failed to parse response from ${providerConfig.name}: ${jsonError.message}`,
+          provider: providerId,
+          requestId,
+          metrics: {
+            responseTime,
+            timestamp: new Date().toISOString()
+          }
+        }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
     
     const generatedText = providerConfig.parseResponse(responseData);

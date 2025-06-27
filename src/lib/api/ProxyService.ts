@@ -55,7 +55,6 @@ export class ProxyService {
         sessionResult = await Promise.race([sessionPromise, sessionTimeoutPromise]) as any;
       } catch (timeoutError) {
         console.error('Session verification timeout:', timeoutError);
-        // Updated: More user-friendly error message
         throw new Error('Your session took too long to verify. Please refresh the page and try again.');
       }
       
@@ -63,7 +62,6 @@ export class ProxyService {
       
       if (sessionError || !session) {
         console.error(`[Auth Error] ${sessionError?.message || 'No active session'}`);
-        // Updated: More user-friendly error message
         throw new Error('Please sign in to continue.');
       }
 
@@ -73,7 +71,6 @@ export class ProxyService {
       
       if (!supabaseUrl || !supabaseAnonKey || 
           supabaseUrl.includes('demo') || supabaseAnonKey.includes('demo')) {
-        // If not configured, fall back to direct browser mode
         console.log('Supabase not configured for proxy mode, falling back to direct browser mode');
         return this.callProviderDirectly(request);
       }
@@ -145,10 +142,8 @@ export class ProxyService {
         }
         
         if (fetchError.message.includes('timeout')) {
-          // Updated: More user-friendly error message
           throw new Error(`Your request timed out. The AI service may be busy or your prompt may be too complex.`);
         }
-        // Updated: More user-friendly error message
         throw new Error(`Network error: Please check your internet connection and try again.`);
       }
 
@@ -179,19 +174,15 @@ export class ProxyService {
           
           // If we got a proper error response from our proxy, use it
           if (errorJson.error) {
-            // Updated: More user-friendly error message
             throw new Error(errorJson.error);
           } else {
-            // Updated: More user-friendly error message
             throw new Error(`Service error (${response.status}). Please try again later.`);
           }
         } catch (parseError) {
           // If not JSON, use the raw text or status
           if (errorText && errorText.length > 0) {
-            // Updated: More user-friendly error message
             throw new Error(errorText);
           } else {
-            // Updated: More user-friendly error message
             throw new Error(`Service error (${response.status}). Please try again later.`);
           }
         }
@@ -218,7 +209,6 @@ export class ProxyService {
 
       if (!data.success) {
         console.error('Proxy service returned error:', data.error);
-        // Updated: More user-friendly error message
         throw new Error(data.error || 'Request failed. Please try again.');
       }
 
@@ -272,13 +262,10 @@ export class ProxyService {
       let errorMessage = error.message;
       
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        // Updated: More user-friendly error message
         errorMessage = `Network error: Please check your internet connection and try again.`;
       } else if (error.message.includes('timeout')) {
-        // Updated: More user-friendly error message
         errorMessage = `Your request timed out. Please try again with a shorter prompt or try later.`;
       } else if (error.message.includes('not found') && error.message.includes('function')) {
-        // Updated: More user-friendly error message
         errorMessage = `Service not available. Please contact support.`;
       }
       
@@ -317,14 +304,12 @@ export class ProxyService {
       // Get provider configuration
       const provider = providers.find(p => p.id === request.providerId);
       if (!provider) {
-        // Updated: More user-friendly error message
         throw new Error(`Provider not found. Please select a different AI provider.`);
       }
       
       // Get API keys from key vault
       const keyData = keyVault.retrieveDefault(request.providerId);
       if (!keyData) {
-        // Updated: More user-friendly error message with instructions
         const providerName = provider.displayName;
         const errorMessage = `No API key found for ${providerName}. Please add your API key in the API Keys section.
 
@@ -449,18 +434,14 @@ To fix this:
       let errorMessage = error.message;
       
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        // Updated: More user-friendly error message
         errorMessage = `Network error: Unable to connect to the AI service. Please check your internet connection and try again.`;
       } else if (error.message.includes('timeout')) {
-        // Updated: More user-friendly error message
         errorMessage = `Your request timed out. Please try again with a shorter prompt or try later.`;
       } else if (error.message.includes('API key')) {
         // Keep the original message as it's already specific
       } else if (error.message.includes('401') || error.message.includes('Authentication failed')) {
-        // Updated: More user-friendly error message
         errorMessage = `Authentication failed: Your API key appears to be invalid. Please check your API key in the API Keys section.`;
       } else if (error.message.includes('429') || error.message.includes('Rate limit')) {
-        // Updated: More user-friendly error message
         errorMessage = `Rate limit exceeded: You've made too many requests in a short period. Please wait a few minutes and try again.`;
       }
       
@@ -508,7 +489,6 @@ To fix this:
           available: false,
           authenticated: false,
           configuredProviders: [],
-          // Updated: More user-friendly error message
           errors: ['Session verification timed out. Please check your internet connection and try again.']
         };
       }
@@ -521,7 +501,6 @@ To fix this:
           available: false,
           authenticated: false,
           configuredProviders: [],
-          // Updated: More user-friendly error message
           errors: [`Authentication error: Please sign in again.`]
         };
       }
@@ -532,7 +511,6 @@ To fix this:
           available: false,
           authenticated: false,
           configuredProviders: [],
-          // Updated: More user-friendly error message
           errors: ['No active session. Please sign in to continue.']
         };
       }
@@ -548,7 +526,6 @@ To fix this:
           available: false,
           authenticated: true,
           configuredProviders: [],
-          // Updated: More user-friendly error message
           errors: ['Server connection not configured. Please use direct browser mode.']
         };
       }
@@ -585,7 +562,6 @@ To fix this:
             available: false,
             authenticated: true,
             configuredProviders: [],
-            // Updated: More user-friendly error message
             errors: ['Connection check failed. Please try again later.']
           };
         }
@@ -598,7 +574,6 @@ To fix this:
             available: false,
             authenticated: true,
             configuredProviders: [],
-            // Updated: More user-friendly error message
             errors: [data.error || 'Connection check failed']
           };
         }
@@ -625,7 +600,6 @@ To fix this:
           available: false,
           authenticated: true,
           configuredProviders: [],
-          // Updated: More user-friendly error message
           errors: [testError instanceof Error ? testError.message : 'Connection check failed']
         };
       }
@@ -636,7 +610,6 @@ To fix this:
         available: false,
         authenticated: false,
         configuredProviders: [],
-        // Updated: More user-friendly error message
         errors: [error instanceof Error ? error.message : 'Unknown error']
       };
     }

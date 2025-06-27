@@ -28,18 +28,14 @@ export function ConnectionModeSettings() {
       
       // Show toast based on health status
       if (health.available) {
-        // Updated: More user-friendly success message
         toast.success('Server connection is available');
       } else if (health.authenticated && health.errors.length > 0) {
-        // Updated: More user-friendly error message
         toast.error(`Connection issue: ${health.errors[0]}`);
       } else if (!health.authenticated) {
-        // Updated: More user-friendly error message
         toast.error('Please sign in again to continue');
       }
     } catch (error) {
       console.error('Failed to check proxy health:', error);
-      // Updated: More user-friendly error message
       toast.error('Failed to check connection status');
       setProxyHealth({
         available: false,
@@ -55,7 +51,6 @@ export function ConnectionModeSettings() {
   const handleModeChange = (mode: string) => {
     setConnectionMode(mode);
     localStorage.setItem('modelshift-connection-mode', mode);
-    // Updated: More user-friendly success message
     toast.success(`Connection mode set to ${mode === 'server' ? 'Server Proxy' : 'Direct Browser'}`);
   };
 
@@ -283,7 +278,6 @@ export function ConnectionModeSettings() {
               If you're experiencing issues with Server Proxy Mode:
             </p>
             <ul className="text-sm text-amber-700 dark:text-amber-300 space-y-1 list-disc pl-5">
-              {/* Updated: More user-friendly troubleshooting steps */}
               <li>Ensure your server components are properly deployed</li>
               <li>Check that your API keys are correctly configured</li>
               <li>Verify your authentication is working properly</li>
@@ -305,7 +299,6 @@ export function ConnectionModeSettings() {
               If you're still having issues after troubleshooting:
             </p>
             <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1 list-disc pl-5">
-              {/* Updated: More user-friendly help steps */}
               <li>Check the server logs for detailed information</li>
               <li>Verify your environment variables in your configuration file</li>
               <li>Run the diagnostic script: <code className="bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded">node scripts/check-edge-function.cjs</code></li>

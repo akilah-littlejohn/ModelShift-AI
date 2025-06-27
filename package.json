@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "deploy-edge-function": "node deploy-edge-function.cjs"
+    "deploy-edge-function": "node deploy-edge-function.cjs",
+    "check-edge-function": "node scripts/check-edge-function.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.3",

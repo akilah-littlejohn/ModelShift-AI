@@ -46,7 +46,7 @@ export class DynamicProxyService {
       try {
         sessionResult = await Promise.race([sessionPromise, sessionTimeoutPromise]) as any;
       } catch (timeoutError) {
-        throw new Error('Authentication timeout: Unable to verify session. Please check your Supabase configuration.');
+        throw new Error('Authentication timeout: Unable to verify session. Please check your connection and try again.');
       }
       
       const { data: { session }, error: sessionError } = sessionResult;
@@ -56,7 +56,7 @@ export class DynamicProxyService {
       }
       
       if (!session) {
-        throw new Error('No active session. Please sign in to use the AI proxy.');
+        throw new Error('No active session. Please sign in to continue.');
       }
 
       // Get provider configuration
@@ -73,7 +73,7 @@ export class DynamicProxyService {
                             !supabaseUrl.includes('demo') && !supabaseAnonKey.includes('demo');
 
       if (!shouldUseProxy) {
-        throw new Error('Supabase proxy not configured. Please configure your environment variables or use local API keys.');
+        throw new Error('Server connection not configured. Please configure your environment variables or use direct browser mode.');
       }
 
       // Prepare the standard proxy request (compatible with existing ai-proxy function)
@@ -94,6 +94,7 @@ export class DynamicProxyService {
       });
 
       // Build the URL for the Edge Function
+      // FIXED: Ensure we're using the correct path format for the Edge Function
       const originalEndpoint = `${supabaseUrl}/functions/v1/ai-proxy`;
       const proxyEndpoint = getProxyUrl(originalEndpoint);
       
@@ -126,7 +127,7 @@ export class DynamicProxyService {
         const errorText = await response.text();
         console.error(`Proxy request failed with status ${response.status}:`, errorText);
         
-        let errorMessage = `Proxy request failed with status ${response.status}`;
+        let errorMessage = `Request failed with status ${response.status}`;
         try {
           const errorData = JSON.parse(errorText);
           if (errorData.error) {
@@ -146,7 +147,7 @@ export class DynamicProxyService {
 
       if (!data.success) {
         console.error('Proxy service returned error:', data.error);
-        throw new Error(data.error || 'Proxy service request failed');
+        throw new Error(data.error || 'Request failed');
       }
 
       const proxyResponse: DynamicProxyResponse = {
@@ -186,7 +187,7 @@ export class DynamicProxyService {
       // Return error response with metrics
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown dynamic proxy service error',
+        error: error instanceof Error ? error.message : 'Unknown error',
         provider: providerId,
         model: options.model,
         metrics: {
@@ -227,7 +228,7 @@ export class DynamicProxyService {
           available: false,
           authenticated: false,
           configuredProviders: [],
-          errors: ['Session timeout - unable to verify authentication']
+          errors: ['Session verification timed out. Please try again.']
         };
       }
       
@@ -238,7 +239,7 @@ export class DynamicProxyService {
           available: false,
           authenticated: false,
           configuredProviders: [],
-          errors: ['No active session']
+          errors: ['No active session. Please sign in to continue.']
         };
       }
 
@@ -252,7 +253,7 @@ export class DynamicProxyService {
           available: false,
           authenticated: true,
           configuredProviders: [],
-          errors: ['Supabase not configured for proxy mode']
+          errors: ['Server connection not configured. Please use direct browser mode.']
         };
       }
 
@@ -286,7 +287,7 @@ export class DynamicProxyService {
             available: false,
             authenticated: true,
             configuredProviders: [],
-            errors: [`Health check failed with status ${response.status}: ${errorText}`]
+            errors: ['Connection check failed. Please try again later.']
           };
         }
         
@@ -308,7 +309,7 @@ export class DynamicProxyService {
           available: false,
           authenticated: true,
           configuredProviders: [],
-          errors: [testError instanceof Error ? testError.message : 'Health check failed']
+          errors: [testError instanceof Error ? testError.message : 'Connection check failed']
         };
       }
 

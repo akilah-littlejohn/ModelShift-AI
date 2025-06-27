@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, X, Save, TestTube, AlertTriangle, Code, Eye, EyeOff, Copy, Check } from 'lucide-react';
 import { keyVault } from '../../lib/encryption';
-import { ModelShiftAIClientFactory } from '../../lib/modelshift-ai-sdk';
+import { CustomProviderService } from '../../lib/api/CustomProviderService';
 import type { Provider, KeyRequirement, ApiConfiguration } from '../../types';
 import toast from 'react-hot-toast';
 
@@ -126,23 +126,30 @@ export function CustomProviderEditor({ onClose, onSave }: CustomProviderEditorPr
         apiConfig
       };
 
-      // Create a client and test the API call
-      const client = ModelShiftAIClientFactory.createFromApiConfig(
+      // Call the custom provider service
+      const response = await CustomProviderService.callProvider(
+        tempProvider.id,
+        testPrompt,
         apiConfig,
-        testApiKeys,
-        apiConfig.defaultModel,
-        apiConfig.defaultParameters
+        testApiKeys
       );
 
-      const response = await client.generate(testPrompt);
+      if (response.success) {
+        setTestResult({
+          success: true,
+          message: 'Configuration test successful!',
+          response: response.response?.slice(0, 200) + (response.response && response.response.length > 200 ? '...' : '')
+        });
 
-      setTestResult({
-        success: true,
-        message: 'Configuration test successful!',
-        response: response.slice(0, 200) + (response.length > 200 ? '...' : '')
-      });
-
-      toast.success('Provider configuration works!');
+        toast.success('Provider configuration works!');
+      } else {
+        setTestResult({
+          success: false,
+          message: response.error || 'Unknown error'
+        });
+        
+        toast.error('Configuration test failed');
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       setTestResult({

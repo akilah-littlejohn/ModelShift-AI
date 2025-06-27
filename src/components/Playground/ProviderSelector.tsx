@@ -22,7 +22,7 @@ export function ProviderSelector({ selected, onChange, userApiKeys, singleSelect
   } | null>(null);
   const [isCheckingHealth, setIsCheckingHealth] = useState(false);
   const [connectionMode, setConnectionMode] = useState(() => 
-    localStorage.getItem('modelshift-connection-mode') || 'server'
+    localStorage.getItem('modelshift-connection-mode') || 'browser'
   );
 
   useEffect(() => {
@@ -31,7 +31,7 @@ export function ProviderSelector({ selected, onChange, userApiKeys, singleSelect
 
     // Listen for connection mode changes
     const handleStorageChange = () => {
-      const newMode = localStorage.getItem('modelshift-connection-mode') || 'server';
+      const newMode = localStorage.getItem('modelshift-connection-mode') || 'browser';
       if (newMode !== connectionMode) {
         setConnectionMode(newMode);
         checkServerHealth();
@@ -106,24 +106,26 @@ export function ProviderSelector({ selected, onChange, userApiKeys, singleSelect
   };
 
   const hasValidCredentials = (providerId: string): boolean => {
-    // Check if we're in server proxy mode
+    // In browser mode, always allow selection - we'll prompt for API keys later if needed
+    if (connectionMode === 'browser') {
+      return true;
+    }
+    
+    // In server mode, check if the provider is configured on the server
     if (connectionMode === 'server') {
-      // In server mode, check if the provider is configured on the server
       if (proxyHealth) {
         return proxyHealth.available && proxyHealth.configuredProviders.includes(providerId);
       }
-      // If health check hasn't completed, assume not available for safety
-      return false;
+      // If health check hasn't completed, assume available for better UX
+      return true;
     }
     
-    // In browser mode, check for user API keys
-    
-    // First check if user has configured this provider
+    // Fallback - check for user API keys
     if (userApiKeys && userApiKeys[providerId]) {
       return true;
     }
     
-    // Fall back to legacy key vault
+    // Legacy key vault check
     const keyData = keyVault.retrieveDefault(providerId);
     if (!keyData) {
       return false;
@@ -181,9 +183,8 @@ export function ProviderSelector({ selected, onChange, userApiKeys, singleSelect
           const hasLegacyKey = hasValidCredentials(provider.id);
           const hasCredentials = hasUserKey || hasLegacyKey;
           const isCustom = customProviders.some(p => p.id === provider.id);
-          const isDisabled = connectionMode === 'server' ? 
-            !hasCredentials && !proxyHealth?.configuredProviders.includes(provider.id) : 
-            !hasCredentials;
+          // In browser mode, always enable selection
+          const isDisabled = false;
           
           return (
             <div
@@ -243,6 +244,11 @@ export function ProviderSelector({ selected, onChange, userApiKeys, singleSelect
                     <div className="flex items-center space-x-1 text-xs text-blue-600 dark:text-blue-400">
                       <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                       <span>Server Key</span>
+                    </div>
+                  ) : connectionMode === 'browser' ? (
+                    <div className="flex items-center space-x-1 text-xs text-orange-600 dark:text-orange-400">
+                      <AlertCircle className="w-3 h-3" />
+                      <span>Add API Key in Settings</span>
                     </div>
                   ) : (
                     <div className="flex items-center space-x-1 text-xs text-orange-600 dark:text-orange-400">

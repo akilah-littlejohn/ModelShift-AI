@@ -67,17 +67,15 @@ export class ProxyService {
         throw new Error('Please sign in to continue.');
       }
 
-      // Check if the user has an API key for this provider
-      let useUserKey = request.useUserKey;
+      // Check if Supabase is properly configured for proxy mode
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       
-      if (useUserKey === undefined) {
-        // Auto-detect if user has a key for this provider
-        const hasUserKey = await apiKeysDb.getActiveForProvider(
-          request.userId || session.user.id,
-          request.providerId
-        );
-        
-        useUserKey = !!hasUserKey;
+      if (!supabaseUrl || !supabaseAnonKey || 
+          supabaseUrl.includes('demo') || supabaseAnonKey.includes('demo')) {
+        // If not configured, fall back to direct browser mode
+        console.log('Supabase not configured for proxy mode, falling back to direct browser mode');
+        return this.callProviderDirectly(request);
       }
 
       // Prepare the request body
@@ -88,7 +86,7 @@ export class ProxyService {
         parameters: request.parameters,
         agentId: request.agentId,
         userId: request.userId || session.user.id,
-        useUserKey
+        useUserKey: request.useUserKey
       };
 
       console.log(`Making authenticated proxy request to ${request.providerId}:`, {
@@ -96,22 +94,11 @@ export class ProxyService {
         model: request.model,
         promptLength: request.prompt.length,
         userId: requestBody.userId,
-        useUserKey
+        useUserKey: request.useUserKey
       });
 
       // Get the correct URL for the Edge Function
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      if (!supabaseUrl) {
-        // Updated: More user-friendly error message
-        throw new Error('Connection settings are missing. Please check your configuration.');
-      }
-      
-      // Determine the correct endpoint based on provider type
-      // Built-in providers use ai-proxy, custom providers use dynamic-ai-proxy
-      const isCustomProvider = !['openai', 'gemini', 'claude', 'ibm'].includes(request.providerId);
-      const functionName = isCustomProvider ? 'dynamic-ai-proxy' : 'ai-proxy';
-      
-      const originalProxyUrl = `${supabaseUrl}/functions/v1/${functionName}`;
+      const originalProxyUrl = `${supabaseUrl}/functions/v1/ai-proxy`;
       const proxyUrl = getProxyUrl(originalProxyUrl);
 
       console.log(`Using proxy endpoint: ${proxyUrl} for provider ${request.providerId}`);
@@ -135,6 +122,15 @@ export class ProxyService {
         response = await Promise.race([fetchPromise, fetchTimeoutPromise]) as Response;
       } catch (fetchError) {
         console.error('Fetch error:', fetchError);
+        
+        // If we get a network error, fall back to direct browser mode
+        if (fetchError.message.includes('Failed to fetch') || 
+            fetchError.message.includes('NetworkError') ||
+            fetchError.message.includes('Network request failed')) {
+          console.log('Network error with proxy, falling back to direct browser mode');
+          return this.callProviderDirectly(request);
+        }
+        
         if (fetchError.message.includes('timeout')) {
           // Updated: More user-friendly error message
           throw new Error(`Your request timed out. The AI service may be busy or your prompt may be too complex.`);
@@ -156,6 +152,12 @@ export class ProxyService {
           statusText: response.statusText,
           body: errorText
         });
+        
+        // If we get a 404, fall back to direct browser mode
+        if (response.status === 404) {
+          console.log('404 error with proxy, falling back to direct browser mode');
+          return this.callProviderDirectly(request);
+        }
         
         // Try to parse as JSON if possible
         let errorJson;
@@ -189,13 +191,16 @@ export class ProxyService {
       } catch (parseError) {
         const rawText = await responseClone.text();
         console.error('Failed to parse JSON response:', rawText);
-        // Updated: More user-friendly error message
-        throw new Error('We received an invalid response. Please try again.');
+        
+        // Fall back to direct browser mode
+        console.log('Failed to parse JSON response, falling back to direct browser mode');
+        return this.callProviderDirectly(request);
       }
 
       if (!data) {
-        // Updated: More user-friendly error message
-        throw new Error('No response received. Please try again.');
+        // Fall back to direct browser mode
+        console.log('No data in response, falling back to direct browser mode');
+        return this.callProviderDirectly(request);
       }
 
       if (!data.success) {
@@ -240,6 +245,15 @@ export class ProxyService {
       const latency = Date.now() - startTime;
       
       console.error('Proxy service error:', error);
+      
+      // If we get a network error, fall back to direct browser mode
+      if (error.message && (
+          error.message.includes('Failed to fetch') || 
+          error.message.includes('NetworkError') ||
+          error.message.includes('Network request failed'))) {
+        console.log('Network error, falling back to direct browser mode');
+        return this.callProviderDirectly(request);
+      }
       
       // Enhance error messages for common issues
       let errorMessage = error.message;

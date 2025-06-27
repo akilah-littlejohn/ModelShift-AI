@@ -45,7 +45,7 @@ export function getProxyUrl(originalUrl: string): string {
     const functionNameMatch = originalUrl.match(/\/functions\/v1\/([^/?]+)/);
     const functionName = functionNameMatch ? functionNameMatch[1] : 'unknown';
     
-    // Replace with local proxy
+    // Return the correct proxy path with the function name
     return `/api/supabase-functions/${functionName}`;
   }
 

@@ -106,8 +106,15 @@ export class ProxyService {
         throw new Error('Connection settings are missing. Please check your configuration.');
       }
       
-      const originalProxyUrl = `${supabaseUrl}/functions/v1/ai-proxy`;
+      // Determine the correct endpoint based on provider type
+      // Built-in providers use ai-proxy, custom providers use dynamic-ai-proxy
+      const isCustomProvider = !['openai', 'gemini', 'claude', 'ibm'].includes(request.providerId);
+      const functionName = isCustomProvider ? 'dynamic-ai-proxy' : 'ai-proxy';
+      
+      const originalProxyUrl = `${supabaseUrl}/functions/v1/${functionName}`;
       const proxyUrl = getProxyUrl(originalProxyUrl);
+
+      console.log(`Using proxy endpoint: ${proxyUrl} for provider ${request.providerId}`);
 
       // Make the authenticated request to the Edge Function with timeout
       const fetchPromise = fetch(proxyUrl, {
@@ -552,7 +559,7 @@ To fix this:
             authenticated: true,
             configuredProviders: [],
             // Updated: More user-friendly error message
-            errors: [`Connection check failed. Please try again later.`]
+            errors: ['Connection check failed. Please try again later.']
           };
         }
         

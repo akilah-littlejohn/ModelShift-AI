@@ -51,21 +51,12 @@ export class DynamicProxyService {
       
       const { data: { session }, error: sessionError } = sessionResult;
       
-      if (sessionError) {
-        throw new Error(`Authentication error: ${sessionError.message}`);
-      }
-      
-      if (!session) {
+      if (sessionError || !session) {
+        console.error(`[Auth Error] ${sessionError?.message || 'No active session'}`);
         throw new Error('No active session. Please sign in to continue.');
       }
 
-      // Get provider configuration
-      const provider = providers.find(p => p.id === providerId);
-      if (!provider) {
-        throw new Error(`Provider '${providerId}' not found in configuration`);
-      }
-
-      // Check if we should use proxy mode or direct mode
+      // Check if Supabase is properly configured for proxy mode
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       
@@ -76,17 +67,60 @@ export class DynamicProxyService {
         throw new Error('Server connection not configured. Please configure your environment variables or use direct browser mode.');
       }
 
-      // Prepare the standard proxy request (compatible with existing ai-proxy function)
-      const requestBody = {
-        providerId: provider.id,
-        prompt,
-        model: options.model || provider.apiConfig.defaultModel,
-        parameters: options.parameters || provider.apiConfig.defaultParameters,
-        agentId: options.agentId,
-        userId: options.userId || session.user.id
-      };
+      // Get provider configuration
+      const provider = providers.find(p => p.id === providerId);
+      if (!provider) {
+        throw new Error(`Provider '${providerId}' not found in configuration`);
+      }
 
-      console.log(`Making proxy request to ${provider.displayName} via ai-proxy:`, {
+      // Determine if this is a custom provider or a built-in provider
+      const isCustomProvider = !['openai', 'gemini', 'claude', 'ibm'].includes(providerId);
+      
+      // Prepare the request body based on provider type
+      let requestBody;
+      let functionName;
+      
+      if (isCustomProvider) {
+        // For custom providers, use the dynamic-ai-proxy endpoint
+        functionName = 'dynamic-ai-proxy';
+        
+        // Get API keys from key vault
+        const keyData = keyVault.retrieveDefault(providerId);
+        if (!keyData) {
+          throw new Error(`No API key found for ${provider.displayName}. Please add your API key in the API Keys section.`);
+        }
+        
+        // Build the request body for dynamic-ai-proxy
+        requestBody = {
+          providerConfig: {
+            id: provider.id,
+            name: provider.displayName,
+            apiConfig: provider.apiConfig
+          },
+          prompt,
+          model: options.model || provider.apiConfig.defaultModel,
+          parameters: options.parameters || provider.apiConfig.defaultParameters,
+          agentId: options.agentId,
+          userId: options.userId || session.user.id,
+          apiKeys: keyData
+        };
+      } else {
+        // For built-in providers, use the ai-proxy endpoint
+        functionName = 'ai-proxy';
+        
+        // Build the standard proxy request (compatible with existing ai-proxy function)
+        requestBody = {
+          providerId: provider.id,
+          prompt,
+          model: options.model || provider.apiConfig.defaultModel,
+          parameters: options.parameters || provider.apiConfig.defaultParameters,
+          agentId: options.agentId,
+          userId: options.userId || session.user.id,
+          useUserKey: true // Use the user's own API key
+        };
+      }
+
+      console.log(`Making ${isCustomProvider ? 'custom' : 'standard'} proxy request to ${provider.displayName} via ${functionName}:`, {
         providerId,
         model: requestBody.model,
         promptLength: prompt.length,
@@ -94,13 +128,12 @@ export class DynamicProxyService {
       });
 
       // Build the URL for the Edge Function
-      // FIXED: Ensure we're using the correct path format for the Edge Function
-      const originalEndpoint = `${supabaseUrl}/functions/v1/ai-proxy`;
+      const originalEndpoint = `${supabaseUrl}/functions/v1/${functionName}`;
       const proxyEndpoint = getProxyUrl(originalEndpoint);
       
       console.log(`Using proxy endpoint: ${proxyEndpoint}`);
 
-      // Call the existing ai-proxy Edge Function with timeout
+      // Call the Edge Function with timeout
       const fetchPromise = fetch(proxyEndpoint, {
         method: 'POST',
         headers: {
@@ -130,26 +163,46 @@ export class DynamicProxyService {
         let errorMessage = `Request failed with status ${response.status}`;
         try {
           const errorData = JSON.parse(errorText);
+          
+          // If we got a proper error response from our proxy, use it
           if (errorData.error) {
-            errorMessage = errorData.error;
+            throw new Error(errorData.error);
+          } else {
+            throw new Error(`Service error (${response.status}). Please try again later.`);
           }
-        } catch (e) {
-          // If not JSON, use the raw text
-          if (errorText) {
-            errorMessage = errorText;
+        } catch (parseError) {
+          // If not JSON, use the raw text or status
+          if (errorText && errorText.length > 0) {
+            throw new Error(errorText);
+          } else {
+            throw new Error(`Service error (${response.status}). Please try again later.`);
           }
         }
-        
-        throw new Error(errorMessage);
       }
 
-      const data = await response.json();
+      // Safely parse JSON
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        const rawText = await response.text();
+        console.error('Failed to parse JSON response:', rawText);
+        throw new Error('We received an invalid response. Please try again.');
+      }
+
+      if (!data) {
+        throw new Error('No response received. Please try again.');
+      }
 
       if (!data.success) {
         console.error('Proxy service returned error:', data.error);
-        throw new Error(data.error || 'Request failed');
+        throw new Error(data.error || 'Request failed. Please try again.');
       }
 
+      // Extract metrics from response or estimate them
+      const inputTokens = Math.ceil(prompt.length / 4);
+      const outputTokens = Math.ceil((data.response?.length || 0) / 4);
+      
       const proxyResponse: DynamicProxyResponse = {
         success: true,
         response: data.response,
@@ -157,15 +210,14 @@ export class DynamicProxyService {
         model: data.model || options.model,
         metrics: {
           latency,
-          tokens: data.metrics?.tokens || Math.ceil((prompt.length + (data.response?.length || 0)) / 4),
-          cost: data.metrics?.cost || this.estimateCost(providerId, data.metrics?.tokens || 0)
+          tokens: data.metrics?.tokens || (inputTokens + outputTokens),
+          cost: data.metrics?.cost || this.estimateCost(providerId, inputTokens + outputTokens)
         },
         metadata: {
-          requestId: data.metadata?.requestId || data.requestId,
+          requestId: data.requestId,
           timestamp: new Date().toISOString(),
           authenticated: true,
-          proxy_mode: true,
-          function_used: 'ai-proxy'
+          isCustomProvider
         }
       };
 
@@ -174,7 +226,7 @@ export class DynamicProxyService {
         latency,
         tokens: proxyResponse.metrics?.tokens,
         cost: proxyResponse.metrics?.cost,
-        functionUsed: 'ai-proxy'
+        isCustomProvider
       });
 
       return proxyResponse;
@@ -182,12 +234,25 @@ export class DynamicProxyService {
     } catch (error) {
       const latency = Date.now() - startTime;
       
-      console.error('Dynamic proxy service error:', error);
+      console.error('Proxy service error:', error);
+      
+      // Enhance error messages for common issues
+      let errorMessage = error.message;
+      
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        errorMessage = `Network error: Please check your internet connection and try again.`;
+      } else if (error.message.includes('timeout')) {
+        errorMessage = `Your request timed out. Please try again with a shorter prompt or try later.`;
+      } else if (error.message.includes('not found') && error.message.includes('function')) {
+        errorMessage = `Service not available. Please contact support.`;
+      } else if (error.message.includes('requested path is invalid')) {
+        errorMessage = `The requested service path is invalid. Please check your provider configuration or contact support.`;
+      }
       
       // Return error response with metrics
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage,
         provider: providerId,
         model: options.model,
         metrics: {
@@ -197,8 +262,7 @@ export class DynamicProxyService {
         },
         metadata: {
           timestamp: new Date().toISOString(),
-          authenticated: false,
-          proxy_mode: true
+          authenticated: false
         }
       };
     }
@@ -217,24 +281,36 @@ export class DynamicProxyService {
       // Check if user is authenticated with timeout
       const sessionPromise = supabase.auth.getSession();
       const sessionTimeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Session timeout after 5 seconds')), 5000)
+        setTimeout(() => reject(new Error('Session timeout after 30 seconds')), 30000)
       );
       
       let sessionResult;
       try {
         sessionResult = await Promise.race([sessionPromise, sessionTimeoutPromise]) as any;
       } catch (timeoutError) {
+        console.error('Session timeout during health check:', timeoutError);
         return {
           available: false,
           authenticated: false,
           configuredProviders: [],
-          errors: ['Session verification timed out. Please try again.']
+          errors: ['Session verification timed out. Please check your internet connection and try again.']
         };
       }
       
-      const { data: { session } } = sessionResult;
+      const { data: { session }, error: sessionError } = sessionResult;
+      
+      if (sessionError) {
+        console.error('Session error during health check:', sessionError);
+        return {
+          available: false,
+          authenticated: false,
+          configuredProviders: [],
+          errors: [`Authentication error: Please sign in again.`]
+        };
+      }
       
       if (!session) {
+        console.error('No active session during health check');
         return {
           available: false,
           authenticated: false,
@@ -249,6 +325,7 @@ export class DynamicProxyService {
       
       if (!supabaseUrl || !supabaseAnonKey || 
           supabaseUrl.includes('demo') || supabaseAnonKey.includes('demo')) {
+        console.error('Supabase not configured for proxy mode');
         return {
           available: false,
           authenticated: true,
@@ -259,7 +336,9 @@ export class DynamicProxyService {
 
       // Test the ai-proxy function with a health check
       try {
-        // Build the URL for the Edge Function
+        console.log('Testing ai-proxy function with health check');
+        
+        // Build the health check request
         const originalEndpoint = `${supabaseUrl}/functions/v1/ai-proxy`;
         const proxyEndpoint = getProxyUrl(originalEndpoint);
         
@@ -292,10 +371,25 @@ export class DynamicProxyService {
         }
         
         const data = await response.json();
+        
+        if (!data.success) {
+          console.error('Health check returned error:', data.error);
+          return {
+            available: false,
+            authenticated: true,
+            configuredProviders: [],
+            errors: [data.error || 'Connection check failed']
+          };
+        }
 
         // Parse the health check response
-        const configuredProviders = data?.configuredProviders || [];
-        const errors = data?.errors || [];
+        const configuredProviders = data.configuredProviders || [];
+        const errors = data.errors || [];
+
+        console.log('Health check successful:', {
+          configuredProviders,
+          errors
+        });
 
         return {
           available: true,
@@ -305,6 +399,7 @@ export class DynamicProxyService {
         };
 
       } catch (testError) {
+        console.error('Test error during health check:', testError);
         return {
           available: false,
           authenticated: true,
@@ -314,6 +409,7 @@ export class DynamicProxyService {
       }
 
     } catch (error) {
+      console.error('Error during health check:', error);
       return {
         available: false,
         authenticated: false,
@@ -334,23 +430,14 @@ export class DynamicProxyService {
    * Estimate cost based on provider and tokens
    */
   private static estimateCost(providerId: string, tokens: number): number {
-    const provider = providers.find(p => p.id === providerId);
-    if (!provider) return 0;
-    
-    const outputPricing = provider.capabilities.pricing.output;
-    return (tokens * outputPricing) / 1000;
-  }
-
-  /**
-   * Get provider display name
-   */
-  private static getProviderDisplayName(providerId: string): string {
-    const names: Record<string, string> = {
-      openai: 'OpenAI',
-      gemini: 'Google Gemini',
-      claude: 'Anthropic Claude',
-      ibm: 'IBM WatsonX'
+    const pricing: Record<string, number> = {
+      openai: 0.06, // GPT-4 output pricing per 1K tokens
+      gemini: 0.0015, // Gemini 2.0 Flash output pricing per 1K tokens
+      claude: 0.075, // Claude 3 Sonnet output pricing per 1K tokens
+      ibm: 0.04 // IBM Granite output pricing per 1K tokens
     };
-    return names[providerId] || providerId;
+    
+    const pricePerToken = pricing[providerId] || 0.05; // Default fallback
+    return (tokens * pricePerToken) / 1000;
   }
 }

@@ -92,12 +92,12 @@ function checkSupabaseCLI() {
   console.log(`\n${symbols.info} ${colors.bold}Checking Supabase CLI...${colors.reset}`);
   
   try {
-    const version = execSync('supabase --version', { stdio: 'pipe' }).toString().trim();
-    console.log(`${symbols.success} Supabase CLI installed: ${version}`);
+    const version = execSync('npx supabase --version', { stdio: 'pipe' }).toString().trim();
+    console.log(`${symbols.success} Supabase CLI available: ${version}`);
     return true;
   } catch (error) {
-    console.log(`${symbols.error} ${colors.red}Supabase CLI not installed or not in PATH${colors.reset}`);
-    console.log(`${colors.yellow}Install with: npm install -g supabase${colors.reset}`);
+    console.log(`${symbols.error} ${colors.red}Supabase CLI not available${colors.reset}`);
+    console.log(`${colors.yellow}We'll use npx to run the Supabase CLI commands${colors.reset}`);
     return false;
   }
 }
@@ -107,13 +107,13 @@ function checkEdgeFunctions() {
   console.log(`\n${symbols.info} ${colors.bold}Checking Supabase Edge Functions...${colors.reset}`);
   
   try {
-    const functions = execSync('supabase functions list', { stdio: 'pipe' }).toString().trim();
+    const functions = execSync('npx supabase functions list', { stdio: 'pipe' }).toString().trim();
     
     if (functions.includes('ai-proxy')) {
       console.log(`${symbols.success} ai-proxy function is deployed`);
     } else {
       console.log(`${symbols.error} ${colors.red}ai-proxy function is not deployed${colors.reset}`);
-      console.log(`${colors.yellow}Deploy with: supabase functions deploy ai-proxy${colors.reset}`);
+      console.log(`${colors.yellow}Deploy with: npx supabase functions deploy ai-proxy${colors.reset}`);
     }
     
     if (functions.includes('dynamic-ai-proxy')) {
@@ -125,7 +125,7 @@ function checkEdgeFunctions() {
     return true;
   } catch (error) {
     console.log(`${symbols.warning} ${colors.yellow}Could not check Edge Functions: ${error.message}${colors.reset}`);
-    console.log(`${colors.yellow}Make sure you're logged in with: supabase login${colors.reset}`);
+    console.log(`${colors.yellow}Make sure you're logged in with: npx supabase login${colors.reset}`);
     return false;
   }
 }
@@ -135,7 +135,7 @@ function checkSecrets() {
   console.log(`\n${symbols.info} ${colors.bold}Checking Supabase Secrets...${colors.reset}`);
   
   try {
-    const secrets = execSync('supabase secrets list', { stdio: 'pipe' }).toString().trim();
+    const secrets = execSync('npx supabase secrets list', { stdio: 'pipe' }).toString().trim();
     
     const requiredSecrets = [
       'OPENAI_API_KEY',
@@ -159,14 +159,14 @@ function checkSecrets() {
     
     if (missingSecrets.length > 0) {
       console.log(`\n${symbols.warning} ${colors.yellow}Missing secrets: ${missingSecrets.join(', ')}${colors.reset}`);
-      console.log(`${colors.yellow}Set with: supabase secrets set SECRET_NAME=value${colors.reset}`);
+      console.log(`${colors.yellow}Set with: npx supabase secrets set SECRET_NAME=value${colors.reset}`);
       console.log(`${colors.yellow}Note: These secrets are optional if users provide their own API keys${colors.reset}`);
     }
     
     return true;
   } catch (error) {
     console.log(`${symbols.warning} ${colors.yellow}Could not check secrets: ${error.message}${colors.reset}`);
-    console.log(`${colors.yellow}Make sure you're logged in with: supabase login${colors.reset}`);
+    console.log(`${colors.yellow}Make sure you're logged in with: npx supabase login${colors.reset}`);
     return false;
   }
 }

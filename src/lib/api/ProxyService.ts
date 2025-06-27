@@ -78,6 +78,19 @@ export class ProxyService {
         return this.callProviderDirectly(request);
       }
 
+      // Check if the user has an API key for this provider
+      let useUserKey = request.useUserKey;
+      
+      if (useUserKey === undefined) {
+        // Auto-detect if user has a key for this provider
+        const hasUserKey = await apiKeysDb.getActiveForProvider(
+          request.userId || session.user.id,
+          request.providerId
+        );
+        
+        useUserKey = !!hasUserKey;
+      }
+
       // Prepare the request body
       const requestBody = {
         providerId: request.providerId,

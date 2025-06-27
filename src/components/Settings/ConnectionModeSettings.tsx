@@ -308,7 +308,7 @@ export function ConnectionModeSettings() {
               {/* Updated: More user-friendly help steps */}
               <li>Check the server logs for detailed information</li>
               <li>Verify your environment variables in your configuration file</li>
-              <li>Run the diagnostic script: <code className="bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded">node scripts/check-supabase.cjs</code></li>
+              <li>Run the diagnostic script: <code className="bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded">node scripts/check-edge-function.cjs</code></li>
               <li>Check the browser console for detailed error messages</li>
             </ul>
           </div>

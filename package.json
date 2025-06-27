@@ -21,6 +21,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
+    "@supabase/cli": "^1.200.3",
     "@types/crypto-js": "^4.2.2",
     "@types/node": "^20.10.6",
     "@types/react": "^18.3.12",

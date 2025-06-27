@@ -528,6 +528,7 @@ To fix this:
         const proxyEndpoint = getProxyUrl(originalEndpoint);
         
         console.log(`Health check endpoint: ${proxyEndpoint}`);
+        console.log(`Supabase URL from env: ${supabaseUrl}`);
         
         // Use direct fetch instead of supabase.functions.invoke
         const response = await fetch(proxyEndpoint, {
@@ -543,16 +544,46 @@ To fix this:
           })
         });
         
+        console.log(`Health check response status: ${response.status}`);
+        
         if (!response.ok) {
           const errorText = await response.text();
           console.error(`Health check failed with status ${response.status}:`, errorText);
+          
+          // Enhanced error handling for 404 errors
+          if (response.status === 404) {
+            let errorMessage = 'The AI proxy service is not available.';
+            
+            try {
+              const errorJson = JSON.parse(errorText);
+              if (errorJson.error === 'requested path is invalid') {
+                errorMessage = `The 'ai-proxy' Edge Function is not deployed to your Supabase project.
+
+To fix this:
+1. Ensure your VITE_SUPABASE_URL in .env.local points to your correct Supabase project
+2. Deploy the Edge Function by running: node deploy-edge-functions.cjs
+3. Check your Supabase dashboard under 'Edge Functions' to verify 'ai-proxy' is deployed
+
+Current Supabase URL: ${supabaseUrl}`;
+              }
+            } catch (parseError) {
+              // Use default message if JSON parsing fails
+            }
+            
+            return {
+              available: false,
+              authenticated: true,
+              configuredProviders: [],
+              errors: [errorMessage]
+            };
+          }
           
           return {
             available: false,
             authenticated: true,
             configuredProviders: [],
             // Updated: More user-friendly error message
-            errors: [`Connection check failed. Please try again later.`]
+            errors: [`Connection check failed (${response.status}). Please try again later.`]
           };
         }
         
@@ -587,12 +618,26 @@ To fix this:
 
       } catch (testError) {
         console.error('Test error during health check:', testError);
+        
+        // Enhanced error handling for network issues
+        let errorMessage = testError instanceof Error ? testError.message : 'Connection check failed';
+        
+        if (testError.message.includes('Failed to fetch') || testError.message.includes('NetworkError')) {
+          errorMessage = `Network error: Unable to connect to your Supabase project.
+
+Please check:
+1. Your internet connection
+2. Your VITE_SUPABASE_URL in .env.local is correct
+3. Your Supabase project is active
+
+Current Supabase URL: ${supabaseUrl}`;
+        }
+        
         return {
           available: false,
           authenticated: true,
           configuredProviders: [],
-          // Updated: More user-friendly error message
-          errors: [testError instanceof Error ? testError.message : 'Connection check failed']
+          errors: [errorMessage]
         };
       }
 

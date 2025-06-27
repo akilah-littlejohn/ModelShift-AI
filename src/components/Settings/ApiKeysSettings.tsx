@@ -30,7 +30,8 @@ export function ApiKeysSettings() {
       setApiKeys(keys);
     } catch (error) {
       console.error('Failed to load API keys:', error);
-      toast.error('Failed to load API keys');
+      // Updated: More user-friendly error message
+      toast.error('Failed to load your API keys');
     } finally {
       setIsLoading(false);
     }
@@ -53,10 +54,12 @@ export function ApiKeysSettings() {
     
     try {
       await apiKeysService.deleteApiKey(user.id, keyId);
+      // Updated: More user-friendly success message
       toast.success('API key deleted successfully');
       setRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error('Failed to delete API key:', error);
+      // Updated: More user-friendly error message
       toast.error('Failed to delete API key');
     }
   };
@@ -66,10 +69,12 @@ export function ApiKeysSettings() {
     
     try {
       await apiKeysService.toggleApiKeyStatus(user.id, keyId, !currentStatus);
+      // Updated: More user-friendly success message
       toast.success(`API key ${currentStatus ? 'disabled' : 'enabled'} successfully`);
       setRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error('Failed to toggle API key status:', error);
+      // Updated: More user-friendly error message
       toast.error('Failed to update API key status');
     }
   };
@@ -294,6 +299,7 @@ function AddApiKeyModal({ onClose, onAdd }: AddApiKeyModalProps) {
     
     if (!user) return;
     if (!providerId || !keyValue) {
+      // Updated: More user-friendly error message
       toast.error('Please fill in all required fields');
       return;
     }
@@ -307,10 +313,12 @@ function AddApiKeyModal({ onClose, onAdd }: AddApiKeyModalProps) {
         name: keyName || 'Default'
       });
       
+      // Updated: More user-friendly success message
       toast.success('API key added successfully');
       onAdd();
     } catch (error) {
       console.error('Failed to add API key:', error);
+      // Updated: More user-friendly error message
       toast.error(error instanceof Error ? error.message : 'Failed to add API key');
     } finally {
       setIsSubmitting(false);
@@ -539,11 +547,13 @@ function EditApiKeyModal({ keyId, onClose, onUpdate }: EditApiKeyModalProps) {
         setKeyData(key);
         setKeyName(key.name);
       } else {
+        // Updated: More user-friendly error message
         toast.error('API key not found');
         onClose();
       }
     } catch (error) {
       console.error('Failed to load API key data:', error);
+      // Updated: More user-friendly error message
       toast.error('Failed to load API key data');
       onClose();
     } finally {
@@ -567,10 +577,12 @@ function EditApiKeyModal({ keyId, onClose, onUpdate }: EditApiKeyModalProps) {
       
       await apiKeysService.updateApiKey(user.id, keyId, updates);
       
+      // Updated: More user-friendly success message
       toast.success('API key updated successfully');
       onUpdate();
     } catch (error) {
       console.error('Failed to update API key:', error);
+      // Updated: More user-friendly error message
       toast.error(error instanceof Error ? error.message : 'Failed to update API key');
     } finally {
       setIsSubmitting(false);

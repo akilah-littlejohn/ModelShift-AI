@@ -28,15 +28,19 @@ export function ConnectionModeSettings() {
       
       // Show toast based on health status
       if (health.available) {
+        // Updated: More user-friendly success message
         toast.success('Server connection is available');
       } else if (health.authenticated && health.errors.length > 0) {
-        toast.error(`Server connection issue: ${health.errors[0]}`);
+        // Updated: More user-friendly error message
+        toast.error(`Connection issue: ${health.errors[0]}`);
       } else if (!health.authenticated) {
-        toast.error('Authentication issue: Please sign in again');
+        // Updated: More user-friendly error message
+        toast.error('Please sign in again to continue');
       }
     } catch (error) {
       console.error('Failed to check proxy health:', error);
-      toast.error('Failed to check server connection status');
+      // Updated: More user-friendly error message
+      toast.error('Failed to check connection status');
       setProxyHealth({
         available: false,
         authenticated: false,
@@ -51,6 +55,7 @@ export function ConnectionModeSettings() {
   const handleModeChange = (mode: string) => {
     setConnectionMode(mode);
     localStorage.setItem('modelshift-connection-mode', mode);
+    // Updated: More user-friendly success message
     toast.success(`Connection mode set to ${mode === 'server' ? 'Server Proxy' : 'Direct Browser'}`);
   };
 
@@ -73,7 +78,7 @@ export function ConnectionModeSettings() {
               Connection Modes Explained
             </h3>
             <p className="text-sm text-blue-700 dark:text-blue-300">
-              <strong>Server Proxy Mode:</strong> API requests are routed through secure Supabase Edge Functions, keeping your API keys secure on the server. This is the recommended mode for production.
+              <strong>Server Proxy Mode:</strong> API requests are routed through secure servers, keeping your API keys secure. This is the recommended mode for production.
             </p>
             <p className="text-sm text-blue-700 dark:text-blue-300 mt-2">
               <strong>Direct Browser Mode:</strong> API requests are made directly from your browser to the AI providers. This requires you to add your API keys in the API Keys section and may be subject to CORS limitations.
@@ -152,12 +157,23 @@ export function ConnectionModeSettings() {
                   <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
                   <div>
                     <h3 className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
-                      Server Issues:
+                      Connection Issues:
                     </h3>
                     <ul className="text-sm text-red-600 dark:text-red-400 space-y-1 pl-5 list-disc">
-                      {proxyHealth.errors.map((error, index) => (
-                        <li key={index}>{error}</li>
-                      ))}
+                      {proxyHealth.errors.map((error, index) => {
+                        // Updated: More user-friendly error messages
+                        let userFriendlyError = error;
+                        if (error.includes('Supabase')) {
+                          userFriendlyError = 'Server connection not properly configured';
+                        } else if (error.includes('Edge Function')) {
+                          userFriendlyError = 'Server component not available';
+                        } else if (error.includes('API key')) {
+                          userFriendlyError = 'API key configuration issue on server';
+                        } else if (error.includes('auth')) {
+                          userFriendlyError = 'Authentication issue - please sign in again';
+                        }
+                        return <li key={index}>{userFriendlyError}</li>;
+                      })}
                     </ul>
                   </div>
                 </div>
@@ -197,7 +213,7 @@ export function ConnectionModeSettings() {
               </div>
             </div>
             <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
-              API requests are routed through secure Supabase Edge Functions. Your API keys remain on the server.
+              API requests are routed through secure servers. Your API keys remain on the server.
             </p>
             <div className="flex items-center space-x-2 text-xs">
               <div className={`w-2 h-2 rounded-full ${proxyHealth?.available ? 'bg-green-500' : 'bg-red-500'}`}></div>
@@ -267,8 +283,9 @@ export function ConnectionModeSettings() {
               If you're experiencing issues with Server Proxy Mode:
             </p>
             <ul className="text-sm text-amber-700 dark:text-amber-300 space-y-1 list-disc pl-5">
-              <li>Ensure your Supabase Edge Functions are deployed</li>
-              <li>Check that API keys are configured in Supabase secrets</li>
+              {/* Updated: More user-friendly troubleshooting steps */}
+              <li>Ensure your server components are properly deployed</li>
+              <li>Check that your API keys are correctly configured</li>
               <li>Verify your authentication is working properly</li>
               <li>Try switching to Direct Browser Mode and adding your API keys</li>
             </ul>
@@ -288,8 +305,9 @@ export function ConnectionModeSettings() {
               If you're still having issues after troubleshooting:
             </p>
             <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1 list-disc pl-5">
-              <li>Check the Supabase Edge Function logs in your Supabase dashboard</li>
-              <li>Verify your environment variables in your .env.local file</li>
+              {/* Updated: More user-friendly help steps */}
+              <li>Check the server logs for detailed information</li>
+              <li>Verify your environment variables in your configuration file</li>
               <li>Run the diagnostic script: <code className="bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded">node scripts/check-supabase.cjs</code></li>
               <li>Check the browser console for detailed error messages</li>
             </ul>

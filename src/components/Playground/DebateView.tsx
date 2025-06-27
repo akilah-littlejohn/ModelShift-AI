@@ -109,16 +109,19 @@ export function DebateView() {
     const promptToUse = improvedPrompt || prompt;
     
     if (!promptToUse.trim()) {
+      // Updated: More user-friendly error message
       toast.error('Please enter a debate topic');
       return;
     }
     
     if (!user?.id) {
-      toast.error('You must be logged in to use the debate feature');
+      // Updated: More user-friendly error message
+      toast.error('Please sign in to use the debate feature');
       return;
     }
     
     if (sideA.selectedProviders.length === 0 || sideB.selectedProviders.length === 0) {
+      // Updated: More user-friendly error message
       toast.error('Please select at least one provider for each position');
       return;
     }
@@ -306,12 +309,14 @@ Your response should be 3-4 paragraphs, focused on the strongest counterargument
 
   const improvePromptWithGemini = async () => {
     if (!prompt.trim()) {
+      // Updated: More user-friendly error message
       toast.error('Please enter a prompt to improve');
       return;
     }
     
     if (!user?.id) {
-      toast.error('You must be logged in to use this feature');
+      // Updated: More user-friendly error message
+      toast.error('Please sign in to use this feature');
       return;
     }
     
@@ -342,9 +347,11 @@ Return ONLY the improved prompt text without any explanations, introductions, or
       }
 
       setImprovedPrompt(response.response);
+      // Updated: More user-friendly success message
       toast.success('Prompt improved successfully!');
     } catch (error) {
       console.error('Error improving prompt:', error);
+      // Updated: More user-friendly error message
       toast.error(error instanceof Error ? error.message : 'Failed to improve prompt');
     } finally {
       setIsImprovingPrompt(false);
@@ -354,6 +361,7 @@ Return ONLY the improved prompt text without any explanations, introductions, or
   const handleAddProvider = (side: 'A' | 'B') => {
     if (side === 'A') {
       if (sideA.selectedProviders.length >= 3) {
+        // Updated: More user-friendly error message
         toast.error('Maximum 3 providers per position');
         return;
       }
@@ -363,6 +371,7 @@ Return ONLY the improved prompt text without any explanations, introductions, or
       });
     } else {
       if (sideB.selectedProviders.length >= 3) {
+        // Updated: More user-friendly error message
         toast.error('Maximum 3 providers per position');
         return;
       }
@@ -376,6 +385,7 @@ Return ONLY the improved prompt text without any explanations, introductions, or
   const handleRemoveProvider = (side: 'A' | 'B', index: number) => {
     if (side === 'A') {
       if (sideA.selectedProviders.length <= 1) {
+        // Updated: More user-friendly error message
         toast.error('At least one provider is required');
         return;
       }
@@ -387,6 +397,7 @@ Return ONLY the improved prompt text without any explanations, introductions, or
       });
     } else {
       if (sideB.selectedProviders.length <= 1) {
+        // Updated: More user-friendly error message
         toast.error('At least one provider is required');
         return;
       }
@@ -401,16 +412,19 @@ Return ONLY the improved prompt text without any explanations, introductions, or
 
   const togglePosition = () => {
     setActivePosition(prev => prev === 'A' ? 'B' : 'A');
+    // Updated: More user-friendly success message
     toast.success(`Switched to ${activePosition === 'A' ? 'Position B' : 'Position A'}`);
   };
 
   const continueDebate = async () => {
     if (!user?.id) {
-      toast.error('You must be logged in to continue the debate');
+      // Updated: More user-friendly error message
+      toast.error('Please sign in to continue the debate');
       return;
     }
     
     if (results.length === 0) {
+      // Updated: More user-friendly error message
       toast.error('No debate results to continue from');
       return;
     }
@@ -420,6 +434,7 @@ Return ONLY the improved prompt text without any explanations, introductions, or
     const positionBResponses = results.filter(r => r.sideId === 'B' && !r.loading && !r.error);
     
     if (positionAResponses.length === 0 || positionBResponses.length === 0) {
+      // Updated: More user-friendly error message
       toast.error('Both positions must have at least one successful response to continue');
       return;
     }
@@ -512,6 +527,7 @@ Return ONLY the improved prompt text without any explanations, introductions, or
 
   const exportDebate = async () => {
     if (results.length === 0 && debateHistory.length === 0) {
+      // Updated: More user-friendly error message
       toast.error('No debate to export');
       return;
     }
@@ -568,11 +584,13 @@ Return ONLY the improved prompt text without any explanations, introductions, or
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     
+    // Updated: More user-friendly success message
     toast.success('Debate exported successfully');
   };
 
   const copyDebateToClipboard = async () => {
     if (results.length === 0 && debateHistory.length === 0) {
+      // Updated: More user-friendly error message
       toast.error('No debate to copy');
       return;
     }
@@ -614,9 +632,11 @@ Return ONLY the improved prompt text without any explanations, introductions, or
     try {
       await navigator.clipboard.writeText(markdown);
       setCopiedText('debate');
+      // Updated: More user-friendly success message
       toast.success('Debate copied to clipboard');
       setTimeout(() => setCopiedText(null), 2000);
     } catch (error) {
+      // Updated: More user-friendly error message
       toast.error('Failed to copy to clipboard');
     }
   };

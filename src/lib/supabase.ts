@@ -113,7 +113,7 @@ function createSupabaseClient() {
     });
   } catch (error) {
     console.error('❌ Failed to create Supabase client:', error);
-    throw new Error(`Supabase client creation failed: ${error.message}`);
+    throw new Error(`Connection setup failed: ${error.message}`);
   }
 }
 

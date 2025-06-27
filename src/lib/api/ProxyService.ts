@@ -55,14 +55,16 @@ export class ProxyService {
         sessionResult = await Promise.race([sessionPromise, sessionTimeoutPromise]) as any;
       } catch (timeoutError) {
         console.error('Session verification timeout:', timeoutError);
-        throw new Error('Authentication timeout: Unable to verify session. Please check your Supabase configuration or try refreshing the page.');
+        // Updated: More user-friendly error message
+        throw new Error('Your session took too long to verify. Please refresh the page and try again.');
       }
       
       const { data: { session }, error: sessionError } = sessionResult;
       
       if (sessionError || !session) {
         console.error(`[Auth Error] ${sessionError?.message || 'No active session'}`);
-        throw new Error('Authentication error: Please sign in again.');
+        // Updated: More user-friendly error message
+        throw new Error('Please sign in to continue.');
       }
 
       // Check if the user has an API key for this provider
@@ -100,7 +102,8 @@ export class ProxyService {
       // Get the correct URL for the Edge Function
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       if (!supabaseUrl) {
-        throw new Error('Supabase URL not configured. Please check your environment variables.');
+        // Updated: More user-friendly error message
+        throw new Error('Connection settings are missing. Please check your configuration.');
       }
       
       const originalProxyUrl = `${supabaseUrl}/functions/v1/ai-proxy`;
@@ -126,9 +129,11 @@ export class ProxyService {
       } catch (fetchError) {
         console.error('Fetch error:', fetchError);
         if (fetchError.message.includes('timeout')) {
-          throw new Error(`Request to ${request.providerId} timed out after 120 seconds. The service may be experiencing high load or your prompt may be too complex.`);
+          // Updated: More user-friendly error message
+          throw new Error(`Your request timed out. The AI service may be busy or your prompt may be too complex.`);
         }
-        throw new Error(`Network error when calling ${request.providerId}: ${fetchError.message}`);
+        // Updated: More user-friendly error message
+        throw new Error(`Network error: Please check your internet connection and try again.`);
       }
 
       const latency = Date.now() - startTime;
@@ -152,16 +157,20 @@ export class ProxyService {
           
           // If we got a proper error response from our proxy, use it
           if (errorJson.error) {
+            // Updated: More user-friendly error message
             throw new Error(errorJson.error);
           } else {
-            throw new Error(`Proxy service error: ${response.status}`);
+            // Updated: More user-friendly error message
+            throw new Error(`Service error (${response.status}). Please try again later.`);
           }
         } catch (parseError) {
           // If not JSON, use the raw text or status
           if (errorText && errorText.length > 0) {
+            // Updated: More user-friendly error message
             throw new Error(errorText);
           } else {
-            throw new Error(`Proxy service error: ${response.status}`);
+            // Updated: More user-friendly error message
+            throw new Error(`Service error (${response.status}). Please try again later.`);
           }
         }
       }
@@ -173,16 +182,19 @@ export class ProxyService {
       } catch (parseError) {
         const rawText = await responseClone.text();
         console.error('Failed to parse JSON response:', rawText);
-        throw new Error('Invalid response format from proxy service');
+        // Updated: More user-friendly error message
+        throw new Error('We received an invalid response. Please try again.');
       }
 
       if (!data) {
-        throw new Error('No response data from proxy service');
+        // Updated: More user-friendly error message
+        throw new Error('No response received. Please try again.');
       }
 
       if (!data.success) {
         console.error('Proxy service returned error:', data.error);
-        throw new Error(data.error || 'Proxy service request failed');
+        // Updated: More user-friendly error message
+        throw new Error(data.error || 'Request failed. Please try again.');
       }
 
       // Extract metrics from response or estimate them
@@ -226,11 +238,14 @@ export class ProxyService {
       let errorMessage = error.message;
       
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        errorMessage = `Network error: Unable to connect to the AI proxy service. Please check your internet connection and Supabase configuration.`;
+        // Updated: More user-friendly error message
+        errorMessage = `Network error: Please check your internet connection and try again.`;
       } else if (error.message.includes('timeout')) {
-        errorMessage = `Request timeout: The operation took too long to complete. Please try again with a shorter prompt or try later when the service is less busy.`;
+        // Updated: More user-friendly error message
+        errorMessage = `Your request timed out. Please try again with a shorter prompt or try later.`;
       } else if (error.message.includes('not found') && error.message.includes('function')) {
-        errorMessage = `Edge Function not found: The ai-proxy function is not deployed. Please deploy the function to your Supabase project.`;
+        // Updated: More user-friendly error message
+        errorMessage = `Service not available. Please contact support.`;
       }
       
       // Return error response with metrics
@@ -268,13 +283,14 @@ export class ProxyService {
       // Get provider configuration
       const provider = providers.find(p => p.id === request.providerId);
       if (!provider) {
-        throw new Error(`Provider '${request.providerId}' not found in configuration`);
+        // Updated: More user-friendly error message
+        throw new Error(`Provider not found. Please select a different AI provider.`);
       }
       
       // Get API keys from key vault
       const keyData = keyVault.retrieveDefault(request.providerId);
       if (!keyData) {
-        // Provide a more helpful error message with instructions
+        // Updated: More user-friendly error message with instructions
         const providerName = provider.displayName;
         const errorMessage = `No API key found for ${providerName}. Please add your API key in the API Keys section.
 
@@ -399,15 +415,19 @@ To fix this:
       let errorMessage = error.message;
       
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        errorMessage = `Network error: Unable to connect to the AI provider directly. This may be due to CORS restrictions. Try switching to Server Proxy Mode in Settings.`;
+        // Updated: More user-friendly error message
+        errorMessage = `Network error: Unable to connect to the AI service. Please check your internet connection and try again.`;
       } else if (error.message.includes('timeout')) {
-        errorMessage = `Request timeout: The operation took too long to complete. Please try again with a shorter prompt or try later when the service is less busy.`;
+        // Updated: More user-friendly error message
+        errorMessage = `Your request timed out. Please try again with a shorter prompt or try later.`;
       } else if (error.message.includes('API key')) {
         // Keep the original message as it's already specific
       } else if (error.message.includes('401') || error.message.includes('Authentication failed')) {
-        errorMessage = `Authentication failed: Your API key for ${request.providerId} appears to be invalid. Please check your API key in the API Keys section.`;
+        // Updated: More user-friendly error message
+        errorMessage = `Authentication failed: Your API key appears to be invalid. Please check your API key in the API Keys section.`;
       } else if (error.message.includes('429') || error.message.includes('Rate limit')) {
-        errorMessage = `Rate limit exceeded: You've made too many requests to ${request.providerId} in a short period. Please wait a few minutes and try again.`;
+        // Updated: More user-friendly error message
+        errorMessage = `Rate limit exceeded: You've made too many requests in a short period. Please wait a few minutes and try again.`;
       }
       
       return {
@@ -454,7 +474,8 @@ To fix this:
           available: false,
           authenticated: false,
           configuredProviders: [],
-          errors: ['Session timeout - unable to verify authentication. Please check your internet connection and try again.']
+          // Updated: More user-friendly error message
+          errors: ['Session verification timed out. Please check your internet connection and try again.']
         };
       }
       
@@ -466,7 +487,8 @@ To fix this:
           available: false,
           authenticated: false,
           configuredProviders: [],
-          errors: [`Authentication error: ${sessionError.message}`]
+          // Updated: More user-friendly error message
+          errors: [`Authentication error: Please sign in again.`]
         };
       }
       
@@ -476,7 +498,8 @@ To fix this:
           available: false,
           authenticated: false,
           configuredProviders: [],
-          errors: ['No active session. Please sign in to use the AI proxy.']
+          // Updated: More user-friendly error message
+          errors: ['No active session. Please sign in to continue.']
         };
       }
 
@@ -491,7 +514,8 @@ To fix this:
           available: false,
           authenticated: true,
           configuredProviders: [],
-          errors: ['Supabase not configured for proxy mode. Please set up your Supabase environment variables.']
+          // Updated: More user-friendly error message
+          errors: ['Server connection not configured. Please use direct browser mode.']
         };
       }
 
@@ -527,7 +551,8 @@ To fix this:
             available: false,
             authenticated: true,
             configuredProviders: [],
-            errors: [`Health check failed with status ${response.status}: ${errorText}`]
+            // Updated: More user-friendly error message
+            errors: [`Connection check failed. Please try again later.`]
           };
         }
         
@@ -539,7 +564,8 @@ To fix this:
             available: false,
             authenticated: true,
             configuredProviders: [],
-            errors: [data.error || 'Health check failed']
+            // Updated: More user-friendly error message
+            errors: [data.error || 'Connection check failed']
           };
         }
 
@@ -565,7 +591,8 @@ To fix this:
           available: false,
           authenticated: true,
           configuredProviders: [],
-          errors: [testError instanceof Error ? testError.message : 'Health check failed']
+          // Updated: More user-friendly error message
+          errors: [testError instanceof Error ? testError.message : 'Connection check failed']
         };
       }
 
@@ -575,6 +602,7 @@ To fix this:
         available: false,
         authenticated: false,
         configuredProviders: [],
+        // Updated: More user-friendly error message
         errors: [error instanceof Error ? error.message : 'Unknown error']
       };
     }

@@ -66,7 +66,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
     } catch (error) {
-      console.warn('⚠️ Supabase session fetch failed, falling back to token parsing.');
+      console.warn('⚠️ Session fetch failed, falling back to token parsing.');
 
       const stored = localStorage.getItem('supabase.auth.token');
       const tokenObj = stored ? JSON.parse(stored) : null;

@@ -90,6 +90,7 @@ export function KeyManagement() {
     saveCustomProviders(updatedProviders);
     loadKeys(); // Reload keys to include the new provider
     setShowCustomProviderModal(false);
+    // Updated: More user-friendly success message
     toast.success('Custom provider added successfully!');
   };
 
@@ -106,6 +107,7 @@ export function KeyManagement() {
       });
       
       loadKeys();
+      // Updated: More user-friendly success message
       toast.success('Custom provider deleted successfully');
     }
   };
@@ -124,6 +126,7 @@ export function KeyManagement() {
     if (window.confirm('Are you sure you want to delete this API key?')) {
       keyVault.remove(keyId);
       loadKeys();
+      // Updated: More user-friendly success message
       toast.success('API key deleted successfully');
     }
   };
@@ -567,11 +570,13 @@ function AddKeyModal({ editingKey, allProviders, onClose, onAdd }: AddKeyModalPr
     e.preventDefault();
     
     if (!selectedProvider) {
+      // Updated: More user-friendly error message
       toast.error('Please select a provider');
       return;
     }
 
     if (!selectedProviderData) {
+      // Updated: More user-friendly error message
       toast.error('Invalid provider selected');
       return;
     }
@@ -582,6 +587,7 @@ function AddKeyModal({ editingKey, allProviders, onClose, onAdd }: AddKeyModalPr
       .map(req => req.label);
 
     if (missingFields.length > 0) {
+      // Updated: More user-friendly error message
       toast.error(`Please fill in: ${missingFields.join(', ')}`);
       return;
     }
@@ -589,6 +595,7 @@ function AddKeyModal({ editingKey, allProviders, onClose, onAdd }: AddKeyModalPr
     // For new keys, check if name is provided when there are existing keys
     const existingKeys = keyVault.listKeysForProvider(selectedProvider);
     if (!editingKey && existingKeys.length > 0 && !keyName.trim()) {
+      // Updated: More user-friendly error message
       toast.error('Please provide a name for this additional key');
       return;
     }
@@ -597,10 +604,12 @@ function AddKeyModal({ editingKey, allProviders, onClose, onAdd }: AddKeyModalPr
     if (editingKey) {
       // Update existing key
       keyVault.store(selectedProvider, keyFieldValues, editingKey.keyId.replace(`${selectedProvider}_`, '') || undefined);
+      // Updated: More user-friendly success message
       toast.success('API key updated successfully');
     } else {
       // Add new key
       keyVault.store(selectedProvider, keyFieldValues, keyName.trim() || undefined);
+      // Updated: More user-friendly success message
       toast.success('API key added successfully');
     }
     

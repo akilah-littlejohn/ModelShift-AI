@@ -30,7 +30,8 @@ export function PlaygroundView() {
 
   const executeProviderRequest = async (prompt: string) => {
     if (!user?.id) {
-      toast.error('You must be logged in to use the playground.');
+      // Updated: More user-friendly error message
+      toast.error('Please sign in to use the playground.');
       return;
     }
     setIsLoading(true);
@@ -91,6 +92,7 @@ export function PlaygroundView() {
       
     } catch (err: any) {
       console.error('Proxy request failed:', err);
+      // Updated: More user-friendly error message
       toast.error(`Request failed: ${err.message}`);
       
       // Record failed execution

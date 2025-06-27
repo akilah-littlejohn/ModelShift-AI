@@ -144,32 +144,42 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
         if (isDemoMode || isDemo) {
           handleDemoLogin();
         } else {
-          toast.error('Network error: Unable to connect to authentication service. Please check your internet connection and Supabase configuration.');
+          // Updated: More user-friendly error message
+          toast.error('Unable to connect. Please check your internet connection and try again.');
         }
       } else if (error.message?.includes('Invalid login credentials')) {
         if (activeTab === 'signup') {
-          toast.error('Sign up failed. This email may already be registered. Try signing in instead.');
+          // Updated: More user-friendly error message
+          toast.error('This email may already be registered. Try signing in instead.');
         } else {
-          toast.error('Invalid email or password. Please check your credentials and try again.');
+          // Updated: More user-friendly error message
+          toast.error('Invalid email or password. Please try again.');
         }
       } else if (error.message?.includes('Email not confirmed')) {
+        // Updated: More user-friendly error message
         toast.error('Please check your email and confirm your account before signing in.');
       } else if (error.message?.includes('User already registered')) {
+        // Updated: More user-friendly error message
         toast.error('An account with this email already exists. Please sign in instead.');
         setActiveTab('signin'); // Switch to sign in mode
       } else if (error.message?.includes('Signup is disabled')) {
-        toast.error('Account registration is currently disabled. Please contact the administrator.');
+        // Updated: More user-friendly error message
+        toast.error('Account registration is currently disabled. Please contact support.');
       } else if (error.message?.includes('Email rate limit exceeded')) {
-        toast.error('Too many email attempts. Please wait a few minutes before trying again.');
+        // Updated: More user-friendly error message
+        toast.error('Too many attempts. Please wait a few minutes before trying again.');
       } else if (error.message?.includes('Password should be at least')) {
+        // Updated: More user-friendly error message
         toast.error('Password must be at least 6 characters long.');
       } else if (error.message?.includes('Unable to validate email address')) {
+        // Updated: More user-friendly error message
         toast.error('Please enter a valid email address.');
       } else if (error.message?.includes('Invalid API key') || error.message?.includes('Project not found')) {
         if (isDemoMode || isDemo) {
           handleDemoLogin();
         } else {
-          toast.error('Supabase configuration error. Please check your environment variables.');
+          // Updated: More user-friendly error message
+          toast.error('Authentication service unavailable. Please try again later.');
         }
       } else {
         // Generic error with helpful context
@@ -178,6 +188,7 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
         if (isDemoMode || isDemo) {
           handleDemoLogin();
         } else {
+          // Updated: More user-friendly error message
           toast.error(errorMsg);
         }
       }
@@ -220,21 +231,21 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
                   Demo Mode Active
                 </h3>
                 <p className="text-sm text-amber-700 dark:text-amber-300">
-                  You're running in demo mode. Authentication is simulated. To enable full functionality, configure your Supabase environment variables.
+                  You're running in demo mode. Authentication is simulated. To enable full functionality, configure your environment variables.
                 </p>
               </div>
             </div>
           </div>
         )}
 
-        {/* Supabase Info */}
+        {/* Authentication Info */}
         {!isDemoMode && !isDemo && (
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
             <div className="flex items-start space-x-3">
               <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
               <div>
                 <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-1">
-                  Supabase Authentication
+                  Authentication
                 </h3>
                 <p className="text-sm text-blue-700 dark:text-blue-300">
                   {activeTab === 'signup' 

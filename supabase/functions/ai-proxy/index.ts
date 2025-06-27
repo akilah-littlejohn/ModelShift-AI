@@ -299,7 +299,7 @@ serve(async (req) => {
       );
     }
     
-    const { providerId, prompt, model, parameters, agentId, userId, useUserKey = false } = requestBody;
+    const { providerId, prompt, model, parameters, agentId, userId, useUserKey = true } = requestBody;
 
     // Verify user ID matches authenticated user
     if (userId && userId !== user.id) {
@@ -447,7 +447,7 @@ serve(async (req) => {
     if (!apiKey) {
       const errorMessage = serverApiKey 
         ? `Failed to decrypt your API key for ${providerConfig.name}. Please try adding your API key again in the API Keys section.`
-        : `No API key found for ${providerConfig.name}. Please add your API key in the API Keys section or configure ${providerConfig.apiKeyEnvVar} in Supabase Edge Function secrets.`;
+        : `No API key found for ${providerConfig.name}. Please add your API key in the API Keys section.`;
       
       return new Response(
         JSON.stringify({ 
@@ -506,7 +506,7 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({ 
             success: false, 
-            error: `No Project ID found for ${providerConfig.name}. Please add your Project ID in the API Keys section or configure IBM_PROJECT_ID in Supabase Edge Function secrets.`,
+            error: `No Project ID found for ${providerConfig.name}. Please add your Project ID in the API Keys section.`,
             provider: providerId,
             requestId,
             metrics: {

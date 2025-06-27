@@ -96,7 +96,7 @@ export class ProxyService {
         parameters: request.parameters,
         agentId: request.agentId,
         userId: request.userId || session.user.id,
-        useUserKey: request.useUserKey
+        useUserKey: true // Force using user key in BYOK mode
       };
 
       console.log(`Making authenticated proxy request to ${request.providerId}:`, {
@@ -104,7 +104,7 @@ export class ProxyService {
         model: request.model,
         promptLength: request.prompt.length,
         userId: requestBody.userId,
-        useUserKey: request.useUserKey
+        useUserKey: true
       });
 
       // Get the correct URL for the Edge Function
@@ -557,6 +557,16 @@ To fix this:
         if (!response.ok) {
           const errorText = await response.text();
           console.error(`Health check failed with status ${response.status}:`, errorText);
+          
+          // If we get a 404, the function might not be deployed
+          if (response.status === 404) {
+            return {
+              available: false,
+              authenticated: true,
+              configuredProviders: [],
+              errors: ['Edge Function not found. Please deploy the ai-proxy function.']
+            };
+          }
           
           return {
             available: false,

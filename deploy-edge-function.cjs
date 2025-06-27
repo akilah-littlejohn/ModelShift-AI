@@ -221,18 +221,9 @@ function runDeployment() {
   
   console.log(`\n${colors.bold}${colors.blue}Next Steps${colors.reset}`);
   console.log(`${colors.cyan}===========${colors.reset}`);
-  console.log(`1. ${colors.green}Configure your API keys in Supabase Edge Function secrets${colors.reset}`);
+  console.log(`1. ${colors.green}Configure your API keys in the API Keys section${colors.reset}`);
   console.log(`2. ${colors.green}Test the connection in Settings → Connection Mode${colors.reset}`);
   console.log(`3. ${colors.green}Start using the AI proxy in your application${colors.reset}`);
-  
-  console.log(`\n${colors.bold}${colors.blue}API Key Configuration${colors.reset}`);
-  console.log(`${colors.cyan}======================${colors.reset}`);
-  console.log(`Run these commands to set up your API keys (optional):`);
-  console.log(`${colors.green}npx supabase secrets set OPENAI_API_KEY=sk-your-openai-key-here${colors.reset}`);
-  console.log(`${colors.green}npx supabase secrets set GEMINI_API_KEY=AIza-your-gemini-key-here${colors.reset}`);
-  console.log(`${colors.green}npx supabase secrets set ANTHROPIC_API_KEY=sk-ant-your-claude-key-here${colors.reset}`);
-  console.log(`${colors.green}npx supabase secrets set IBM_API_KEY=your-ibm-key-here${colors.reset}`);
-  console.log(`${colors.green}npx supabase secrets set IBM_PROJECT_ID=your-ibm-project-id-here${colors.reset}`);
 }
 
 // Run the deployment

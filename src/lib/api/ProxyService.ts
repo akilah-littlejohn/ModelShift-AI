@@ -474,7 +474,7 @@ To fix this:
     errors: string[];
   }> {
     try {
-      // Check connection mode first - if in browser mode, return success immediately
+      // Check if we should use direct browser mode - if so, return success immediately
       const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'browser';
       if (connectionMode === 'browser') {
         console.log('Browser mode detected, skipping proxy health check');

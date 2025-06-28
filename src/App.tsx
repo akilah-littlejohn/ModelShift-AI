@@ -64,7 +64,7 @@ function AppContent() {
               <Route path="/history" element={<HistoryView />} />
               <Route path="/sdk-docs" element={<SDKDocsView />} />
               <Route path="/settings" element={<SettingsView />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="*" element={<Navigate to="/playground" replace />} />
             </Routes>
           </main>
         </div>

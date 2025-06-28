@@ -121,7 +121,8 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
           // Set default connection mode to browser for new users
           localStorage.setItem('modelshift-connection-mode', 'browser');
           toast.success('Account created successfully! Welcome to ModelShift AI!');
-          // The useEffect will handle the redirect once user state is updated
+          // Redirect to playground
+          navigate('/playground');
         }
       } else {
         // Sign in flow
@@ -134,7 +135,8 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
         
         await login(email, password);
         toast.success('Welcome back to ModelShift AI!');
-        // The useEffect will handle the redirect once user state is updated
+        // Redirect to playground
+        navigate('/playground');
       }
     } catch (error: any) {
       console.error('Authentication error:', error);
@@ -210,8 +212,8 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
         
         {/* Logo & Branding */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-2xl mb-4">
-            <Brain className="w-8 h-8 text-white" />
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-2xl mb-6">
+            <Brain className="w-10 h-10 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-neutral-900 dark:text-white mb-2">
             ModelShift AI

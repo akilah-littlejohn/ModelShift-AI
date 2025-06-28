@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "check-supabase": "node scripts/check-supabase.cjs",
+    "check-edge-function": "node scripts/check-edge-function.js",
     "setup-local": "echo 'Setting up local development environment...' && npm run check-supabase",
     "webcontainer-setup": "node scripts/webcontainer-setup.js"
   },

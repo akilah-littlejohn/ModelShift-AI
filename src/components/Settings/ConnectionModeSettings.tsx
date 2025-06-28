@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Server, Globe, Zap, AlertTriangle, RefreshCw, CheckCircle, XCircle, Info, ExternalLink } from 'lucide-react';
+import { Server, Globe, Zap, AlertTriangle, RefreshCw, CheckCircle, XCircle, Info } from 'lucide-react';
 import { ProxyService } from '../../lib/api/ProxyService';
 import toast from 'react-hot-toast';
 
 export function ConnectionModeSettings() {
   const [connectionMode, setConnectionMode] = useState(() => {
-    return localStorage.getItem('modelshift-connection-mode') || 'server';
+    return localStorage.getItem('modelshift-connection-mode') || 'browser';
   });
   const [proxyHealth, setProxyHealth] = useState<{
     available: boolean;
@@ -14,19 +14,6 @@ export function ConnectionModeSettings() {
     errors: string[];
   } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isWebContainer, setIsWebContainer] = useState(false);
-
-  // Check if we're in a WebContainer environment
-  useEffect(() => {
-    const checkWebContainer = () => {
-      const isWebContainerEnv = 
-        window.location.hostname.includes('webcontainer') || 
-        window.location.hostname.includes('stackblitz') ||
-        window.location.hostname.includes('bolt.new');
-      setIsWebContainer(isWebContainerEnv);
-    };
-    checkWebContainer();
-  }, []);
 
   // Check proxy health on component mount
   useEffect(() => {
@@ -94,35 +81,6 @@ export function ConnectionModeSettings() {
           </div>
         </div>
       </div>
-
-      {/* WebContainer Notice */}
-      {isWebContainer && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-6">
-          <div className="flex items-start space-x-3">
-            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <h3 className="font-medium text-amber-900 dark:text-amber-100 mb-1">
-                WebContainer Environment Detected
-              </h3>
-              <p className="text-sm text-amber-700 dark:text-amber-300">
-                You're running in a WebContainer environment (like Bolt.new) where the Supabase CLI is not available. 
-                To deploy Edge Functions, you'll need to use the Supabase Dashboard.
-              </p>
-              <div className="mt-3">
-                <a 
-                  href="https://supabase.com/dashboard" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center space-x-1 text-sm text-amber-800 dark:text-amber-200 hover:underline"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  <span>Open Supabase Dashboard</span>
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Server Status */}
       <div className="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-6 mb-6">
@@ -197,9 +155,20 @@ export function ConnectionModeSettings() {
                       Connection Issues:
                     </h3>
                     <ul className="text-sm text-red-600 dark:text-red-400 space-y-1 pl-5 list-disc">
-                      {proxyHealth.errors.map((error, index) => (
-                        <li key={index}>{error}</li>
-                      ))}
+                      {proxyHealth.errors.map((error, index) => {
+                        // Updated: More user-friendly error messages
+                        let userFriendlyError = error;
+                        if (error.includes('Supabase')) {
+                          userFriendlyError = 'Server connection not properly configured';
+                        } else if (error.includes('Edge Function')) {
+                          userFriendlyError = 'Server component not available';
+                        } else if (error.includes('API key')) {
+                          userFriendlyError = 'API key configuration issue on server';
+                        } else if (error.includes('auth')) {
+                          userFriendlyError = 'Authentication issue - please sign in again';
+                        }
+                        return <li key={index}>{userFriendlyError}</li>;
+                      })}
                     </ul>
                   </div>
                 </div>
@@ -309,29 +278,11 @@ export function ConnectionModeSettings() {
               If you're experiencing issues with Server Proxy Mode:
             </p>
             <ul className="text-sm text-amber-700 dark:text-amber-300 space-y-1 list-disc pl-5">
-              <li>Ensure your Edge Function is properly deployed</li>
-              <li>Check that your API keys are correctly configured as secrets</li>
+              <li>Ensure your server components are properly deployed</li>
+              <li>Check that your API keys are correctly configured</li>
               <li>Verify your authentication is working properly</li>
               <li>Try switching to Direct Browser Mode and adding your API keys</li>
             </ul>
-            
-            {isWebContainer && (
-              <div className="mt-4 p-3 bg-amber-100 dark:bg-amber-900/40 rounded-lg">
-                <h4 className="font-medium text-amber-900 dark:text-amber-100 mb-1">
-                  WebContainer Environment
-                </h4>
-                <p className="text-sm text-amber-700 dark:text-amber-300">
-                  In WebContainer environments (like Bolt.new), you must deploy Edge Functions through the Supabase Dashboard:
-                </p>
-                <ol className="text-sm text-amber-700 dark:text-amber-300 space-y-1 list-decimal pl-5 mt-2">
-                  <li>Go to your Supabase Dashboard</li>
-                  <li>Navigate to Edge Functions</li>
-                  <li>Create a new function named "ai-proxy"</li>
-                  <li>Copy the code from supabase/functions/ai-proxy/index.ts</li>
-                  <li>Set your API keys as secrets in Project Settings → API</li>
-                </ol>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -348,11 +299,10 @@ export function ConnectionModeSettings() {
               If you're still having issues after troubleshooting:
             </p>
             <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1 list-disc pl-5">
-              <li>Check the Edge Function logs in your Supabase Dashboard</li>
-              <li>Verify your environment variables in your .env.local file</li>
-              <li>Run the diagnostic script: <code className="bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded">npm run check-supabase</code></li>
+              <li>Check the server logs for detailed information</li>
+              <li>Verify your environment variables in your configuration file</li>
+              <li>Run the diagnostic script: <code className="bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded">node scripts/check-edge-function.cjs</code></li>
               <li>Check the browser console for detailed error messages</li>
-              <li>See <code className="bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded">docs/EDGE_FUNCTION_DEBUGGING.md</code> for more troubleshooting tips</li>
             </ul>
           </div>
         </div>

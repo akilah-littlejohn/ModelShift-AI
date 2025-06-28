@@ -244,6 +244,7 @@ async function logAnalyticsEvent(
 serve(async (req) => {
   // CRITICAL: Handle CORS preflight requests first
   if (req.method === 'OPTIONS') {
+    console.log('Handling CORS preflight request');
     return new Response('ok', { headers: corsHeaders });
   }
 
@@ -251,27 +252,50 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
+    console.log(`[${requestId}] Received request: ${req.method} ${req.url}`);
+    
+    // Log request headers (without authorization token)
+    const headers = Object.fromEntries(req.headers.entries());
+    const safeHeaders = { ...headers };
+    if (safeHeaders.authorization) {
+      safeHeaders.authorization = 'Bearer [REDACTED]';
+    }
+    console.log(`[${requestId}] Request headers:`, safeHeaders);
+
     // Initialize Supabase client for authentication
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
     if (!supabaseUrl || !supabaseServiceKey) {
+      console.error(`[${requestId}] Supabase configuration missing`);
       throw new Error('Supabase configuration missing. Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in your Edge Function secrets.');
     }
     
+    console.log(`[${requestId}] Initializing Supabase client with URL: ${supabaseUrl.substring(0, 20)}...`);
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
     // Verify authentication
     const authHeader = req.headers.get('Authorization');
+    console.log(`[${requestId}] Auth header present: ${!!authHeader}`);
+    
     const user = await verifyAuthentication(authHeader, supabaseClient);
-
-    console.log(`[${requestId}] Authenticated request from user: ${user.id} (${user.email})`);
+    console.log(`[${requestId}] Authenticated user: ${user.id} (${user.email})`);
 
     // Parse request body
     let requestBody: RequestBody;
     try {
       requestBody = await req.json();
+      console.log(`[${requestId}] Request body:`, {
+        providerId: requestBody.providerId,
+        promptLength: requestBody.prompt?.length,
+        model: requestBody.model,
+        hasParameters: !!requestBody.parameters,
+        agentId: requestBody.agentId,
+        userId: requestBody.userId,
+        useUserKey: requestBody.useUserKey
+      });
     } catch (error) {
+      console.error(`[${requestId}] Failed to parse request body:`, error);
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -287,6 +311,7 @@ serve(async (req) => {
     // Validate request body
     const validationError = validateRequest(requestBody);
     if (validationError) {
+      console.error(`[${requestId}] Request validation failed: ${validationError}`);
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -303,6 +328,7 @@ serve(async (req) => {
 
     // Verify user ID matches authenticated user
     if (userId && userId !== user.id) {
+      console.error(`[${requestId}] User ID mismatch: ${userId} vs ${user.id}`);
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -317,6 +343,8 @@ serve(async (req) => {
 
     // Handle health check
     if (providerId === 'health-check') {
+      console.log(`[${requestId}] Processing health check request`);
+      
       const configuredProviders = Object.keys(PROVIDERS).filter(id => {
         const config = PROVIDERS[id];
         const hasApiKey = !!Deno.env.get(config.apiKeyEnvVar);
@@ -338,6 +366,18 @@ serve(async (req) => {
           }
           return `${config.name}: Missing ${config.apiKeyEnvVar} in Supabase secrets`;
         });
+
+      console.log(`[${requestId}] Health check result:`, {
+        configuredProviders,
+        errors,
+        envVars: {
+          hasOpenAI: !!Deno.env.get('OPENAI_API_KEY'),
+          hasGemini: !!Deno.env.get('GEMINI_API_KEY'),
+          hasClaude: !!Deno.env.get('ANTHROPIC_API_KEY'),
+          hasIBM: !!Deno.env.get('IBM_API_KEY'),
+          hasIBMProject: !!Deno.env.get('IBM_PROJECT_ID')
+        }
+      });
 
       return new Response(
         JSON.stringify({
@@ -361,6 +401,7 @@ serve(async (req) => {
     // Get provider configuration
     const providerConfig = PROVIDERS[providerId];
     if (!providerConfig) {
+      console.error(`[${requestId}] Unsupported provider: ${providerId}`);
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -381,6 +422,13 @@ serve(async (req) => {
     // First, try to get the user's API key for this provider if requested or if no server key exists
     const serverApiKey = Deno.env.get(providerConfig.apiKeyEnvVar);
     const shouldTryUserKey = useUserKey || !serverApiKey;
+
+    console.log(`[${requestId}] API key strategy:`, {
+      provider: providerConfig.name,
+      hasServerKey: !!serverApiKey,
+      shouldTryUserKey,
+      useUserKeyFlag: useUserKey
+    });
 
     if (shouldTryUserKey) {
       try {
@@ -409,6 +457,14 @@ serve(async (req) => {
           // If useUserKey is false, we'll fall back to server key
         } else {
           try {
+            console.log(`[${requestId}] Found user API key:`, {
+              keyId: userKeys[0].id,
+              provider: userKeys[0].provider_id,
+              name: userKeys[0].name,
+              isActive: userKeys[0].is_active,
+              createdAt: userKeys[0].created_at
+            });
+            
             apiKey = decrypt(userKeys[0].encrypted_key);
             userKeyId = userKeys[0].id;
             usingUserKey = true;
@@ -448,6 +504,8 @@ serve(async (req) => {
       const errorMessage = serverApiKey 
         ? `Failed to decrypt your API key for ${providerConfig.name}. Please try adding your API key again in the API Keys section.`
         : `No API key found for ${providerConfig.name}. Please add your API key in the API Keys section.`;
+      
+      console.error(`[${requestId}] No API key available:`, errorMessage);
       
       return new Response(
         JSON.stringify({ 
@@ -503,6 +561,7 @@ serve(async (req) => {
       
       // If no project ID was found, return an error
       if (!projectId) {
+        console.error(`[${requestId}] No Project ID found for ${providerConfig.name}`);
         return new Response(
           JSON.stringify({ 
             success: false, 
@@ -551,6 +610,13 @@ serve(async (req) => {
       endpoint += `?key=${apiKey}`;
     }
 
+    console.log(`[${requestId}] Request details:`, {
+      endpoint: endpoint.split('?')[0], // Don't log API key in URL
+      method: 'POST',
+      headers: Object.keys(headers),
+      bodyKeys: Object.keys(requestBody)
+    });
+
     // Make API request with timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60000); // 60-second timeout
@@ -563,8 +629,13 @@ serve(async (req) => {
         body: JSON.stringify(requestBody),
         signal: controller.signal
       });
+      
+      console.log(`[${requestId}] API response status:`, apiResponse.status);
+      console.log(`[${requestId}] API response headers:`, Object.fromEntries(apiResponse.headers.entries()));
     } catch (fetchError) {
       clearTimeout(timeoutId);
+      
+      console.error(`[${requestId}] Fetch error:`, fetchError);
       
       if (fetchError.name === 'AbortError') {
         return new Response(
@@ -613,6 +684,8 @@ serve(async (req) => {
       
       try {
         const responseText = await apiResponse.text();
+        console.log(`[${requestId}] Error response body:`, responseText.substring(0, 500));
+        
         try {
           errorData = JSON.parse(responseText);
           errorText = errorData.error?.message || errorData.message || responseText;
@@ -660,7 +733,9 @@ serve(async (req) => {
     let responseData;
     try {
       responseData = await apiResponse.json();
+      console.log(`[${requestId}] API response data keys:`, Object.keys(responseData));
     } catch (jsonError) {
+      console.error(`[${requestId}] Failed to parse JSON response:`, jsonError);
       return new Response(
         JSON.stringify({ 
           success: false, 

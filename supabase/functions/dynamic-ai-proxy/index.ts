@@ -102,6 +102,7 @@ function mergeAtPath(obj: any, path: string, value: Record<string, any>): any {
 serve(async (req) => {
   // CRITICAL: Handle CORS preflight requests first
   if (req.method === 'OPTIONS') {
+    console.log('Handling CORS preflight request');
     return new Response('ok', { headers: corsHeaders });
   }
 
@@ -109,15 +110,35 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
+    console.log(`[${requestId}] Received dynamic-ai-proxy request: ${req.method} ${req.url}`);
+    
+    // Log request headers (without authorization token)
+    const headers = Object.fromEntries(req.headers.entries());
+    const safeHeaders = { ...headers };
+    if (safeHeaders.authorization) {
+      safeHeaders.authorization = 'Bearer [REDACTED]';
+    }
+    console.log(`[${requestId}] Request headers:`, safeHeaders);
+
     // Initialize Supabase client for authentication
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error(`[${requestId}] Supabase configuration missing`);
+      throw new Error('Supabase configuration missing. Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in your Edge Function secrets.');
+    }
+    
+    console.log(`[${requestId}] Initializing Supabase client with URL: ${supabaseUrl.substring(0, 20)}...`);
     const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      supabaseUrl,
+      supabaseServiceKey
     );
 
     // Verify authentication
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
+      console.error(`[${requestId}] Missing authorization header`);
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -147,13 +168,24 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[${requestId}] Authenticated request from user: ${user.email}`);
+    console.log(`[${requestId}] Authenticated request from user: ${user.id} (${user.email})`);
 
     // Parse dynamic request
     let requestData: DynamicProviderRequest;
     try {
       requestData = await req.json();
+      console.log(`[${requestId}] Request data:`, {
+        providerId: requestData.providerConfig?.id,
+        providerName: requestData.providerConfig?.name,
+        promptLength: requestData.prompt?.length,
+        model: requestData.model,
+        hasParameters: !!requestData.parameters,
+        agentId: requestData.agentId,
+        userId: requestData.userId,
+        hasApiKeys: !!requestData.apiKeys
+      });
     } catch (error) {
+      console.error(`[${requestId}] Failed to parse request body:`, error);
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -178,6 +210,7 @@ serve(async (req) => {
 
     // Validate request
     if (!providerConfig || !prompt || !apiKeys) {
+      console.error(`[${requestId}] Missing required fields`);
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -192,6 +225,7 @@ serve(async (req) => {
 
     // Verify user ID matches authenticated user
     if (userId && userId !== user.id) {
+      console.error(`[${requestId}] User ID mismatch: ${userId} vs ${user.id}`);
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -218,12 +252,12 @@ serve(async (req) => {
     }
 
     // Build headers dynamically
-    const headers: Record<string, string> = { ...apiConfig.headers };
+    const requestHeaders: Record<string, string> = { ...apiConfig.headers };
     
     // Add authentication header if not using URL parameter
     if (!apiConfig.apiKeyInUrlParam && apiConfig.authHeaderName) {
       const authValue = `${apiConfig.authHeaderPrefix || ''}${apiKeys.apiKey}`;
-      headers[apiConfig.authHeaderName] = authValue;
+      requestHeaders[apiConfig.authHeaderName] = authValue;
     }
 
     // Build request body dynamically
@@ -251,9 +285,9 @@ serve(async (req) => {
     }
 
     console.log(`[${requestId}] Request details:`, {
-      endpoint,
+      endpoint: endpoint.split('?')[0], // Don't log API key in URL
       method: apiConfig.method,
-      hasAuth: !!headers[apiConfig.authHeaderName || 'Authorization'],
+      hasAuth: !!requestHeaders[apiConfig.authHeaderName || 'Authorization'],
       bodyKeys: Object.keys(requestBody)
     });
 
@@ -262,10 +296,14 @@ serve(async (req) => {
     try {
       apiResponse = await fetch(endpoint, {
         method: apiConfig.method,
-        headers: headers,
+        headers: requestHeaders,
         body: JSON.stringify(requestBody),
       });
+      
+      console.log(`[${requestId}] API response status:`, apiResponse.status);
+      console.log(`[${requestId}] API response headers:`, Object.fromEntries(apiResponse.headers.entries()));
     } catch (fetchError) {
+      console.error(`[${requestId}] Fetch error:`, fetchError);
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -296,21 +334,27 @@ serve(async (req) => {
       let errorDetails = null;
       
       try {
-        const errorData = await apiResponse.json();
+        const errorData = await apiResponse.text();
+        console.log(`[${requestId}] Error response body:`, errorData.substring(0, 500));
         
-        // Try to extract error using dynamic path
-        if (apiConfig.errorJsonPath) {
-          const extractedError = getValueAtPath(errorData, apiConfig.errorJsonPath);
-          if (extractedError) {
-            errorText = extractedError;
+        // Try to parse as JSON to get structured error
+        try {
+          errorDetails = JSON.parse(errorData);
+          
+          // Try to extract error using dynamic path
+          if (apiConfig.errorJsonPath) {
+            const extractedError = getValueAtPath(errorDetails, apiConfig.errorJsonPath);
+            if (extractedError) {
+              errorText = extractedError;
+            }
           }
+          
+          if (!errorText) {
+            errorText = errorDetails.error?.message || errorDetails.message || `HTTP ${apiResponse.status}`;
+          }
+        } catch (e) {
+          errorText = errorData || `HTTP ${apiResponse.status}`;
         }
-        
-        if (!errorText) {
-          errorText = errorData.error?.message || errorData.message || `HTTP ${apiResponse.status}`;
-        }
-        
-        errorDetails = errorData;
       } catch (e) {
         errorText = `HTTP ${apiResponse.status}`;
       }
@@ -357,7 +401,9 @@ serve(async (req) => {
     let responseData;
     try {
       responseData = await apiResponse.json();
+      console.log(`[${requestId}] API response data keys:`, Object.keys(responseData));
     } catch (jsonError) {
+      console.error(`[${requestId}] Failed to parse JSON response:`, jsonError);
       return new Response(
         JSON.stringify({ 
           success: false, 

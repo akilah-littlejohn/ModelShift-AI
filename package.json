@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "check-supabase": "node scripts/check-supabase.cjs",
-    "setup-local": "echo 'Setting up local development environment...' && npm run check-supabase"
+    "setup-local": "echo 'Setting up local development environment...' && npm run check-supabase",
+    "webcontainer-setup": "node scripts/webcontainer-setup.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.3",

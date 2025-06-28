@@ -96,7 +96,7 @@ export class ProxyService {
         parameters: request.parameters,
         agentId: request.agentId,
         userId: request.userId || session.user.id,
-        useUserKey: useUserKey
+        useUserKey
       };
 
       console.log(`Making authenticated proxy request to ${request.providerId}:`, {

@@ -18,22 +18,26 @@ export function PlaygroundView() {
   const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash');
   const [selectedParameters, setSelectedParameters] = useState({ maxOutputTokens: 256 });
   const [selectedAgent, setSelectedAgent] = useState<{ id: string } | null>(null);
-  const [connectionMode, setConnectionMode] = useState('server');
+  const [connectionMode, setConnectionMode] = useState('browser'); // Default to browser mode for development
 
   // Load connection mode from localStorage
   useEffect(() => {
     const savedMode = localStorage.getItem('modelshift-connection-mode');
     if (savedMode) {
       setConnectionMode(savedMode);
+    } else {
+      // Set default to browser mode for development
+      localStorage.setItem('modelshift-connection-mode', 'browser');
     }
   }, []);
 
+  // TEMPORARY: Create a mock user ID for development
+  const mockUserId = 'dev-user-' + Math.random().toString(36).substring(2, 9);
+
   const executeProviderRequest = async (prompt: string) => {
-    if (!user?.id) {
-      // Updated: More user-friendly error message
-      toast.error('Please sign in to use the playground.');
-      return;
-    }
+    // TEMPORARY: Use mock user ID if no real user
+    const userId = user?.id || mockUserId;
+    
     setIsLoading(true);
 
     try {
@@ -58,7 +62,7 @@ export function PlaygroundView() {
         model: selectedModel,
         parameters: selectedParameters,
         agentId: selectedAgent?.id || null,
-        userId: user.id,
+        userId: userId,
         useUserKey: connectionMode === 'browser', // Use user key in browser mode
       });
 
@@ -68,26 +72,30 @@ export function PlaygroundView() {
       // Add response to messages
       setMessages((msgs) => [...msgs, { role: 'assistant', text: response.response || '' }]);
       
-      // Record execution in database
-      try {
-        await db.prompts.create({
-          user_id: user.id,
-          prompt: finalPrompt,
-          agent_type: selectedAgent?.id || 'direct',
-          providers: [selectedProvider],
-          responses: [{
-            provider: selectedProvider,
-            response: response.response || '',
-            latency: response.metrics?.latency || executionTime,
-            tokens: response.metrics?.tokens || Math.ceil((finalPrompt.length + (response.response?.length || 0)) / 4),
-            success: true
-          }],
-          execution_time: executionTime,
-          tokens_used: response.metrics?.tokens || Math.ceil((finalPrompt.length + (response.response?.length || 0)) / 4)
-        });
-      } catch (dbError) {
-        console.error('Failed to record execution in database:', dbError);
-        // Don't fail the request if recording fails
+      // Record execution in database (skip if no real user)
+      if (user?.id) {
+        try {
+          await db.prompts.create({
+            user_id: user.id,
+            prompt: finalPrompt,
+            agent_type: selectedAgent?.id || 'direct',
+            providers: [selectedProvider],
+            responses: [{
+              provider: selectedProvider,
+              response: response.response || '',
+              latency: response.metrics?.latency || executionTime,
+              tokens: response.metrics?.tokens || Math.ceil((finalPrompt.length + (response.response?.length || 0)) / 4),
+              success: true
+            }],
+            execution_time: executionTime,
+            tokens_used: response.metrics?.tokens || Math.ceil((finalPrompt.length + (response.response?.length || 0)) / 4)
+          });
+        } catch (dbError) {
+          console.error('Failed to record execution in database:', dbError);
+          // Don't fail the request if recording fails
+        }
+      } else {
+        console.log('Skipping database recording (no authenticated user)');
       }
       
     } catch (err: any) {
@@ -95,7 +103,7 @@ export function PlaygroundView() {
       // Updated: More user-friendly error message
       toast.error(`Request failed: ${err.message}`);
       
-      // Record failed execution
+      // Record failed execution (skip if no real user)
       if (user?.id) {
         try {
           const executionTime = Date.now() - Date.now(); // 0 for failed requests

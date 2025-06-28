@@ -26,7 +26,10 @@ function AppContent() {
     console.log('Auth state in AppContent:', { user, isLoading });
   }, [user, isLoading]);
 
-  if (isLoading) {
+  // TEMPORARY: Skip authentication check for development
+  const skipAuth = true;
+
+  if (isLoading && !skipAuth) {
     return (
       <div className="min-h-screen bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
         <div className="text-center">
@@ -37,8 +40,8 @@ function AppContent() {
     );
   }
 
-  // If user is not logged in, show landing page or login form based on route
-  if (!user) {
+  // TEMPORARY: Skip authentication check for development
+  if (!user && !skipAuth) {
     console.log('No user authenticated, showing public routes');
     return (
       <Router>
@@ -53,8 +56,8 @@ function AppContent() {
     );
   }
 
-  // Show app for authenticated users
-  console.log('User authenticated, showing app routes');
+  // Show app for authenticated users or when skipping auth
+  console.log('User authenticated or skipping auth, showing app routes');
   return (
     <Router>
       <div className="h-screen bg-neutral-50 dark:bg-neutral-900 flex flex-col">

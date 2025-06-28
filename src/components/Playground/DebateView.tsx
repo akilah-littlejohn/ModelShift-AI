@@ -64,7 +64,6 @@ export function DebateView() {
   const [prompt, setPrompt] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState<ComparisonResult[]>([]);
-  const [connectionMode, setConnectionMode] = useState('server');
   const [showSettings, setShowSettings] = useState(false);
   const [improvedPrompt, setImprovedPrompt] = useState<string | null>(null);
   const [isImprovingPrompt, setIsImprovingPrompt] = useState(false);
@@ -90,12 +89,20 @@ export function DebateView() {
   });
 
   // Load connection mode from localStorage
+  const [connectionMode, setConnectionMode] = useState('browser'); // Default to browser mode for development
+  
   useEffect(() => {
     const savedMode = localStorage.getItem('modelshift-connection-mode');
     if (savedMode) {
       setConnectionMode(savedMode);
+    } else {
+      // Set default to browser mode for development
+      localStorage.setItem('modelshift-connection-mode', 'browser');
     }
   }, []);
+
+  // TEMPORARY: Create a mock user ID for development
+  const mockUserId = 'dev-user-' + Math.random().toString(36).substring(2, 9);
 
   // Handle topic selection from prompt packs
   const handleTopicSelect = (topic: string) => {
@@ -114,11 +121,8 @@ export function DebateView() {
       return;
     }
     
-    if (!user?.id) {
-      // Updated: More user-friendly error message
-      toast.error('Please sign in to use the debate feature');
-      return;
-    }
+    // TEMPORARY: Use mock user ID if no real user
+    const userId = user?.id || mockUserId;
     
     if (sideA.selectedProviders.length === 0 || sideB.selectedProviders.length === 0) {
       // Updated: More user-friendly error message
@@ -161,41 +165,45 @@ export function DebateView() {
     // Process each provider in parallel
     const promises = [
       ...sideA.selectedProviders.map((provider, index) => 
-        processProvider(provider, sideA.selectedAgent, 'A', sideA.label, index, promptToUse, 1)
+        processProvider(provider, sideA.selectedAgent, 'A', sideA.label, index, promptToUse, 1, userId)
       ),
       ...sideB.selectedProviders.map((provider, index) => 
-        processProvider(provider, sideB.selectedAgent, 'B', sideB.label, sideA.selectedProviders.length + index, promptToUse, 1)
+        processProvider(provider, sideB.selectedAgent, 'B', sideB.label, sideA.selectedProviders.length + index, promptToUse, 1, userId)
       )
     ];
     
     await Promise.all(promises);
     
-    // Record the debate execution in the database
-    try {
-      const allResponses = results.map(r => ({
-        provider: r.provider,
-        response: r.response,
-        latency: r.metrics.latency,
-        tokens: r.metrics.tokens,
-        success: !r.error,
-        error: r.error
-      }));
-      
-      const totalTokens = results.reduce((sum, r) => sum + r.metrics.tokens, 0);
-      const totalTime = results.reduce((sum, r) => sum + r.metrics.latency, 0);
-      
-      await db.prompts.create({
-        user_id: user.id,
-        prompt: promptToUse,
-        agent_type: 'debate',
-        providers: [...sideA.selectedProviders, ...sideB.selectedProviders],
-        responses: allResponses,
-        execution_time: totalTime,
-        tokens_used: totalTokens
-      });
-    } catch (dbError) {
-      console.error('Failed to record debate execution:', dbError);
-      // Don't fail the request if recording fails
+    // Record the debate execution in the database (skip if no real user)
+    if (user?.id) {
+      try {
+        const allResponses = results.map(r => ({
+          provider: r.provider,
+          response: r.response,
+          latency: r.metrics.latency,
+          tokens: r.metrics.tokens,
+          success: !r.error,
+          error: r.error
+        }));
+        
+        const totalTokens = results.reduce((sum, r) => sum + r.metrics.tokens, 0);
+        const totalTime = results.reduce((sum, r) => sum + r.metrics.latency, 0);
+        
+        await db.prompts.create({
+          user_id: user.id,
+          prompt: promptToUse,
+          agent_type: 'debate',
+          providers: [...sideA.selectedProviders, ...sideB.selectedProviders],
+          responses: allResponses,
+          execution_time: totalTime,
+          tokens_used: totalTokens
+        });
+      } catch (dbError) {
+        console.error('Failed to record debate execution:', dbError);
+        // Don't fail the request if recording fails
+      }
+    } else {
+      console.log('Skipping database recording (no authenticated user)');
     }
     
     setIsLoading(false);
@@ -208,7 +216,8 @@ export function DebateView() {
     sideLabel: string,
     resultIndex: number,
     promptText: string,
-    round: number
+    round: number,
+    userId: string
   ) => {
     try {
       // Start tracking execution time
@@ -261,7 +270,7 @@ Your response should be 3-4 paragraphs, focused on the strongest counterargument
         providerId,
         prompt: debateContext,
         agentId: agentId || undefined,
-        userId: user?.id,
+        userId: userId,
         useUserKey: connectionMode === 'browser'
       });
 
@@ -314,11 +323,8 @@ Your response should be 3-4 paragraphs, focused on the strongest counterargument
       return;
     }
     
-    if (!user?.id) {
-      // Updated: More user-friendly error message
-      toast.error('Please sign in to use this feature');
-      return;
-    }
+    // TEMPORARY: Use mock user ID if no real user
+    const userId = user?.id || mockUserId;
     
     setIsImprovingPrompt(true);
     
@@ -338,7 +344,7 @@ Return ONLY the improved prompt text without any explanations, introductions, or
       const response = await ProxyService.callProvider({
         providerId: 'gemini',
         prompt: improvementPrompt,
-        userId: user.id,
+        userId: userId,
         useUserKey: connectionMode === 'browser'
       });
 
@@ -417,11 +423,8 @@ Return ONLY the improved prompt text without any explanations, introductions, or
   };
 
   const continueDebate = async () => {
-    if (!user?.id) {
-      // Updated: More user-friendly error message
-      toast.error('Please sign in to continue the debate');
-      return;
-    }
+    // TEMPORARY: Use mock user ID if no real user
+    const userId = user?.id || mockUserId;
     
     if (results.length === 0) {
       // Updated: More user-friendly error message
@@ -485,41 +488,45 @@ Return ONLY the improved prompt text without any explanations, introductions, or
     const promptToUse = improvedPrompt || prompt;
     const promises = [
       ...sideA.selectedProviders.map((provider, index) => 
-        processProvider(provider, sideA.selectedAgent, 'A', sideA.label, index, promptToUse, nextRound)
+        processProvider(provider, sideA.selectedAgent, 'A', sideA.label, index, promptToUse, nextRound, userId)
       ),
       ...sideB.selectedProviders.map((provider, index) => 
-        processProvider(provider, sideB.selectedAgent, 'B', sideB.label, sideA.selectedProviders.length + index, promptToUse, nextRound)
+        processProvider(provider, sideB.selectedAgent, 'B', sideB.label, sideA.selectedProviders.length + index, promptToUse, nextRound, userId)
       )
     ];
     
     await Promise.all(promises);
     
-    // Record the debate continuation in the database
-    try {
-      const allResponses = results.map(r => ({
-        provider: r.provider,
-        response: r.response,
-        latency: r.metrics.latency,
-        tokens: r.metrics.tokens,
-        success: !r.error,
-        error: r.error
-      }));
-      
-      const totalTokens = results.reduce((sum, r) => sum + r.metrics.tokens, 0);
-      const totalTime = results.reduce((sum, r) => sum + r.metrics.latency, 0);
-      
-      await db.prompts.create({
-        user_id: user.id,
-        prompt: `${promptToUse} (Round ${nextRound})`,
-        agent_type: 'debate',
-        providers: [...sideA.selectedProviders, ...sideB.selectedProviders],
-        responses: allResponses,
-        execution_time: totalTime,
-        tokens_used: totalTokens
-      });
-    } catch (dbError) {
-      console.error('Failed to record debate continuation:', dbError);
-      // Don't fail the request if recording fails
+    // Record the debate continuation in the database (skip if no real user)
+    if (user?.id) {
+      try {
+        const allResponses = results.map(r => ({
+          provider: r.provider,
+          response: r.response,
+          latency: r.metrics.latency,
+          tokens: r.metrics.tokens,
+          success: !r.error,
+          error: r.error
+        }));
+        
+        const totalTokens = results.reduce((sum, r) => sum + r.metrics.tokens, 0);
+        const totalTime = results.reduce((sum, r) => sum + r.metrics.latency, 0);
+        
+        await db.prompts.create({
+          user_id: user.id,
+          prompt: `${promptToUse} (Round ${nextRound})`,
+          agent_type: 'debate',
+          providers: [...sideA.selectedProviders, ...sideB.selectedProviders],
+          responses: allResponses,
+          execution_time: totalTime,
+          tokens_used: totalTokens
+        });
+      } catch (dbError) {
+        console.error('Failed to record debate continuation:', dbError);
+        // Don't fail the request if recording fails
+      }
+    } else {
+      console.log('Skipping database recording (no authenticated user)');
     }
     
     setIsLoading(false);

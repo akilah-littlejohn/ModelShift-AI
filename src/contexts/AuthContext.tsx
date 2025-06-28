@@ -37,6 +37,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (error) throw error;
 
       if (data.session) {
+        console.log('Found active Supabase session');
         setSession(data.session);
         setUser(data.session.user);
       } else {
@@ -52,6 +53,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               setSession(demoSession);
               setUser(demoSession.user);
             } else {
+              console.log('No valid session found');
               setSession(null);
               setUser(null);
             }
@@ -61,6 +63,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             setUser(null);
           }
         } else {
+          console.log('No session found');
           setSession(null);
           setUser(null);
         }
@@ -84,9 +87,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           if (decoded?.sub) {
             setUser({ id: decoded.sub });
             setSession({ access_token });
+          } else {
+            console.log('Invalid token, no user data found');
+            setUser(null);
+            setSession(null);
           }
         }
       } else {
+        console.log('No token found');
         setUser(null);
         setSession(null);
       }
@@ -96,13 +104,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const login = async (email: string, password: string) => {
+    console.log('Attempting login for:', email);
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
+    console.log('Login successful, setting session and user');
     setSession(data.session);
     setUser(data.user);
   };
 
   const logout = async () => {
+    console.log('Logging out...');
     // Clear the demo token if it exists
     const stored = localStorage.getItem('supabase.auth.token');
     if (stored) {
@@ -110,6 +121,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const tokenObj = JSON.parse(stored);
         const access_token = tokenObj?.currentSession?.access_token;
         if (access_token && access_token.startsWith('demo-token')) {
+          console.log('Removing demo token');
           localStorage.removeItem('supabase.auth.token');
         }
       } catch (e) {
@@ -118,16 +130,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
     
     await supabase.auth.signOut();
+    console.log('Signed out, clearing user and session');
     setUser(null);
     setSession(null);
   };
 
   useEffect(() => {
+    console.log('AuthProvider mounted, loading session');
     loadSession();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('Auth state changed:', _event, !!session);
       setSession(session);
       setUser(session?.user ?? null);
       
@@ -151,7 +166,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      console.log('Unsubscribing from auth state changes');
+      subscription.unsubscribe();
+    };
   }, []);
 
   return (

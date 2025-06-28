@@ -133,8 +133,19 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
           return;
         }
         
-        await login(email, password);
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+        
+        if (error) {
+          console.error('Sign in error:', error);
+          throw error;
+        }
+        
+        console.log('Sign in successful:', data);
         toast.success('Welcome back to ModelShift AI!');
+        
         // Redirect to playground
         navigate('/playground');
       }

@@ -311,6 +311,12 @@ function createMockSupabaseClient() {
             console.log(`🔄 Mock update ${table} set`, data, `where ${column} = ${value}`);
             return Promise.resolve({ error: null });
           }
+        }),
+        delete: () => ({
+          eq: (column: string, value: any) => {
+            console.log(`🔄 Mock delete from ${table} where ${column} = ${value}`);
+            return Promise.resolve({ error: null });
+          }
         })
       };
     },
@@ -453,6 +459,21 @@ export const db = {
       } catch (error) {
         console.error('❌ Error getting prompt executions:', error);
         return [];
+      }
+    },
+    
+    async deleteById(userId: string, executionId: string): Promise<void> {
+      try {
+        const { error } = await supabase
+          .from('prompt_executions')
+          .delete()
+          .eq('id', executionId)
+          .eq('user_id', userId);
+        
+        if (error) throw error;
+      } catch (error) {
+        console.error('❌ Error deleting prompt execution:', error);
+        throw error;
       }
     }
   }

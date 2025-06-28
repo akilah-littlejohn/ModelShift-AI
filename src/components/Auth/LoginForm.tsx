@@ -21,17 +21,6 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Check if we're in demo mode
-  const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true' || 
-                     import.meta.env.VITE_SUPABASE_URL === 'https://your-project-id.supabase.co' ||
-                     !import.meta.env.VITE_SUPABASE_URL ||
-                     import.meta.env.VITE_SUPABASE_ANON_KEY === 'your-anon-key-here' ||
-                     !import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-  // Check if we're in demo login mode from URL params
-  const searchParams = new URLSearchParams(location.search);
-  const isDemo = searchParams.get('demo') === 'true';
-
   // Force redirect to /playground if user is already authenticated
   useEffect(() => {
     if (user && !loading) {
@@ -39,39 +28,6 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
       navigate('/playground', { replace: true });
     }
   }, [user, loading, navigate]);
-
-  const handleDemoLogin = () => {
-    // Set default connection mode to browser for demo users
-    localStorage.setItem('modelshift-connection-mode', 'browser');
-    
-    // Create a mock session in localStorage to persist across page refreshes
-    const mockUser = {
-      id: 'demo-user-id-' + Date.now(),
-      email: 'demo@example.com',
-      user_metadata: { name: 'Demo User' },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    
-    const mockSession = {
-      access_token: 'demo-token-' + Date.now(),
-      refresh_token: 'demo-refresh-token',
-      expires_in: 3600,
-      token_type: 'bearer',
-      user: mockUser
-    };
-    
-    // Store the mock session in localStorage
-    localStorage.setItem('supabase.auth.token', JSON.stringify({
-      currentSession: mockSession,
-      expiresAt: Date.now() + 3600000
-    }));
-    
-    toast.success('Demo Login Successful! Exploring ModelShift AI in demo mode.');
-    
-    // Force a page reload to ensure the auth context picks up the new session
-    window.location.href = '/playground';
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,11 +45,6 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
         }
 
         console.log('Attempting sign up for:', email);
-
-        if (isDemoMode || isDemo) {
-          handleDemoLogin();
-          return;
-        }
 
         const { data, error } = await supabase.auth.signUp({
           email,
@@ -128,11 +79,6 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
         // Sign in flow
         console.log('Attempting sign in for:', email);
         
-        if (isDemoMode || isDemo) {
-          handleDemoLogin();
-          return;
-        }
-        
         // Use direct Supabase auth call for better control
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
@@ -156,14 +102,10 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
       // Enhanced error handling with more specific messages
       if (error.message?.includes('Failed to fetch') || error.message?.includes('Network request failed')) {
         toast.error('Unable to connect. Please check your internet connection and try again.');
-        // Don't auto-switch to demo mode for network errors
       } else if (error.message?.includes('Invalid API key') || error.message?.includes('Project not found')) {
         // Handle invalid Supabase configuration
-        console.warn('Invalid Supabase configuration detected, switching to demo mode');
-        toast.error('Authentication service configuration issue. Switching to demo mode...');
-        setTimeout(() => {
-          handleDemoLogin();
-        }, 1500);
+        console.warn('Invalid Supabase configuration detected');
+        toast.error('Authentication service configuration issue. Please check your environment variables.');
       } else if (error.message?.includes('Invalid login credentials')) {
         if (activeTab === 'signup') {
           toast.error('This email may already be registered. Try signing in instead.');
@@ -187,16 +129,6 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
         // Generic error with helpful context
         const errorMsg = error.message || 'Authentication failed. Please try again.';
         toast.error(errorMsg);
-        
-        // If it's a configuration-related error, suggest demo mode
-        if (errorMsg.includes('API') || errorMsg.includes('configuration') || errorMsg.includes('service')) {
-          setTimeout(() => {
-            toast('Try demo mode instead?', {
-              duration: 4000,
-              icon: '💡',
-            });
-          }, 2000);
-        }
       }
     } finally {
       setIsLoading(false);
@@ -227,45 +159,23 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
           </p>
         </div>
 
-        {/* Demo Mode Notice */}
-        {(isDemoMode || isDemo) && (
-          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-6">
-            <div className="flex items-start space-x-3">
-              <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <h3 className="font-medium text-amber-900 dark:text-amber-100 mb-1">
-                  Demo Mode Active
-                </h3>
-                <p className="text-sm text-amber-700 dark:text-amber-300">
-                  You're running in demo mode. Authentication is simulated. To enable full functionality, configure your environment variables.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Configuration Issue Notice */}
-        {!isDemoMode && !isDemo && (
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
-            <div className="flex items-start space-x-3">
-              <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-1">
-                  Authentication
-                </h3>
-                <p className="text-sm text-blue-700 dark:text-blue-300">
-                  {activeTab === 'signup' 
-                    ? 'Create a new account to access the ModelShift AI platform.'
-                    : 'Sign in with your existing account or create a new one.'
-                  }
-                </p>
-                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                  Having issues? The app will automatically switch to demo mode if needed.
-                </p>
-              </div>
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+          <div className="flex items-start space-x-3">
+            <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-1">
+                Authentication
+              </h3>
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                {activeTab === 'signup' 
+                  ? 'Create a new account to access the ModelShift AI platform.'
+                  : 'Sign in with your existing account or create a new one.'
+                }
+              </p>
             </div>
           </div>
-        )}
+        </div>
 
         {/* Login/Signup Card */}
         <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-xl border border-neutral-200 dark:border-neutral-700 p-8">
@@ -299,7 +209,6 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
             </h2>
             <p className="text-neutral-600 dark:text-neutral-400">
               {activeTab === 'signin' ? 'Sign in to access your AI playground' : 'Sign up to access your AI playground'}
-              {(isDemoMode || isDemo) && ' (Demo Mode)'}
             </p>
           </div>
 
@@ -335,7 +244,7 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-11 pr-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white transition-colors"
-                  placeholder={(isDemoMode || isDemo) ? "demo@example.com (any email works)" : "Enter your email"}
+                  placeholder="Enter your email"
                   required
                 />
               </div>
@@ -353,7 +262,7 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-11 pr-11 py-3 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white transition-colors"
-                  placeholder={(isDemoMode || isDemo) ? "password123 (any password works)" : "Enter your password"}
+                  placeholder="Enter your password"
                   required
                   minLength={6}
                 />
@@ -404,32 +313,15 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
               ) : (
                 <>
                   {activeTab === 'signup' ? 'Create Account' : 'Sign In'}
-                  {(isDemoMode || isDemo) && ' (Demo)'}
                 </>
               )}
             </button>
           </form>
 
-          {/* Demo Mode Button */}
-          {!isDemoMode && !isDemo && (
-            <div className="mt-6 pt-6 border-t border-neutral-200 dark:border-neutral-700">
-              <button
-                onClick={handleDemoLogin}
-                className="w-full bg-neutral-100 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 py-3 rounded-lg font-medium hover:bg-neutral-200 dark:hover:bg-neutral-600 transition-colors"
-              >
-                Try Demo Mode Instead
-              </button>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 text-center mt-2">
-                Explore the platform without authentication
-              </p>
-            </div>
-          )}
-
           {/* Footer */}
           <div className="text-center mt-8">
             <p className="text-neutral-500 dark:text-neutral-400 text-sm">
               © 2025 ModelShift AI. Built with advanced SaaS architecture.
-              {(isDemoMode || isDemo) && ' • Demo Mode Active'}
             </p>
           </div>
         </div>

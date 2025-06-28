@@ -20,35 +20,23 @@ export function HistoryView() {
 
   const agents = AgentService.getAllAgents();
 
-  // TEMPORARY: Create a mock user ID for development
-  const mockUserId = 'dev-user-' + Math.random().toString(36).substring(2, 9);
-
   useEffect(() => {
-    // Use real user ID or mock ID
-    const userId = user?.id || mockUserId;
-    if (userId) {
-      loadExecutions(userId);
+    if (user) {
+      loadExecutions(user.id);
     }
   }, [user, timeRange]);
 
   const loadExecutions = async (userId: string) => {
+    if (!userId) {
+      setError('You must be logged in to view your history');
+      setIsLoading(false);
+      return;
+    }
+    
     setIsLoading(true);
     setError(null);
 
     try {
-      // Check if Supabase is properly configured
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      
-      if (!supabaseUrl || !supabaseKey || supabaseUrl.includes('demo') || supabaseKey.includes('demo')) {
-        // For development without Supabase, return mock data
-        console.log('Using mock execution history data');
-        const mockData = generateMockExecutions(userId, 10);
-        setExecutions(mockData);
-        setIsLoading(false);
-        return;
-      }
-
       // Calculate date range
       const endDate = new Date();
       const startDate = new Date();
@@ -78,9 +66,7 @@ export function HistoryView() {
         setExecutions(filteredData);
       } catch (dbError) {
         console.error('Database error:', dbError);
-        // Fall back to mock data for development
-        const mockData = generateMockExecutions(userId, 10);
-        setExecutions(mockData);
+        throw dbError;
       }
     } catch (err) {
       console.error('Failed to load execution history:', err);
@@ -100,63 +86,26 @@ export function HistoryView() {
       } else {
         setError('An unknown error occurred while loading execution history.');
       }
-      
-      // For development, provide mock data even on error
-      const mockData = generateMockExecutions(userId, 10);
-      setExecutions(mockData);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Generate mock execution data for development
-  const generateMockExecutions = (userId: string, count: number): PromptExecution[] => {
-    const mockExecutions: PromptExecution[] = [];
-    const providerIds = ['openai', 'gemini', 'claude', 'ibm'];
-    const agentTypes = ['direct', 'business-writer', 'code-assistant', 'debate'];
-    
-    for (let i = 0; i < count; i++) {
-      const providerId = providerIds[Math.floor(Math.random() * providerIds.length)];
-      const agentType = agentTypes[Math.floor(Math.random() * agentTypes.length)];
-      const success = Math.random() > 0.2; // 80% success rate
-      const tokens = Math.floor(Math.random() * 1000) + 100;
-      const latency = Math.floor(Math.random() * 2000) + 500;
-      
-      mockExecutions.push({
-        id: `mock-${i}-${Date.now()}`,
-        user_id: userId,
-        prompt: `Mock prompt ${i + 1} for testing the history view. This is a sample prompt that would be sent to the AI provider.`,
-        agent_type: agentType,
-        providers: [providerId],
-        responses: [{
-          provider: providerId,
-          response: success ? `This is a mock response ${i + 1} from the AI provider. It would contain the generated text based on the prompt.` : '',
-          latency,
-          tokens,
-          success,
-          error: success ? undefined : 'Mock error for testing error handling'
-        }],
-        execution_time: latency,
-        tokens_used: tokens,
-        created_at: new Date(Date.now() - Math.floor(Math.random() * 30) * 24 * 60 * 60 * 1000).toISOString()
-      });
+  const deleteExecution = async (executionId: string) => {
+    if (!user) {
+      toast.error('You must be logged in to delete executions');
+      return;
     }
     
-    return mockExecutions;
-  };
-
-  const deleteExecution = async (executionId: string) => {
     if (!window.confirm('Are you sure you want to delete this execution?')) {
       return;
     }
 
     try {
-      if (user?.id) {
-        // Real delete for authenticated users
-        await db.prompts.deleteById(user.id, executionId);
-      }
+      // Real delete for authenticated users
+      await db.prompts.deleteById(user.id, executionId);
       
-      // Update local state regardless
+      // Update local state
       setExecutions(executions.filter(exec => exec.id !== executionId));
       toast.success('Execution deleted successfully');
     } catch (error) {
@@ -268,13 +217,42 @@ export function HistoryView() {
               
               <div className="flex space-x-3">
                 <button
-                  onClick={() => loadExecutions(user?.id || mockUserId)}
+                  onClick={() => user && loadExecutions(user.id)}
                   className="inline-flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                 >
                   <RefreshCw className="w-4 h-4" />
                   <span>Retry</span>
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="max-w-7xl mx-auto p-6 space-y-8">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-neutral-900 dark:text-white mb-2">
+            Execution History
+          </h1>
+          <p className="text-neutral-600 dark:text-neutral-400">
+            View and analyze your previous AI prompt executions
+          </p>
+        </div>
+        
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-6">
+          <div className="flex items-start space-x-3">
+            <AlertTriangle className="w-6 h-6 text-amber-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-lg font-medium text-amber-900 dark:text-amber-100 mb-2">
+                Authentication Required
+              </h3>
+              <p className="text-amber-700 dark:text-amber-300 mb-4">
+                You must be logged in to view your execution history.
+              </p>
             </div>
           </div>
         </div>
@@ -400,7 +378,7 @@ export function HistoryView() {
           {/* Actions */}
           <div className="flex items-center space-x-2">
             <button
-              onClick={() => loadExecutions(user?.id || mockUserId)}
+              onClick={() => user && loadExecutions(user.id)}
               className="p-2 text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors"
               title="Refresh"
             >

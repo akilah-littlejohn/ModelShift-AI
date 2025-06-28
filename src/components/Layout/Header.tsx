@@ -155,18 +155,6 @@ export function Header() {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
-  // TEMPORARY: Create a mock user for development
-  const mockUser = {
-    name: 'Development User',
-    email: 'dev@example.com',
-    plan: 'free',
-    usage_count: 0,
-    usage_limit: 100
-  };
-  
-  // Use mock user or real user
-  const displayUser = user || mockUser;
-  
   // Check if we're on a landing page
   const isLandingPage = location.pathname === '/' || location.pathname === '/pricing';
   
@@ -215,7 +203,7 @@ export function Header() {
             <div className="hidden sm:flex items-center space-x-2 px-3 py-1 bg-neutral-100 dark:bg-neutral-800 rounded-full">
               <div className="w-2 h-2 bg-accent-500 rounded-full"></div>
               <span className="text-sm text-neutral-600 dark:text-neutral-300">
-                {displayUser?.usage_count || 0}/{displayUser?.usage_limit || 100}
+                {user?.usage_count || 0}/{user?.usage_limit || 100}
               </span>
             </div>
 
@@ -239,17 +227,17 @@ export function Header() {
                   <User className="w-4 h-4 text-white" />
                 </div>
                 <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                  {displayUser?.name || displayUser?.email?.split('@')[0] || 'User'}
+                  {user?.name || user?.email?.split('@')[0] || 'User'}
                 </span>
               </button>
 
               {/* Dropdown Menu */}
               <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-neutral-800 rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                 <div className="p-3 border-b border-neutral-200 dark:border-neutral-700">
-                  <p className="text-sm font-medium text-neutral-900 dark:text-white">{displayUser?.name || displayUser?.email?.split('@')[0] || 'User'}</p>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400">{displayUser?.email || 'dev@example.com'}</p>
+                  <p className="text-sm font-medium text-neutral-900 dark:text-white">{user?.name || user?.email?.split('@')[0] || 'User'}</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">{user?.email || 'user@example.com'}</p>
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200 mt-1">
-                    {displayUser?.plan || 'free'} plan
+                    {user?.plan || 'free'} plan
                   </span>
                 </div>
                 <div className="p-1">
@@ -275,7 +263,7 @@ export function Header() {
               <div className="flex items-center space-x-2 px-3 py-1 bg-neutral-100 dark:bg-neutral-800 rounded-full">
                 <div className="w-2 h-2 bg-accent-500 rounded-full"></div>
                 <span className="text-sm text-neutral-600 dark:text-neutral-300">
-                  {displayUser?.usage_count || 0}/{displayUser?.usage_limit || 100}
+                  {user?.usage_count || 0}/{user?.usage_limit || 100}
                 </span>
               </div>
               <button
@@ -296,8 +284,8 @@ export function Header() {
                   <User className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-neutral-900 dark:text-white">{displayUser?.name || displayUser?.email?.split('@')[0] || 'User'}</p>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400">{displayUser?.email || 'dev@example.com'}</p>
+                  <p className="text-sm font-medium text-neutral-900 dark:text-white">{user?.name || user?.email?.split('@')[0] || 'User'}</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">{user?.email || 'user@example.com'}</p>
                 </div>
               </div>
               <button 

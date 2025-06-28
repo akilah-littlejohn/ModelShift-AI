@@ -6,7 +6,6 @@ import { AgentSelector } from './AgentSelector';
 import { ProxyService } from '../../lib/api/ProxyService';
 import { AgentService } from '../../lib/agents';
 import { db } from '../../lib/supabase';
-import { v4 as uuidv4 } from 'uuid';
 import type { MessageType } from './types';
 
 export function PlaygroundView() {
@@ -31,12 +30,11 @@ export function PlaygroundView() {
     }
   }, []);
 
-  // TEMPORARY: Create a mock user ID for development
-  const mockUserId = 'dev-user-' + Math.random().toString(36).substring(2, 9);
-
   const executeProviderRequest = async (prompt: string) => {
-    // TEMPORARY: Use mock user ID if no real user
-    const userId = user?.id || mockUserId;
+    if (!user) {
+      toast.error('You must be logged in to use this feature');
+      return;
+    }
     
     setIsLoading(true);
 
@@ -62,7 +60,7 @@ export function PlaygroundView() {
         model: selectedModel,
         parameters: selectedParameters,
         agentId: selectedAgent?.id || null,
-        userId: userId,
+        userId: user.id,
         useUserKey: connectionMode === 'browser', // Use user key in browser mode
       });
 
@@ -72,30 +70,26 @@ export function PlaygroundView() {
       // Add response to messages
       setMessages((msgs) => [...msgs, { role: 'assistant', text: response.response || '' }]);
       
-      // Record execution in database (skip if no real user)
-      if (user?.id) {
-        try {
-          await db.prompts.create({
-            user_id: user.id,
-            prompt: finalPrompt,
-            agent_type: selectedAgent?.id || 'direct',
-            providers: [selectedProvider],
-            responses: [{
-              provider: selectedProvider,
-              response: response.response || '',
-              latency: response.metrics?.latency || executionTime,
-              tokens: response.metrics?.tokens || Math.ceil((finalPrompt.length + (response.response?.length || 0)) / 4),
-              success: true
-            }],
-            execution_time: executionTime,
-            tokens_used: response.metrics?.tokens || Math.ceil((finalPrompt.length + (response.response?.length || 0)) / 4)
-          });
-        } catch (dbError) {
-          console.error('Failed to record execution in database:', dbError);
-          // Don't fail the request if recording fails
-        }
-      } else {
-        console.log('Skipping database recording (no authenticated user)');
+      // Record execution in database
+      try {
+        await db.prompts.create({
+          user_id: user.id,
+          prompt: finalPrompt,
+          agent_type: selectedAgent?.id || 'direct',
+          providers: [selectedProvider],
+          responses: [{
+            provider: selectedProvider,
+            response: response.response || '',
+            latency: response.metrics?.latency || executionTime,
+            tokens: response.metrics?.tokens || Math.ceil((finalPrompt.length + (response.response?.length || 0)) / 4),
+            success: true
+          }],
+          execution_time: executionTime,
+          tokens_used: response.metrics?.tokens || Math.ceil((finalPrompt.length + (response.response?.length || 0)) / 4)
+        });
+      } catch (dbError) {
+        console.error('Failed to record execution in database:', dbError);
+        // Don't fail the request if recording fails
       }
       
     } catch (err: any) {
@@ -103,8 +97,8 @@ export function PlaygroundView() {
       // Updated: More user-friendly error message
       toast.error(`Request failed: ${err.message}`);
       
-      // Record failed execution (skip if no real user)
-      if (user?.id) {
+      // Record failed execution
+      if (user) {
         try {
           const executionTime = Date.now() - Date.now(); // 0 for failed requests
           await db.prompts.create({
@@ -135,6 +129,12 @@ export function PlaygroundView() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
+    
+    if (!user) {
+      toast.error('You must be logged in to use this feature');
+      return;
+    }
+    
     setMessages((msgs) => [...msgs, { role: 'user', text: input }]);
     executeProviderRequest(input);
     setInput('');
@@ -225,7 +225,7 @@ export function PlaygroundView() {
         />
         <button
           type="submit"
-          disabled={isLoading}
+          disabled={isLoading || !user}
           className="bg-primary-600 text-white px-6 py-2 rounded-r-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isLoading ? 'Thinking...' : 'Send'}

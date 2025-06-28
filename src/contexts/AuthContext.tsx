@@ -41,32 +41,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setSession(data.session);
         setUser(data.session.user);
       } else {
-        // Check for demo mode token in localStorage
-        const stored = localStorage.getItem('supabase.auth.token');
-        if (stored) {
-          try {
-            const tokenObj = JSON.parse(stored);
-            const demoSession = tokenObj?.currentSession;
-            
-            if (demoSession && demoSession.access_token && demoSession.access_token.startsWith('demo-token')) {
-              console.log('Demo mode session detected');
-              setSession(demoSession);
-              setUser(demoSession.user);
-            } else {
-              console.log('No valid session found');
-              setSession(null);
-              setUser(null);
-            }
-          } catch (e) {
-            console.error('Error parsing stored token:', e);
-            setSession(null);
-            setUser(null);
-          }
-        } else {
-          console.log('No session found');
-          setSession(null);
-          setUser(null);
-        }
+        console.log('No session found');
+        setSession(null);
+        setUser(null);
       }
     } catch (error) {
       console.warn('⚠️ Session fetch failed, falling back to token parsing.');
@@ -76,22 +53,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const access_token = tokenObj?.currentSession?.access_token;
 
       if (access_token) {
-        // Check if this is a demo token
-        if (access_token.startsWith('demo-token')) {
-          console.log('Demo token detected, using demo user');
-          setUser(tokenObj.currentSession.user);
-          setSession(tokenObj.currentSession);
+        // Regular JWT token
+        const decoded = parseJwt(access_token);
+        if (decoded?.sub) {
+          setUser({ id: decoded.sub });
+          setSession({ access_token });
         } else {
-          // Regular JWT token
-          const decoded = parseJwt(access_token);
-          if (decoded?.sub) {
-            setUser({ id: decoded.sub });
-            setSession({ access_token });
-          } else {
-            console.log('Invalid token, no user data found');
-            setUser(null);
-            setSession(null);
-          }
+          console.log('Invalid token, no user data found');
+          setUser(null);
+          setSession(null);
         }
       } else {
         console.log('No token found');
@@ -114,21 +84,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = async () => {
     console.log('Logging out...');
-    // Clear the demo token if it exists
-    const stored = localStorage.getItem('supabase.auth.token');
-    if (stored) {
-      try {
-        const tokenObj = JSON.parse(stored);
-        const access_token = tokenObj?.currentSession?.access_token;
-        if (access_token && access_token.startsWith('demo-token')) {
-          console.log('Removing demo token');
-          localStorage.removeItem('supabase.auth.token');
-        }
-      } catch (e) {
-        console.error('Error parsing stored token during logout:', e);
-      }
-    }
-    
     await supabase.auth.signOut();
     console.log('Signed out, clearing user and session');
     setUser(null);
@@ -145,25 +100,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.log('Auth state changed:', _event, !!session);
       setSession(session);
       setUser(session?.user ?? null);
-      
-      // If we have a session but no user, check for demo mode
-      if (!session) {
-        const stored = localStorage.getItem('supabase.auth.token');
-        if (stored) {
-          try {
-            const tokenObj = JSON.parse(stored);
-            const demoSession = tokenObj?.currentSession;
-            
-            if (demoSession && demoSession.access_token && demoSession.access_token.startsWith('demo-token')) {
-              console.log('Demo mode session detected during auth change');
-              setSession(demoSession);
-              setUser(demoSession.user);
-            }
-          } catch (e) {
-            console.error('Error parsing stored token during auth change:', e);
-          }
-        }
-      }
     });
 
     return () => {

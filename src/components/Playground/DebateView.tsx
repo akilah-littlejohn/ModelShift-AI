@@ -101,9 +101,6 @@ export function DebateView() {
     }
   }, []);
 
-  // TEMPORARY: Create a mock user ID for development
-  const mockUserId = 'dev-user-' + Math.random().toString(36).substring(2, 9);
-
   // Handle topic selection from prompt packs
   const handleTopicSelect = (topic: string) => {
     setPrompt(topic);
@@ -113,6 +110,11 @@ export function DebateView() {
   const handlePromptSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!user) {
+      toast.error('You must be logged in to use this feature');
+      return;
+    }
+    
     const promptToUse = improvedPrompt || prompt;
     
     if (!promptToUse.trim()) {
@@ -120,9 +122,6 @@ export function DebateView() {
       toast.error('Please enter a debate topic');
       return;
     }
-    
-    // TEMPORARY: Use mock user ID if no real user
-    const userId = user?.id || mockUserId;
     
     if (sideA.selectedProviders.length === 0 || sideB.selectedProviders.length === 0) {
       // Updated: More user-friendly error message
@@ -165,45 +164,41 @@ export function DebateView() {
     // Process each provider in parallel
     const promises = [
       ...sideA.selectedProviders.map((provider, index) => 
-        processProvider(provider, sideA.selectedAgent, 'A', sideA.label, index, promptToUse, 1, userId)
+        processProvider(provider, sideA.selectedAgent, 'A', sideA.label, index, promptToUse, 1, user.id)
       ),
       ...sideB.selectedProviders.map((provider, index) => 
-        processProvider(provider, sideB.selectedAgent, 'B', sideB.label, sideA.selectedProviders.length + index, promptToUse, 1, userId)
+        processProvider(provider, sideB.selectedAgent, 'B', sideB.label, sideA.selectedProviders.length + index, promptToUse, 1, user.id)
       )
     ];
     
     await Promise.all(promises);
     
-    // Record the debate execution in the database (skip if no real user)
-    if (user?.id) {
-      try {
-        const allResponses = results.map(r => ({
-          provider: r.provider,
-          response: r.response,
-          latency: r.metrics.latency,
-          tokens: r.metrics.tokens,
-          success: !r.error,
-          error: r.error
-        }));
-        
-        const totalTokens = results.reduce((sum, r) => sum + r.metrics.tokens, 0);
-        const totalTime = results.reduce((sum, r) => sum + r.metrics.latency, 0);
-        
-        await db.prompts.create({
-          user_id: user.id,
-          prompt: promptToUse,
-          agent_type: 'debate',
-          providers: [...sideA.selectedProviders, ...sideB.selectedProviders],
-          responses: allResponses,
-          execution_time: totalTime,
-          tokens_used: totalTokens
-        });
-      } catch (dbError) {
-        console.error('Failed to record debate execution:', dbError);
-        // Don't fail the request if recording fails
-      }
-    } else {
-      console.log('Skipping database recording (no authenticated user)');
+    // Record the debate execution in the database
+    try {
+      const allResponses = results.map(r => ({
+        provider: r.provider,
+        response: r.response,
+        latency: r.metrics.latency,
+        tokens: r.metrics.tokens,
+        success: !r.error,
+        error: r.error
+      }));
+      
+      const totalTokens = results.reduce((sum, r) => sum + r.metrics.tokens, 0);
+      const totalTime = results.reduce((sum, r) => sum + r.metrics.latency, 0);
+      
+      await db.prompts.create({
+        user_id: user.id,
+        prompt: promptToUse,
+        agent_type: 'debate',
+        providers: [...sideA.selectedProviders, ...sideB.selectedProviders],
+        responses: allResponses,
+        execution_time: totalTime,
+        tokens_used: totalTokens
+      });
+    } catch (dbError) {
+      console.error('Failed to record debate execution:', dbError);
+      // Don't fail the request if recording fails
     }
     
     setIsLoading(false);
@@ -317,14 +312,16 @@ Your response should be 3-4 paragraphs, focused on the strongest counterargument
   };
 
   const improvePromptWithGemini = async () => {
+    if (!user) {
+      toast.error('You must be logged in to use this feature');
+      return;
+    }
+    
     if (!prompt.trim()) {
       // Updated: More user-friendly error message
       toast.error('Please enter a prompt to improve');
       return;
     }
-    
-    // TEMPORARY: Use mock user ID if no real user
-    const userId = user?.id || mockUserId;
     
     setIsImprovingPrompt(true);
     
@@ -344,7 +341,7 @@ Return ONLY the improved prompt text without any explanations, introductions, or
       const response = await ProxyService.callProvider({
         providerId: 'gemini',
         prompt: improvementPrompt,
-        userId: userId,
+        userId: user.id,
         useUserKey: connectionMode === 'browser'
       });
 
@@ -423,8 +420,10 @@ Return ONLY the improved prompt text without any explanations, introductions, or
   };
 
   const continueDebate = async () => {
-    // TEMPORARY: Use mock user ID if no real user
-    const userId = user?.id || mockUserId;
+    if (!user) {
+      toast.error('You must be logged in to use this feature');
+      return;
+    }
     
     if (results.length === 0) {
       // Updated: More user-friendly error message
@@ -488,45 +487,41 @@ Return ONLY the improved prompt text without any explanations, introductions, or
     const promptToUse = improvedPrompt || prompt;
     const promises = [
       ...sideA.selectedProviders.map((provider, index) => 
-        processProvider(provider, sideA.selectedAgent, 'A', sideA.label, index, promptToUse, nextRound, userId)
+        processProvider(provider, sideA.selectedAgent, 'A', sideA.label, index, promptToUse, nextRound, user.id)
       ),
       ...sideB.selectedProviders.map((provider, index) => 
-        processProvider(provider, sideB.selectedAgent, 'B', sideB.label, sideA.selectedProviders.length + index, promptToUse, nextRound, userId)
+        processProvider(provider, sideB.selectedAgent, 'B', sideB.label, sideA.selectedProviders.length + index, promptToUse, nextRound, user.id)
       )
     ];
     
     await Promise.all(promises);
     
-    // Record the debate continuation in the database (skip if no real user)
-    if (user?.id) {
-      try {
-        const allResponses = results.map(r => ({
-          provider: r.provider,
-          response: r.response,
-          latency: r.metrics.latency,
-          tokens: r.metrics.tokens,
-          success: !r.error,
-          error: r.error
-        }));
-        
-        const totalTokens = results.reduce((sum, r) => sum + r.metrics.tokens, 0);
-        const totalTime = results.reduce((sum, r) => sum + r.metrics.latency, 0);
-        
-        await db.prompts.create({
-          user_id: user.id,
-          prompt: `${promptToUse} (Round ${nextRound})`,
-          agent_type: 'debate',
-          providers: [...sideA.selectedProviders, ...sideB.selectedProviders],
-          responses: allResponses,
-          execution_time: totalTime,
-          tokens_used: totalTokens
-        });
-      } catch (dbError) {
-        console.error('Failed to record debate continuation:', dbError);
-        // Don't fail the request if recording fails
-      }
-    } else {
-      console.log('Skipping database recording (no authenticated user)');
+    // Record the debate continuation in the database
+    try {
+      const allResponses = results.map(r => ({
+        provider: r.provider,
+        response: r.response,
+        latency: r.metrics.latency,
+        tokens: r.metrics.tokens,
+        success: !r.error,
+        error: r.error
+      }));
+      
+      const totalTokens = results.reduce((sum, r) => sum + r.metrics.tokens, 0);
+      const totalTime = results.reduce((sum, r) => sum + r.metrics.latency, 0);
+      
+      await db.prompts.create({
+        user_id: user.id,
+        prompt: `${promptToUse} (Round ${nextRound})`,
+        agent_type: 'debate',
+        providers: [...sideA.selectedProviders, ...sideB.selectedProviders],
+        responses: allResponses,
+        execution_time: totalTime,
+        tokens_used: totalTokens
+      });
+    } catch (dbError) {
+      console.error('Failed to record debate continuation:', dbError);
+      // Don't fail the request if recording fails
     }
     
     setIsLoading(false);
@@ -903,7 +898,7 @@ Return ONLY the improved prompt text without any explanations, introductions, or
                 <button
                   type="button"
                   onClick={improvePromptWithGemini}
-                  disabled={isLoading || isImprovingPrompt || !prompt.trim()}
+                  disabled={isLoading || isImprovingPrompt || !prompt.trim() || !user}
                   className="flex items-center space-x-1 px-2 py-1 text-xs bg-secondary-500 text-white rounded hover:bg-secondary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {isImprovingPrompt ? (
@@ -950,7 +945,7 @@ Return ONLY the improved prompt text without any explanations, introductions, or
           <div className="flex justify-end">
             <button
               type="submit"
-              disabled={isLoading || (!prompt.trim() && !improvedPrompt)}
+              disabled={isLoading || (!prompt.trim() && !improvedPrompt) || !user}
               className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-blue-500 text-white rounded-lg hover:from-orange-600 hover:to-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
             >
               {isLoading ? (
@@ -1001,7 +996,7 @@ Return ONLY the improved prompt text without any explanations, introductions, or
               <div className="flex items-center space-x-3">
                 <button
                   onClick={continueDebate}
-                  disabled={isLoading || results.some(r => r.loading)}
+                  disabled={isLoading || results.some(r => r.loading) || !user}
                   className="flex items-center space-x-2 px-3 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <Play className="w-4 h-4" />

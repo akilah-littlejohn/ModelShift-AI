@@ -26,8 +26,8 @@ function AppContent() {
     console.log('Auth state in AppContent:', { user, isLoading });
   }, [user, isLoading]);
 
-  // TEMPORARY: Skip authentication check for development
-  const skipAuth = true;
+  // Set skipAuth to false to enable authentication
+  const skipAuth = false;
 
   if (isLoading && !skipAuth) {
     return (
@@ -40,7 +40,6 @@ function AppContent() {
     );
   }
 
-  // TEMPORARY: Skip authentication check for development
   if (!user && !skipAuth) {
     console.log('No user authenticated, showing public routes');
     return (

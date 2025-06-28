@@ -474,6 +474,18 @@ To fix this:
     errors: string[];
   }> {
     try {
+      // Check connection mode first - if in browser mode, return success immediately
+      const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'browser';
+      if (connectionMode === 'browser') {
+        console.log('Browser mode detected, skipping proxy health check');
+        return {
+          available: true,
+          authenticated: true,
+          configuredProviders: [],
+          errors: []
+        };
+      }
+
       // Check if user is authenticated with timeout
       const sessionPromise = supabase.auth.getSession();
       const sessionTimeoutPromise = new Promise((_, reject) => 

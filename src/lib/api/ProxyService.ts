@@ -11,7 +11,7 @@ export interface ProxyRequest {
   parameters?: Record<string, any>;
   agentId?: string;
   userId?: string;
-  useUserKey?: boolean; // New flag to indicate whether to use user's API key
+  useUserKey?: boolean; // Flag to indicate whether to use user's API key
 }
 
 export interface ProxyResponse {
@@ -20,7 +20,7 @@ export interface ProxyResponse {
   error?: string;
   provider: string;
   model?: string;
-  usingUserKey?: boolean; // New flag to indicate whether user's API key was used
+  usingUserKey?: boolean; // Flag to indicate whether user's API key was used
   metrics?: {
     latency: number;
     tokens: number;

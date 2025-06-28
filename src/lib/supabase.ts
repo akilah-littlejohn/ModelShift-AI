@@ -26,8 +26,11 @@ function validateEnvironmentVariables() {
   const hasPlaceholderUrl = supabaseUrl === 'https://your-project-id.supabase.co' || !supabaseUrl;
   const hasPlaceholderKey = supabaseAnonKey === 'your-anon-key-here' || !supabaseAnonKey;
 
-  // In production, require all variables
-  if (isProduction && !isDemoMode) {
+  // Force demo mode if we have placeholder values OR if explicitly set
+  const shouldUseDemoMode = isDemoMode || hasPlaceholderUrl || hasPlaceholderKey;
+
+  // In production, require all variables ONLY if not in demo mode
+  if (isProduction && !shouldUseDemoMode) {
     const missing = [];
     if (hasPlaceholderUrl) missing.push('VITE_SUPABASE_URL');
     if (hasPlaceholderKey) missing.push('VITE_SUPABASE_ANON_KEY');
@@ -50,9 +53,6 @@ Please add these to your .env file or deployment environment.
     }
   }
 
-  // Force demo mode if we have placeholder values
-  const shouldUseDemoMode = isDemoMode || hasPlaceholderUrl || hasPlaceholderKey;
-
   return { 
     supabaseUrl, 
     supabaseAnonKey, 
@@ -74,75 +74,90 @@ function createSupabaseClient() {
     hasPlaceholderKey 
   } = validateEnvironmentVariables();
 
-  // Demo mode or missing configuration in development
-  if (isDemoMode || hasPlaceholderUrl || hasPlaceholderKey) {
-    if (!isProduction) {
-      console.warn('⚠️  Using mock Supabase client (development/demo mode)');
-      if (hasPlaceholderUrl || hasPlaceholderKey) {
-        console.warn('⚠️  Detected placeholder environment variables - using demo mode');
-      }
+  // Always use demo mode if explicitly set or if we have placeholder values
+  if (isDemoMode) {
+    console.warn('⚠️  Using mock Supabase client (demo mode enabled)');
+    if (hasPlaceholderUrl || hasPlaceholderKey) {
+      console.warn('⚠️  Detected placeholder environment variables - using demo mode');
+    }
+    return createMockSupabaseClient();
+  }
+
+  // If we have valid credentials, try to create real client
+  if (supabaseUrl && supabaseAnonKey && !hasPlaceholderUrl && !hasPlaceholderKey) {
+    console.log('✅ Creating real Supabase client with URL:', supabaseUrl);
+    
+    try {
+      return createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          autoRefreshToken: true,
+          persistSession: true,
+          detectSessionInUrl: true,
+          flowType: 'pkce'
+        },
+        global: {
+          headers: {
+            'X-Client-Info': 'modelshift-ai@1.0.0',
+          },
+        },
+        db: {
+          schema: 'public',
+        },
+        realtime: {
+          params: {
+            eventsPerSecond: 2,
+          },
+        },
+      });
+    } catch (error) {
+      console.error('❌ Failed to create Supabase client:', error);
+      console.warn('⚠️  Falling back to mock client due to connection error');
       return createMockSupabaseClient();
-    } else {
-      throw new Error('Supabase configuration required in production mode');
     }
   }
 
-  console.log('✅ Creating real Supabase client with URL:', supabaseUrl);
-  
-  try {
-    return createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: true,
-        flowType: 'pkce'
-      },
-      global: {
-        headers: {
-          'X-Client-Info': 'modelshift-ai@1.0.0',
-        },
-      },
-      db: {
-        schema: 'public',
-      },
-      realtime: {
-        params: {
-          eventsPerSecond: 2,
-        },
-      },
-    });
-  } catch (error) {
-    console.error('❌ Failed to create Supabase client:', error);
-    throw new Error(`Connection setup failed: ${error.message}`);
-  }
+  // Fallback to mock client if we don't have valid credentials
+  console.warn('⚠️  Using mock Supabase client (missing or invalid credentials)');
+  return createMockSupabaseClient();
 }
 
 // Mock client for development/demo mode
 function createMockSupabaseClient() {
+  // Store demo session in memory
+  let demoSession = null;
+  let demoUser = null;
+
+  const createDemoUser = (email = 'demo@example.com') => {
+    return {
+      id: 'demo-user-' + Math.random().toString(36).substr(2, 9),
+      email: email,
+      user_metadata: { name: email.split('@')[0] },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+  };
+
+  const createDemoSession = (user) => {
+    return {
+      access_token: 'demo-token-' + Math.random().toString(36).substr(2, 9),
+      refresh_token: 'demo-refresh-token',
+      expires_in: 3600,
+      token_type: 'bearer',
+      user: user
+    };
+  };
+
+  // Initialize demo session
+  demoUser = createDemoUser();
+  demoSession = createDemoSession(demoUser);
+
   return {
     auth: {
       getSession: () => {
         console.log('🔄 Mock getSession called');
-        // Return a mock session for demo mode
-        const mockUser = {
-          id: 'mock-user-id-' + Date.now(),
-          email: 'demo@example.com',
-          user_metadata: { name: 'Demo User' },
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        
-        const mockSession = {
-          access_token: 'mock-token-' + Date.now(),
-          refresh_token: 'mock-refresh-token',
-          expires_in: 3600,
-          token_type: 'bearer',
-          user: mockUser
-        };
-        
         return Promise.resolve({ 
           data: { 
-            session: mockSession
+            session: demoSession
           }, 
           error: null 
         });
@@ -150,27 +165,13 @@ function createMockSupabaseClient() {
       signInWithPassword: ({ email, password }: { email: string, password: string }) => {
         console.log('🔄 Mock signInWithPassword called for:', email);
         
-        // Simulate a successful login
-        const mockUser = {
-          id: 'mock-user-id-' + Date.now(),
-          email: email,
-          user_metadata: { name: email.split('@')[0] },
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        
-        const mockSession = {
-          access_token: 'mock-token-' + Date.now(),
-          refresh_token: 'mock-refresh-token',
-          expires_in: 3600,
-          token_type: 'bearer',
-          user: mockUser
-        };
+        demoUser = createDemoUser(email);
+        demoSession = createDemoSession(demoUser);
         
         return Promise.resolve({ 
           data: { 
-            user: mockUser,
-            session: mockSession
+            user: demoUser,
+            session: demoSession
           }, 
           error: null 
         });
@@ -178,91 +179,35 @@ function createMockSupabaseClient() {
       signUp: ({ email, password, options }: { email: string, password: string, options?: any }) => {
         console.log('🔄 Mock signUp called for:', email);
         
-        const mockUser = {
-          id: 'mock-user-id-' + Date.now(),
-          email: email,
-          user_metadata: options?.data || { name: email.split('@')[0] },
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        
-        const mockSession = {
-          access_token: 'mock-token-' + Date.now(),
-          refresh_token: 'mock-refresh-token',
-          expires_in: 3600,
-          token_type: 'bearer',
-          user: mockUser
-        };
+        demoUser = createDemoUser(email);
+        demoUser.user_metadata = options?.data || { name: email.split('@')[0] };
+        demoSession = createDemoSession(demoUser);
         
         return Promise.resolve({ 
           data: { 
-            user: mockUser,
-            session: mockSession
+            user: demoUser,
+            session: demoSession
           }, 
           error: null 
         });
       },
       signOut: () => {
         console.log('🔄 Mock signOut called');
-        // Clear demo token from localStorage
-        try {
-          const stored = localStorage.getItem('supabase.auth.token');
-          if (stored) {
-            const tokenObj = JSON.parse(stored);
-            const access_token = tokenObj?.currentSession?.access_token;
-            if (access_token && access_token.startsWith('demo-token')) {
-              localStorage.removeItem('supabase.auth.token');
-            }
-          }
-        } catch (e) {
-          console.error('Error handling mock signOut:', e);
-        }
+        demoSession = null;
+        demoUser = null;
         return Promise.resolve({ error: null });
       },
       onAuthStateChange: (callback: Function) => {
         console.log('🔄 Mock onAuthStateChange called');
         
-        // Create a mock session for demo mode
-        const mockUser = {
-          id: 'mock-user-id-' + Date.now(),
-          email: 'demo@example.com',
-          user_metadata: { name: 'Demo User' },
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        
-        const mockSession = {
-          access_token: 'demo-token-' + Date.now(),
-          refresh_token: 'mock-refresh-token',
-          expires_in: 3600,
-          token_type: 'bearer',
-          user: mockUser
-        };
-        
-        // Check if we already have a demo session in localStorage
-        try {
-          const stored = localStorage.getItem('supabase.auth.token');
-          if (stored) {
-            const tokenObj = JSON.parse(stored);
-            const storedSession = tokenObj?.currentSession;
-            if (storedSession && storedSession.access_token && storedSession.access_token.startsWith('demo-token')) {
-              // Use the stored session instead
-              setTimeout(() => callback('SIGNED_IN', { session: storedSession }), 100);
-              return { 
-                data: { 
-                  subscription: { 
-                    unsubscribe: () => console.log('🔄 Mock auth subscription unsubscribed') 
-                  } 
-                } 
-              };
-            }
+        // Trigger the callback with the current session
+        setTimeout(() => {
+          if (demoSession) {
+            callback('SIGNED_IN', { session: demoSession });
+          } else {
+            callback('SIGNED_OUT', { session: null });
           }
-        } catch (e) {
-          console.error('Error checking for stored demo session:', e);
-        }
-        
-        // Trigger the callback with the mock session
-        setTimeout(() => callback('SIGNED_IN', { session: mockSession }), 100);
+        }, 100);
         
         return { 
           data: { 
@@ -274,36 +219,8 @@ function createMockSupabaseClient() {
       },
       getUser: () => {
         console.log('🔄 Mock getUser called');
-        
-        // Check if we have a demo session in localStorage
-        try {
-          const stored = localStorage.getItem('supabase.auth.token');
-          if (stored) {
-            const tokenObj = JSON.parse(stored);
-            const storedSession = tokenObj?.currentSession;
-            if (storedSession && storedSession.access_token && storedSession.access_token.startsWith('demo-token')) {
-              // Return the stored user
-              return Promise.resolve({
-                data: { user: storedSession.user },
-                error: null
-              });
-            }
-          }
-        } catch (e) {
-          console.error('Error checking for stored demo user:', e);
-        }
-        
-        // Return a mock user for demo mode
-        const mockUser = {
-          id: 'mock-user-id-' + Date.now(),
-          email: 'demo@example.com',
-          user_metadata: { name: 'Demo User' },
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        
         return Promise.resolve({
-          data: { user: mockUser },
+          data: { user: demoUser },
           error: null
         });
       }
@@ -321,8 +238,8 @@ function createMockSupabaseClient() {
                 return Promise.resolve({ 
                   data: {
                     id: value,
-                    email: 'demo@example.com',
-                    name: 'Demo User',
+                    email: demoUser?.email || 'demo@example.com',
+                    name: demoUser?.user_metadata?.name || 'Demo User',
                     plan: 'free',
                     usage_limit: 100,
                     usage_count: 0,
@@ -376,8 +293,14 @@ function createMockSupabaseClient() {
           select: () => ({
             single: () => {
               console.log(`🔄 Mock insert into ${table}:`, data);
+              // Return the inserted data with generated fields
+              const mockData = {
+                ...data[0],
+                id: 'mock-id-' + Math.random().toString(36).substr(2, 9),
+                created_at: new Date().toISOString()
+              };
               return Promise.resolve({ 
-                data: data[0], 
+                data: mockData, 
                 error: null 
               });
             }

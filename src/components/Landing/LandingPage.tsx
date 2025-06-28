@@ -7,18 +7,27 @@ export function LandingPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
+  // Debug logging for authentication state
+  React.useEffect(() => {
+    console.log('Auth state in LandingPage:', { user });
+  }, [user]);
+
   const handleGetStarted = () => {
     if (user) {
+      console.log('User already authenticated, navigating to playground');
       navigate('/playground');
     } else {
+      console.log('User not authenticated, navigating to signup');
       navigate('/signup');
     }
   };
 
   const handleTryDemo = () => {
     if (user) {
+      console.log('User already authenticated, navigating to playground');
       navigate('/playground');
     } else {
+      console.log('User not authenticated, navigating to demo login');
       navigate('/login?demo=true');
     }
   };

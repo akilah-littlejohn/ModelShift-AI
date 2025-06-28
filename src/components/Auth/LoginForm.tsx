@@ -122,7 +122,7 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
           localStorage.setItem('modelshift-connection-mode', 'browser');
           toast.success('Account created successfully! Welcome to ModelShift AI!');
           // Redirect to playground
-          navigate('/playground');
+          navigate('/playground', { replace: true });
         }
       } else {
         // Sign in flow
@@ -133,6 +133,7 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
           return;
         }
         
+        // Use direct Supabase auth call for better control
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password
@@ -147,7 +148,7 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
         toast.success('Welcome back to ModelShift AI!');
         
         // Redirect to playground
-        navigate('/playground');
+        navigate('/playground', { replace: true });
       }
     } catch (error: any) {
       console.error('Authentication error:', error);

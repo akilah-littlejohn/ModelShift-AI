@@ -21,6 +21,11 @@ function AppContent() {
   const { user, isLoading } = useAuth();
   const [activeView, setActiveView] = useState('playground');
 
+  // Debug logging for authentication state
+  useEffect(() => {
+    console.log('Auth state in AppContent:', { user, isLoading });
+  }, [user, isLoading]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
@@ -34,6 +39,7 @@ function AppContent() {
 
   // If user is not logged in, show landing page or login form based on route
   if (!user) {
+    console.log('No user authenticated, showing public routes');
     return (
       <Router>
         <Routes>
@@ -48,6 +54,7 @@ function AppContent() {
   }
 
   // Show app for authenticated users
+  console.log('User authenticated, showing app routes');
   return (
     <Router>
       <div className="h-screen bg-neutral-50 dark:bg-neutral-900 flex flex-col">

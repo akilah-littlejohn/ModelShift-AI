@@ -227,17 +227,17 @@ export function Header() {
                   <User className="w-4 h-4 text-white" />
                 </div>
                 <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                  {user?.name}
+                  {user?.name || user?.email?.split('@')[0] || 'User'}
                 </span>
               </button>
 
               {/* Dropdown Menu */}
               <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-neutral-800 rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                 <div className="p-3 border-b border-neutral-200 dark:border-neutral-700">
-                  <p className="text-sm font-medium text-neutral-900 dark:text-white">{user?.name}</p>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400">{user?.email}</p>
+                  <p className="text-sm font-medium text-neutral-900 dark:text-white">{user?.name || user?.email?.split('@')[0] || 'User'}</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">{user?.email || 'demo@example.com'}</p>
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200 mt-1">
-                    {user?.plan} plan
+                    {user?.plan || 'free'} plan
                   </span>
                 </div>
                 <div className="p-1">
@@ -284,8 +284,8 @@ export function Header() {
                   <User className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-neutral-900 dark:text-white">{user?.name}</p>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400">{user?.email}</p>
+                  <p className="text-sm font-medium text-neutral-900 dark:text-white">{user?.name || user?.email?.split('@')[0] || 'User'}</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">{user?.email || 'demo@example.com'}</p>
                 </div>
               </div>
               <button 

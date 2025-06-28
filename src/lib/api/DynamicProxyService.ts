@@ -151,6 +151,13 @@ export class DynamicProxyService {
       try {
         response = await Promise.race([fetchPromise, fetchTimeoutPromise]) as Response;
       } catch (fetchError) {
+        // If we get a network error, switch to browser mode
+        if (fetchError.message.includes('Failed to fetch') || 
+            fetchError.message.includes('NetworkError') ||
+            fetchError.message.includes('Network request failed')) {
+          console.log('Network error, switching to browser mode');
+          localStorage.setItem('modelshift-connection-mode', 'browser');
+        }
         throw new Error(`Request failed: ${fetchError.message}`);
       }
 
@@ -159,6 +166,12 @@ export class DynamicProxyService {
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`Proxy request failed with status ${response.status}:`, errorText);
+        
+        // If we get a 404, switch to browser mode
+        if (response.status === 404) {
+          console.log('404 error with proxy, switching to browser mode');
+          localStorage.setItem('modelshift-connection-mode', 'browser');
+        }
         
         let errorMessage = `Request failed with status ${response.status}`;
         try {
@@ -187,10 +200,19 @@ export class DynamicProxyService {
       } catch (parseError) {
         const rawText = await response.text();
         console.error('Failed to parse JSON response:', rawText);
+        
+        // Switch to browser mode if we can't parse the response
+        console.log('Failed to parse JSON response, switching to browser mode');
+        localStorage.setItem('modelshift-connection-mode', 'browser');
+        
         throw new Error('We received an invalid response. Please try again.');
       }
 
       if (!data) {
+        // Switch to browser mode if we don't get a response
+        console.log('No data in response, switching to browser mode');
+        localStorage.setItem('modelshift-connection-mode', 'browser');
+        
         throw new Error('No response received. Please try again.');
       }
 
@@ -241,6 +263,9 @@ export class DynamicProxyService {
       
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
         errorMessage = `Network error: Please check your internet connection and try again.`;
+        
+        // Switch to browser mode for network errors
+        localStorage.setItem('modelshift-connection-mode', 'browser');
       } else if (error.message.includes('timeout')) {
         errorMessage = `Your request timed out. Please try again with a shorter prompt or try later.`;
       } else if (error.message.includes('not found') && error.message.includes('function')) {
@@ -362,6 +387,16 @@ export class DynamicProxyService {
           const errorText = await response.text();
           console.error(`Health check failed with status ${response.status}:`, errorText);
           
+          // If we get a 404, the function might not be deployed
+          if (response.status === 404) {
+            return {
+              available: false,
+              authenticated: true,
+              configuredProviders: [],
+              errors: ['Edge Function not found. Please deploy the ai-proxy Edge Function.']
+            };
+          }
+          
           return {
             available: false,
             authenticated: true,
@@ -400,11 +435,23 @@ export class DynamicProxyService {
 
       } catch (testError) {
         console.error('Test error during health check:', testError);
+        
+        // Provide more specific error messages for common issues
+        let errorMessage = testError instanceof Error ? testError.message : 'Connection check failed';
+        
+        if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
+          errorMessage = 'Network error: Unable to connect to the Edge Function. Please check your internet connection.';
+        } else if (errorMessage.includes('timeout')) {
+          errorMessage = 'Connection timeout: The Edge Function took too long to respond.';
+        } else if (errorMessage.includes('not found') || errorMessage.includes('404')) {
+          errorMessage = 'Edge Function not found: Please make sure the ai-proxy function is deployed.';
+        }
+        
         return {
           available: false,
           authenticated: true,
           configuredProviders: [],
-          errors: [testError instanceof Error ? testError.message : 'Connection check failed']
+          errors: [errorMessage]
         };
       }
 

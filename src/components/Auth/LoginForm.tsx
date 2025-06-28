@@ -143,55 +143,47 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
       
       // Enhanced error handling with more specific messages
       if (error.message?.includes('Failed to fetch') || error.message?.includes('Network request failed')) {
-        if (isDemoMode || isDemo) {
+        toast.error('Unable to connect. Please check your internet connection and try again.');
+        // Don't auto-switch to demo mode for network errors
+      } else if (error.message?.includes('Invalid API key') || error.message?.includes('Project not found')) {
+        // Handle invalid Supabase configuration
+        console.warn('Invalid Supabase configuration detected, switching to demo mode');
+        toast.error('Authentication service configuration issue. Switching to demo mode...');
+        setTimeout(() => {
           handleDemoLogin();
-        } else {
-          // Updated: More user-friendly error message
-          toast.error('Unable to connect. Please check your internet connection and try again.');
-        }
+        }, 1500);
       } else if (error.message?.includes('Invalid login credentials')) {
         if (activeTab === 'signup') {
-          // Updated: More user-friendly error message
           toast.error('This email may already be registered. Try signing in instead.');
         } else {
-          // Updated: More user-friendly error message
           toast.error('Invalid email or password. Please try again.');
         }
       } else if (error.message?.includes('Email not confirmed')) {
-        // Updated: More user-friendly error message
         toast.error('Please check your email and confirm your account before signing in.');
       } else if (error.message?.includes('User already registered')) {
-        // Updated: More user-friendly error message
         toast.error('An account with this email already exists. Please sign in instead.');
         setActiveTab('signin'); // Switch to sign in mode
       } else if (error.message?.includes('Signup is disabled')) {
-        // Updated: More user-friendly error message
         toast.error('Account registration is currently disabled. Please contact support.');
       } else if (error.message?.includes('Email rate limit exceeded')) {
-        // Updated: More user-friendly error message
         toast.error('Too many attempts. Please wait a few minutes before trying again.');
       } else if (error.message?.includes('Password should be at least')) {
-        // Updated: More user-friendly error message
         toast.error('Password must be at least 6 characters long.');
       } else if (error.message?.includes('Unable to validate email address')) {
-        // Updated: More user-friendly error message
         toast.error('Please enter a valid email address.');
-      } else if (error.message?.includes('Invalid API key') || error.message?.includes('Project not found')) {
-        if (isDemoMode || isDemo) {
-          handleDemoLogin();
-        } else {
-          // Updated: More user-friendly error message
-          toast.error('Authentication service unavailable. Please try again later.');
-        }
       } else {
         // Generic error with helpful context
         const errorMsg = error.message || 'Authentication failed. Please try again.';
+        toast.error(errorMsg);
         
-        if (isDemoMode || isDemo) {
-          handleDemoLogin();
-        } else {
-          // Updated: More user-friendly error message
-          toast.error(errorMsg);
+        // If it's a configuration-related error, suggest demo mode
+        if (errorMsg.includes('API') || errorMsg.includes('configuration') || errorMsg.includes('service')) {
+          setTimeout(() => {
+            toast('Try demo mode instead?', {
+              duration: 4000,
+              icon: '💡',
+            });
+          }, 2000);
         }
       }
     } finally {
@@ -240,7 +232,7 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
           </div>
         )}
 
-        {/* Authentication Info */}
+        {/* Configuration Issue Notice */}
         {!isDemoMode && !isDemo && (
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
             <div className="flex items-start space-x-3">
@@ -254,6 +246,9 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
                     ? 'Create a new account to access the ModelShift AI platform.'
                     : 'Sign in with your existing account or create a new one.'
                   }
+                </p>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                  Having issues? The app will automatically switch to demo mode if needed.
                 </p>
               </div>
             </div>
@@ -402,6 +397,21 @@ export function LoginForm({ isSignUp = false }: LoginFormProps) {
               )}
             </button>
           </form>
+
+          {/* Demo Mode Button */}
+          {!isDemoMode && !isDemo && (
+            <div className="mt-6 pt-6 border-t border-neutral-200 dark:border-neutral-700">
+              <button
+                onClick={handleDemoLogin}
+                className="w-full bg-neutral-100 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 py-3 rounded-lg font-medium hover:bg-neutral-200 dark:hover:bg-neutral-600 transition-colors"
+              >
+                Try Demo Mode Instead
+              </button>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 text-center mt-2">
+                Explore the platform without authentication
+              </p>
+            </div>
+          )}
 
           {/* Footer */}
           <div className="text-center mt-8">

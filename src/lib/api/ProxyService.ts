@@ -251,7 +251,7 @@ export class ProxyService {
       } else if (error.message.includes('not found') && error.message.includes('function')) {
         errorMessage = `Edge Function not found. Please deploy the Edge Function with 'npx supabase functions deploy ai-proxy'.`;
       } else if (error.message.includes('requested path is invalid')) {
-        errorMessage = `The Edge Function path is invalid. Please deploy the Edge Function with 'npx supabase functions deploy ai-proxy'.`;
+        errorMessage = `Edge Function not found. Please deploy the Edge Function with 'npx supabase functions deploy ai-proxy'.`;
       }
       
       // Return error response with metrics
@@ -528,8 +528,8 @@ To fix this:
         
         console.log(`Health check endpoint: ${proxyEndpoint}`);
         
-        // Use direct fetch instead of supabase.functions.invoke
-        const response = await fetch(proxyEndpoint, {
+        // Use direct fetch instead of supabase.functions.invoke with shorter timeout for health check
+        const fetchPromise = fetch(proxyEndpoint, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
@@ -542,25 +542,47 @@ To fix this:
           })
         });
         
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Health check timeout')), 15000)
+        );
+        
+        const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
+        
         if (!response.ok) {
           const errorText = await response.text();
           console.error(`Health check failed with status ${response.status}:`, errorText);
           
-          // If we get a 404, the function might not be deployed
+          // Parse error response if it's JSON
+          let errorMessage = 'Connection check failed';
+          try {
+            const errorJson = JSON.parse(errorText);
+            if (errorJson.error) {
+              errorMessage = errorJson.error;
+            }
+          } catch (parseError) {
+            // Use raw text if not JSON
+            if (errorText && errorText.trim()) {
+              errorMessage = errorText;
+            }
+          }
+          
+          // Handle specific error cases
           if (response.status === 404) {
-            return {
-              available: false,
-              authenticated: true,
-              configuredProviders: [],
-              errors: ['Edge Function not found. Please deploy the ai-proxy Edge Function using "npx supabase functions deploy ai-proxy"']
-            };
+            if (errorMessage.includes('requested path is invalid') || errorMessage.includes('not found')) {
+              return {
+                available: false,
+                authenticated: true,
+                configuredProviders: [],
+                errors: ['Edge Function not deployed. Please deploy the ai-proxy Edge Function using "npx supabase functions deploy ai-proxy"']
+              };
+            }
           }
           
           return {
             available: false,
             authenticated: true,
             configuredProviders: [],
-            errors: ['Connection check failed. Please try again later.']
+            errors: [errorMessage]
           };
         }
         
@@ -594,11 +616,27 @@ To fix this:
 
       } catch (testError) {
         console.error('Test error during health check:', testError);
+        
+        // Handle specific error types
+        let errorMessage = 'Connection check failed';
+        
+        if (testError instanceof Error) {
+          if (testError.message.includes('Failed to fetch') || testError.message.includes('NetworkError')) {
+            errorMessage = 'Network error: Unable to connect to the Edge Function. Please check your internet connection and ensure the Edge Function is deployed.';
+          } else if (testError.message.includes('timeout')) {
+            errorMessage = 'Health check timed out. The Edge Function may not be deployed or may be experiencing issues.';
+          } else if (testError.message.includes('requested path is invalid')) {
+            errorMessage = 'Edge Function not deployed. Please deploy the ai-proxy Edge Function using "npx supabase functions deploy ai-proxy"';
+          } else {
+            errorMessage = testError.message;
+          }
+        }
+        
         return {
           available: false,
           authenticated: true,
           configuredProviders: [],
-          errors: [testError instanceof Error ? testError.message : 'Connection check failed']
+          errors: [errorMessage]
         };
       }
 

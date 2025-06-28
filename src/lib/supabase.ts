@@ -74,9 +74,6 @@ function createSupabaseClient() {
     hasPlaceholderKey 
   } = validateEnvironmentVariables();
 
-  // Set default connection mode to browser
-  localStorage.setItem('modelshift-connection-mode', 'browser');
-
   // Demo mode or missing configuration in development
   if (isDemoMode || hasPlaceholderUrl || hasPlaceholderKey) {
     if (!isProduction) {

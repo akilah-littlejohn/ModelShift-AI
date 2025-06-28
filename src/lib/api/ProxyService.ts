@@ -38,7 +38,7 @@ export class ProxyService {
     
     try {
       // Check if we should use direct browser mode
-      const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'browser';
+      const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'server';
       if (connectionMode === 'browser') {
         console.log('Using direct browser mode for API call');
         return this.callProviderDirectly(request);
@@ -71,8 +71,8 @@ export class ProxyService {
       
       if (!supabaseUrl || !supabaseAnonKey || 
           supabaseUrl.includes('demo') || supabaseAnonKey.includes('demo')) {
-        console.log('Supabase not configured for proxy mode, falling back to direct browser mode');
-        return this.callProviderDirectly(request);
+        console.error('Supabase not configured for proxy mode');
+        throw new Error('Server connection not configured. Please configure your environment variables in .env.local file.');
       }
 
       // Check if the user has an API key for this provider
@@ -96,7 +96,7 @@ export class ProxyService {
         parameters: request.parameters,
         agentId: request.agentId,
         userId: request.userId || session.user.id,
-        useUserKey: true // Force using user key in BYOK mode
+        useUserKey: useUserKey
       };
 
       console.log(`Making authenticated proxy request to ${request.providerId}:`, {
@@ -104,7 +104,7 @@ export class ProxyService {
         model: request.model,
         promptLength: request.prompt.length,
         userId: requestBody.userId,
-        useUserKey: true
+        useUserKey
       });
 
       // Get the correct URL for the Edge Function
@@ -133,12 +133,10 @@ export class ProxyService {
       } catch (fetchError) {
         console.error('Fetch error:', fetchError);
         
-        // If we get a network error, fall back to direct browser mode
         if (fetchError.message.includes('Failed to fetch') || 
             fetchError.message.includes('NetworkError') ||
             fetchError.message.includes('Network request failed')) {
-          console.log('Network error with proxy, falling back to direct browser mode');
-          return this.callProviderDirectly(request);
+          throw new Error(`Network error: The Edge Function could not be reached. Please ensure the Edge Function is deployed with 'npx supabase functions deploy ai-proxy'.`);
         }
         
         if (fetchError.message.includes('timeout')) {
@@ -161,10 +159,9 @@ export class ProxyService {
           body: errorText
         });
         
-        // If we get a 404, fall back to direct browser mode
+        // If we get a 404, the Edge Function is not deployed
         if (response.status === 404) {
-          console.log('404 error with proxy, falling back to direct browser mode');
-          return this.callProviderDirectly(request);
+          throw new Error(`Edge Function not found. Please deploy the Edge Function with 'npx supabase functions deploy ai-proxy'.`);
         }
         
         // Try to parse as JSON if possible
@@ -195,16 +192,11 @@ export class ProxyService {
       } catch (parseError) {
         const rawText = await responseClone.text();
         console.error('Failed to parse JSON response:', rawText);
-        
-        // Fall back to direct browser mode
-        console.log('Failed to parse JSON response, falling back to direct browser mode');
-        return this.callProviderDirectly(request);
+        throw new Error('We received an invalid response from the Edge Function. Please check the Edge Function logs.');
       }
 
       if (!data) {
-        // Fall back to direct browser mode
-        console.log('No data in response, falling back to direct browser mode');
-        return this.callProviderDirectly(request);
+        throw new Error('No response received from the Edge Function. Please check the Edge Function logs.');
       }
 
       if (!data.success) {
@@ -249,24 +241,17 @@ export class ProxyService {
       
       console.error('Proxy service error:', error);
       
-      // If we get a network error, fall back to direct browser mode
-      if (error.message && (
-          error.message.includes('Failed to fetch') || 
-          error.message.includes('NetworkError') ||
-          error.message.includes('Network request failed'))) {
-        console.log('Network error, falling back to direct browser mode');
-        return this.callProviderDirectly(request);
-      }
-      
       // Enhance error messages for common issues
       let errorMessage = error.message;
       
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        errorMessage = `Network error: Please check your internet connection and try again.`;
+        errorMessage = `Network error: Unable to connect to the Edge Function. Please ensure the Edge Function is deployed with 'npx supabase functions deploy ai-proxy'.`;
       } else if (error.message.includes('timeout')) {
         errorMessage = `Your request timed out. Please try again with a shorter prompt or try later.`;
       } else if (error.message.includes('not found') && error.message.includes('function')) {
-        errorMessage = `Service not available. Please contact support.`;
+        errorMessage = `Edge Function not found. Please deploy the Edge Function with 'npx supabase functions deploy ai-proxy'.`;
+      } else if (error.message.includes('requested path is invalid')) {
+        errorMessage = `The Edge Function path is invalid. Please deploy the Edge Function with 'npx supabase functions deploy ai-proxy'.`;
       }
       
       // Return error response with metrics
@@ -474,18 +459,9 @@ To fix this:
     errors: string[];
   }> {
     try {
-      // Check if we should use direct browser mode - if so, return success immediately
-      const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'browser';
-      if (connectionMode === 'browser') {
-        console.log('Browser mode detected, skipping proxy health check');
-        return {
-          available: true,
-          authenticated: true,
-          configuredProviders: [],
-          errors: []
-        };
-      }
-
+      // Check if we should use direct browser mode
+      const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'server';
+      
       // Check if user is authenticated with timeout
       const sessionPromise = supabase.auth.getSession();
       const sessionTimeoutPromise = new Promise((_, reject) => 
@@ -538,7 +514,7 @@ To fix this:
           available: false,
           authenticated: true,
           configuredProviders: [],
-          errors: ['Server connection not configured. Please use direct browser mode.']
+          errors: ['Server connection not configured. Please configure your environment variables in .env.local file.']
         };
       }
 
@@ -638,6 +614,19 @@ To fix this:
   }
 
   /**
+   * Get provider display name
+   */
+  private static getProviderDisplayName(providerId: string): string {
+    const names: Record<string, string> = {
+      openai: 'OpenAI',
+      gemini: 'Google Gemini',
+      claude: 'Anthropic Claude',
+      ibm: 'IBM WatsonX'
+    };
+    return names[providerId] || providerId;
+  }
+
+  /**
    * Estimate cost based on provider and tokens
    */
   private static estimateCost(providerId: string, tokens: number): number {
@@ -651,18 +640,5 @@ To fix this:
     
     const pricePerToken = pricing[providerId] || 0.05; // Default fallback
     return (tokens * pricePerToken) / 1000;
-  }
-
-  /**
-   * Get provider display name
-   */
-  private static getProviderDisplayName(providerId: string): string {
-    const names: Record<string, string> = {
-      openai: 'OpenAI',
-      gemini: 'Google Gemini',
-      claude: 'Anthropic Claude',
-      ibm: 'IBM WatsonX'
-    };
-    return names[providerId] || providerId;
   }
 }

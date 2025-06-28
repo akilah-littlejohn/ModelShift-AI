@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 
 export function ConnectionModeSettings() {
   const [connectionMode, setConnectionMode] = useState(() => {
-    return localStorage.getItem('modelshift-connection-mode') || 'browser';
+    return localStorage.getItem('modelshift-connection-mode') || 'server';
   });
   const [proxyHealth, setProxyHealth] = useState<{
     available: boolean;
@@ -281,7 +281,7 @@ export function ConnectionModeSettings() {
               <li>Ensure your server components are properly deployed</li>
               <li>Check that your API keys are correctly configured</li>
               <li>Verify your authentication is working properly</li>
-              <li>Try switching to Direct Browser Mode and adding your API keys</li>
+              <li>Try running: <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded">npx supabase functions deploy ai-proxy</code></li>
             </ul>
           </div>
         </div>

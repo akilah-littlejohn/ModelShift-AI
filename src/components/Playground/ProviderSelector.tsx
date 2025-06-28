@@ -22,7 +22,7 @@ export function ProviderSelector({ selected, onChange, userApiKeys, singleSelect
   } | null>(null);
   const [isCheckingHealth, setIsCheckingHealth] = useState(false);
   const [connectionMode, setConnectionMode] = useState(() => 
-    localStorage.getItem('modelshift-connection-mode') || 'browser'
+    localStorage.getItem('modelshift-connection-mode') || 'server'
   );
 
   useEffect(() => {
@@ -31,7 +31,7 @@ export function ProviderSelector({ selected, onChange, userApiKeys, singleSelect
 
     // Listen for connection mode changes
     const handleStorageChange = () => {
-      const newMode = localStorage.getItem('modelshift-connection-mode') || 'browser';
+      const newMode = localStorage.getItem('modelshift-connection-mode') || 'server';
       if (newMode !== connectionMode) {
         setConnectionMode(newMode);
         checkServerHealth();

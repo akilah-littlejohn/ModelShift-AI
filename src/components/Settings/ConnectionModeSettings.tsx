@@ -136,21 +136,6 @@ export function ConnectionModeSettings() {
               </span>
             </div>
 
-            {proxyHealth.configuredProviders.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                  Configured Providers:
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {proxyHealth.configuredProviders.map(provider => (
-                    <span key={provider} className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs">
-                      {provider}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {proxyHealth.errors.length > 0 && (
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
                 <div className="flex items-start space-x-2">

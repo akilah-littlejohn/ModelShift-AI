@@ -75,20 +75,7 @@ export class ProxyService {
         return this.callProviderDirectly(request);
       }
 
-      // Check if the user has an API key for this provider
-      let useUserKey = request.useUserKey;
-      
-      if (useUserKey === undefined) {
-        // Auto-detect if user has a key for this provider
-        const hasUserKey = await apiKeysDb.getActiveForProvider(
-          request.userId || session.user.id,
-          request.providerId
-        );
-        
-        useUserKey = !!hasUserKey;
-      }
-
-      // Prepare the request body
+      // Prepare the request body - always use user's API key in BYOK mode
       const requestBody = {
         providerId: request.providerId,
         prompt: request.prompt,
@@ -96,7 +83,7 @@ export class ProxyService {
         parameters: request.parameters,
         agentId: request.agentId,
         userId: request.userId || session.user.id,
-        useUserKey: true // Force using user key in BYOK mode
+        useUserKey: true // Always use user's API key in BYOK mode
       };
 
       console.log(`Making authenticated proxy request to ${request.providerId}:`, {
@@ -609,10 +596,12 @@ To fix this:
         // Parse the health check response
         const configuredProviders = data.configuredProviders || [];
         const errors = data.errors || [];
+        const byokEnabled = data.serverInfo?.byokEnabled || false;
 
         console.log('Health check successful:', {
           configuredProviders,
-          errors
+          errors,
+          byokEnabled
         });
 
         return {
@@ -669,18 +658,5 @@ To fix this:
     
     const pricePerToken = pricing[providerId] || 0.05; // Default fallback
     return (tokens * pricePerToken) / 1000;
-  }
-
-  /**
-   * Get provider display name
-   */
-  private static getProviderDisplayName(providerId: string): string {
-    const names: Record<string, string> = {
-      openai: 'OpenAI',
-      gemini: 'Google Gemini',
-      claude: 'Anthropic Claude',
-      ibm: 'IBM WatsonX'
-    };
-    return names[providerId] || providerId;
   }
 }

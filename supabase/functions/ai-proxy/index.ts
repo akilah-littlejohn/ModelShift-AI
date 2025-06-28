@@ -345,50 +345,19 @@ serve(async (req) => {
     if (providerId === 'health-check') {
       console.log(`[${requestId}] Processing health check request`);
       
-      const configuredProviders = Object.keys(PROVIDERS).filter(id => {
-        const config = PROVIDERS[id];
-        const hasApiKey = !!Deno.env.get(config.apiKeyEnvVar);
-        const hasProjectId = !config.requiresProjectId || !!Deno.env.get('IBM_PROJECT_ID');
-        return hasApiKey && hasProjectId;
-      });
-
-      const errors = Object.keys(PROVIDERS)
-        .filter(id => {
-          const config = PROVIDERS[id];
-          const hasApiKey = !!Deno.env.get(config.apiKeyEnvVar);
-          const hasProjectId = !config.requiresProjectId || !!Deno.env.get('IBM_PROJECT_ID');
-          return !hasApiKey || !hasProjectId;
-        })
-        .map(id => {
-          const config = PROVIDERS[id];
-          if (config.requiresProjectId && !Deno.env.get('IBM_PROJECT_ID')) {
-            return `${config.name}: Missing IBM_PROJECT_ID in Supabase secrets`;
-          }
-          return `${config.name}: Missing ${config.apiKeyEnvVar} in Supabase secrets`;
-        });
-
-      console.log(`[${requestId}] Health check result:`, {
-        configuredProviders,
-        errors,
-        envVars: {
-          hasOpenAI: !!Deno.env.get('OPENAI_API_KEY'),
-          hasGemini: !!Deno.env.get('GEMINI_API_KEY'),
-          hasClaude: !!Deno.env.get('ANTHROPIC_API_KEY'),
-          hasIBM: !!Deno.env.get('IBM_API_KEY'),
-          hasIBMProject: !!Deno.env.get('IBM_PROJECT_ID')
-        }
-      });
-
+      // For health check, we don't need to check for API keys
+      // Just return the status of the service
       return new Response(
         JSON.stringify({
           success: true,
-          configuredProviders,
-          errors,
+          configuredProviders: [],
+          errors: [],
           requestId,
           serverInfo: {
             timestamp: new Date().toISOString(),
             environment: Deno.env.get('ENVIRONMENT') || 'production',
-            version: '1.0.1' // Added version number for tracking
+            version: '1.0.1',
+            byokEnabled: true
           }
         }),
         {
@@ -414,103 +383,65 @@ serve(async (req) => {
       );
     }
 
-    // Determine which API key to use
+    // Get the user's API key for this provider
     let apiKey: string | null = null;
     let userKeyId: string | null = null;
-    let usingUserKey = false;
+    let usingUserKey = true;
 
-    // First, try to get the user's API key for this provider if requested or if no server key exists
-    const serverApiKey = Deno.env.get(providerConfig.apiKeyEnvVar);
-    const shouldTryUserKey = useUserKey || !serverApiKey;
-
-    console.log(`[${requestId}] API key strategy:`, {
-      provider: providerConfig.name,
-      hasServerKey: !!serverApiKey,
-      shouldTryUserKey,
-      useUserKeyFlag: useUserKey
-    });
-
-    if (shouldTryUserKey) {
-      try {
-        console.log(`[${requestId}] Attempting to use user's API key for ${providerConfig.name}`);
-        
-        // Get the user's API key for this provider
-        const { data: userKeys, error: userKeyError } = await supabaseClient
-          .from('user_api_keys')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('provider_id', providerId)
-          .eq('is_active', true)
-          .order('created_at', { ascending: false })
-          .limit(1);
-        
-        if (userKeyError) {
-          console.error(`[${requestId}] Error fetching user API key:`, userKeyError);
-          throw new Error(`Failed to retrieve your API key: ${userKeyError.message}`);
-        } 
-        
-        if (!userKeys || userKeys.length === 0) {
-          console.log(`[${requestId}] No user API key found for ${providerConfig.name}`);
-          if (useUserKey) {
-            throw new Error(`No API key found for ${providerConfig.name}. Please add your API key in the API Keys section.`);
-          }
-          // If useUserKey is false, we'll fall back to server key
-        } else {
-          try {
-            console.log(`[${requestId}] Found user API key:`, {
-              keyId: userKeys[0].id,
-              provider: userKeys[0].provider_id,
-              name: userKeys[0].name,
-              isActive: userKeys[0].is_active,
-              createdAt: userKeys[0].created_at
-            });
-            
-            apiKey = decrypt(userKeys[0].encrypted_key);
-            userKeyId = userKeys[0].id;
-            usingUserKey = true;
-            
-            console.log(`[${requestId}] Using user's API key for ${providerConfig.name} (Key ID: ${userKeyId})`);
-            
-            // Update last_used_at timestamp
-            await supabaseClient
-              .from('user_api_keys')
-              .update({ last_used_at: new Date().toISOString() })
-              .eq('id', userKeyId);
-          } catch (decryptError) {
-            console.error(`[${requestId}] Error decrypting user API key:`, decryptError);
-            throw new Error(`Failed to decrypt your API key for ${providerConfig.name}. Please try adding your API key again in the API Keys section.`);
-          }
+    try {
+      console.log(`[${requestId}] Attempting to use user's API key for ${providerConfig.name}`);
+      
+      // Get the user's API key for this provider
+      const { data: userKeys, error: userKeyError } = await supabaseClient
+        .from('user_api_keys')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('provider_id', providerId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      if (userKeyError) {
+        console.error(`[${requestId}] Error fetching user API key:`, userKeyError);
+        throw new Error(`Failed to retrieve your API key: ${userKeyError.message}`);
+      } 
+      
+      if (!userKeys || userKeys.length === 0) {
+        console.log(`[${requestId}] No user API key found for ${providerConfig.name}`);
+        throw new Error(`No API key found for ${providerConfig.name}. Please add your API key in the API Keys section.`);
+      } else {
+        try {
+          console.log(`[${requestId}] Found user API key:`, {
+            keyId: userKeys[0].id,
+            provider: userKeys[0].provider_id,
+            name: userKeys[0].name,
+            isActive: userKeys[0].is_active,
+            createdAt: userKeys[0].created_at
+          });
+          
+          apiKey = decrypt(userKeys[0].encrypted_key);
+          userKeyId = userKeys[0].id;
+          
+          console.log(`[${requestId}] Using user's API key for ${providerConfig.name} (Key ID: ${userKeyId})`);
+          
+          // Update last_used_at timestamp
+          await supabaseClient
+            .from('user_api_keys')
+            .update({ last_used_at: new Date().toISOString() })
+            .eq('id', userKeyId);
+        } catch (decryptError) {
+          console.error(`[${requestId}] Error decrypting user API key:`, decryptError);
+          throw new Error(`Failed to decrypt your API key for ${providerConfig.name}. Please try adding your API key again in the API Keys section.`);
         }
-      } catch (error) {
-        if (error.message.includes('Failed to decrypt') || error.message.includes('No API key found')) {
-          // These are specific errors we want to propagate
-          throw error;
-        }
-        
-        console.error(`[${requestId}] Error in user key lookup:`, error);
-        throw new Error(`Error accessing your API keys: ${error.message}`);
       }
-    }
-
-    // If no user key was found or decryption failed, try server API key
-    if (!apiKey && serverApiKey) {
-      apiKey = serverApiKey;
-      usingUserKey = false;
-      console.log(`[${requestId}] Using server API key for ${providerConfig.name}`);
-    }
-
-    // If still no API key, return an error
-    if (!apiKey) {
-      const errorMessage = serverApiKey 
-        ? `Failed to decrypt your API key for ${providerConfig.name}. Please try adding your API key again in the API Keys section.`
-        : `No API key found for ${providerConfig.name}. Please add your API key in the API Keys section.`;
+    } catch (error) {
+      console.error(`[${requestId}] Error in user key lookup:`, error);
       
-      console.error(`[${requestId}] No API key available:`, errorMessage);
-      
+      // Return a clear error message to the user
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: errorMessage,
+          error: error.message || `No API key found for ${providerConfig.name}. Please add your API key in the API Keys section.`,
           provider: providerId,
           requestId,
           metrics: {
@@ -529,55 +460,46 @@ serve(async (req) => {
     let projectId: string | null = null;
     
     if (providerConfig.requiresProjectId) {
-      // First try server-side project ID
-      projectId = Deno.env.get('IBM_PROJECT_ID');
-      
-      // If no server project ID and using user key, try to get user's project ID
-      if (!projectId && usingUserKey) {
-        try {
-          const { data: userKeys, error: userKeyError } = await supabaseClient
-            .from('user_api_keys')
-            .select('*')
-            .eq('user_id', user.id)
-            .eq('provider_id', 'ibm_project')
-            .eq('is_active', true)
-            .order('created_at', { ascending: false })
-            .limit(1);
-          
-          if (!userKeyError && userKeys && userKeys.length > 0) {
-            try {
-              projectId = decrypt(userKeys[0].encrypted_key);
-              console.log(`[${requestId}] Using user's IBM Project ID`);
-            } catch (decryptError) {
-              console.error(`[${requestId}] Error decrypting user project ID:`, decryptError);
-              throw new Error('Failed to decrypt your IBM Project ID. Please try adding it again in the API Keys section.');
-            }
+      try {
+        const { data: userKeys, error: userKeyError } = await supabaseClient
+          .from('user_api_keys')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('provider_id', 'ibm_project')
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        if (!userKeyError && userKeys && userKeys.length > 0) {
+          try {
+            projectId = decrypt(userKeys[0].encrypted_key);
+            console.log(`[${requestId}] Using user's IBM Project ID`);
+          } catch (decryptError) {
+            console.error(`[${requestId}] Error decrypting user project ID:`, decryptError);
+            throw new Error('Failed to decrypt your IBM Project ID. Please try adding it again in the API Keys section.');
           }
-        } catch (error) {
-          console.error(`[${requestId}] Error in project ID lookup:`, error);
-          throw new Error(`Error accessing your IBM Project ID: ${error.message}`);
+        } else {
+          console.error(`[${requestId}] No Project ID found for ${providerConfig.name}`);
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: `No Project ID found for ${providerConfig.name}. Please add your Project ID in the API Keys section.`,
+              provider: providerId,
+              requestId,
+              metrics: {
+                responseTime: Date.now() - startTime,
+                timestamp: new Date().toISOString()
+              }
+            }),
+            { 
+              status: 400, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          );
         }
-      }
-      
-      // If no project ID was found, return an error
-      if (!projectId) {
-        console.error(`[${requestId}] No Project ID found for ${providerConfig.name}`);
-        return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: `No Project ID found for ${providerConfig.name}. Please add your Project ID in the API Keys section.`,
-            provider: providerId,
-            requestId,
-            metrics: {
-              responseTime: Date.now() - startTime,
-              timestamp: new Date().toISOString()
-            }
-          }),
-          { 
-            status: 400, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
-        );
+      } catch (error) {
+        console.error(`[${requestId}] Error in project ID lookup:`, error);
+        throw new Error(`Error accessing your IBM Project ID: ${error.message}`);
       }
     }
 

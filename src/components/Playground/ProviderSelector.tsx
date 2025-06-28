@@ -106,39 +106,26 @@ export function ProviderSelector({ selected, onChange, userApiKeys, singleSelect
   };
 
   const hasValidCredentials = (providerId: string): boolean => {
-    // In browser mode, always allow selection - we'll prompt for API keys later if needed
+    // In browser mode, check if the user has a key for this provider
     if (connectionMode === 'browser') {
-      return true;
-    }
-    
-    // In server mode, check if the provider is configured on the server
-    if (connectionMode === 'server') {
-      if (proxyHealth) {
-        return proxyHealth.available && proxyHealth.configuredProviders.includes(providerId);
+      const keyData = keyVault.retrieveDefault(providerId);
+      if (!keyData) {
+        return false;
       }
-      // If health check hasn't completed, assume available for better UX
-      return true;
+
+      const allProviders = [...providers, ...customProviders];
+      const provider = allProviders.find(p => p.id === providerId);
+      if (!provider) return false;
+
+      // Check if all required fields are present
+      return provider.keyRequirements
+        .filter(req => req.required)
+        .every(req => keyData[req.name] && keyData[req.name].trim().length > 0);
     }
     
-    // Fallback - check for user API keys
-    if (userApiKeys && userApiKeys[providerId]) {
-      return true;
-    }
-    
-    // Legacy key vault check
-    const keyData = keyVault.retrieveDefault(providerId);
-    if (!keyData) {
-      return false;
-    }
-
-    const allProviders = [...providers, ...customProviders];
-    const provider = allProviders.find(p => p.id === providerId);
-    if (!provider) return false;
-
-    // Check if all required fields are present
-    return provider.keyRequirements
-      .filter(req => req.required)
-      .every(req => keyData[req.name] && keyData[req.name].trim().length > 0);
+    // In server mode, we don't need to check for credentials
+    // The server will handle this and use the user's stored API keys
+    return true;
   };
 
   // Combine built-in and custom providers
@@ -179,12 +166,9 @@ export function ProviderSelector({ selected, onChange, userApiKeys, singleSelect
       <div className="grid grid-cols-2 gap-3">
         {allProviders.map((provider) => {
           const isSelected = selected.includes(provider.id);
-          const hasUserKey = userApiKeys && userApiKeys[provider.id];
-          const hasLegacyKey = hasValidCredentials(provider.id);
-          const hasCredentials = hasUserKey || hasLegacyKey;
+          const hasCredentials = hasValidCredentials(provider.id);
           const isCustom = customProviders.some(p => p.id === provider.id);
-          // In browser mode, always enable selection
-          const isDisabled = false;
+          const isDisabled = false; // In BYOK, we don't disable providers
           
           return (
             <div
@@ -228,22 +212,12 @@ export function ProviderSelector({ selected, onChange, userApiKeys, singleSelect
                   </div>
                 </div>
 
-                {/* Credentials Status */}
+                {/* API Key Status */}
                 <div className="flex items-center space-x-2 mb-2">
-                  {hasUserKey ? (
+                  {hasCredentials ? (
                     <div className="flex items-center space-x-1 text-xs text-green-600 dark:text-green-400">
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span>Your API Key</span>
-                    </div>
-                  ) : hasLegacyKey ? (
-                    <div className="flex items-center space-x-1 text-xs text-accent-600 dark:text-accent-400">
-                      <div className="w-2 h-2 bg-accent-500 rounded-full"></div>
-                      <span>Legacy Key</span>
-                    </div>
-                  ) : connectionMode === 'server' && proxyHealth?.configuredProviders.includes(provider.id) ? (
-                    <div className="flex items-center space-x-1 text-xs text-blue-600 dark:text-blue-400">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                      <span>Server Key</span>
+                      <span>API Key Available</span>
                     </div>
                   ) : connectionMode === 'browser' ? (
                     <div className="flex items-center space-x-1 text-xs text-orange-600 dark:text-orange-400">
@@ -253,7 +227,7 @@ export function ProviderSelector({ selected, onChange, userApiKeys, singleSelect
                   ) : (
                     <div className="flex items-center space-x-1 text-xs text-orange-600 dark:text-orange-400">
                       <AlertCircle className="w-3 h-3" />
-                      <span>No API Key</span>
+                      <span>API Key Required</span>
                     </div>
                   )}
                 </div>

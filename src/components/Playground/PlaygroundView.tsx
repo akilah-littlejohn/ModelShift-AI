@@ -61,7 +61,7 @@ export function PlaygroundView() {
         parameters: selectedParameters,
         agentId: selectedAgent?.id || null,
         userId: user.id,
-        useUserKey: connectionMode === 'browser', // Use user key in browser mode
+        useUserKey: true, // Always use user key in BYOK architecture
       });
 
       // Calculate execution time

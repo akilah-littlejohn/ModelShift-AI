@@ -570,6 +570,16 @@ To fix this:
           const errorText = await response.text();
           console.error(`Health check failed with status ${response.status}:`, errorText);
           
+          // If we get a 404, the function might not be deployed
+          if (response.status === 404) {
+            return {
+              available: false,
+              authenticated: true,
+              configuredProviders: [],
+              errors: ['Edge Function not found. Please deploy the ai-proxy Edge Function using "npx supabase functions deploy ai-proxy"']
+            };
+          }
+          
           return {
             available: false,
             authenticated: true,

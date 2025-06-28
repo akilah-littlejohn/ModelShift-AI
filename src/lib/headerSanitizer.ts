@@ -33,8 +33,14 @@ export function sanitizeHeaderValue(value: string, headerName?: string): string 
     return value;
   }
   
-  // Try to replace common problematic characters
-  const sanitized = value
+  // Aggressively remove all zero-width spaces and other invisible characters
+  let sanitized = value
+    // Remove zero-width spaces (U+200B)
+    .replace(/\u200B/g, '')
+    // Remove other zero-width characters
+    .replace(/[\u200C-\u200F\u2060-\u2064\uFEFF]/g, '')
+    // Remove other invisible Unicode characters
+    .replace(/[\u2000-\u200A\u2028-\u202F]/g, ' ')
     // Replace smart quotes with straight quotes
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u201C\u201D]/g, '"')
@@ -58,7 +64,14 @@ export function sanitizeHeaderValue(value: string, headerName?: string): string 
     
     const errorMsg = `Header ${headerName || ''} contains invalid characters: ${invalidChars.join(', ')}`;
     console.error(errorMsg);
-    throw new Error(errorMsg);
+    
+    // As a last resort, strip all non-ASCII characters
+    sanitized = sanitized.replace(/[^\x00-\x7F]/g, '');
+    
+    // If we still have invalid characters, throw an error
+    if (!isValidHeaderValue(sanitized)) {
+      throw new Error(errorMsg);
+    }
   }
   
   return sanitized;

@@ -78,6 +78,7 @@ export default defineConfig({
         secure: true,
         timeout: 180000,
         configure: (proxy, _options) => {
+          proxy.options.proxyTimeout = 180000;
           proxy.on('error', (err, _req, _res) => {
             console.log('Gemini proxy error', err);
           });

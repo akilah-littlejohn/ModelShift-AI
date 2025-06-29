@@ -16,6 +16,7 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/supabase/, ''),
         secure: true,
+        timeout: 180000,
         headers: {
           'Origin': process.env.VITE_SUPABASE_URL || 'https://owzbrgcwyuugzjafadjy.supabase.co'
         }
@@ -26,6 +27,7 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/supabase-functions/, ''),
         secure: true,
+        timeout: 180000,
         headers: {
           'Origin': process.env.VITE_SUPABASE_URL || 'https://owzbrgcwyuugzjafadjy.supabase.co'
         }
@@ -36,6 +38,7 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/openai/, ''),
         secure: true,
+        timeout: 180000,
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
             console.log('OpenAI proxy error', err);
@@ -54,6 +57,7 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/anthropic/, ''),
         secure: true,
+        timeout: 180000,
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
             console.log('Anthropic proxy error', err);
@@ -72,6 +76,7 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/gemini/, ''),
         secure: true,
+        timeout: 180000,
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
             console.log('Gemini proxy error', err);
@@ -90,6 +95,7 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/ibm/, ''),
         secure: true,
+        timeout: 180000,
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
             console.log('IBM proxy error', err);

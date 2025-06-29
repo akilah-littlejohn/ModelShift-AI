@@ -4,7 +4,7 @@ import { serverEncryption } from '../api-keys/encryption';
 import { getProxyUrl, isDevelopment } from '../devProxy';
 import type { Provider } from '../../types';
 
-/* export interface ProxyRequest {
+ export interface ProxyRequest {
   providerId: string;
   prompt: string;
   model?: string;
@@ -33,7 +33,7 @@ export class ProxyService {
   /**
    * Make an authenticated API call through the Supabase Edge Function
    */
- /* static async callProvider(request: ProxyRequest): Promise<ProxyResponse> {
+  static async callProvider(request: ProxyRequest): Promise<ProxyResponse> {
     const startTime = Date.now();
     
     try {
@@ -285,7 +285,7 @@ export class ProxyService {
    * Make a direct API call from the browser to the provider
    * This is used when in "browser mode" instead of "server mode"
    */
-  /* private static async callProviderDirectly(request: ProxyRequest): Promise<ProxyResponse> {
+  private static async callProviderDirectly(request: ProxyRequest): Promise<ProxyResponse> {
     const startTime = Date.now();
     
     try {
@@ -460,7 +460,7 @@ To fix this:
   /**
    * Check if the proxy service is available and properly configured
    */
- /* static async checkProxyHealth(): Promise<{
+  static async checkProxyHealth(): Promise<{
     available: boolean;
     authenticated: boolean;
     configuredProviders: string[];
@@ -468,7 +468,7 @@ To fix this:
   }> {
     try {
       // Check connection mode first - if in browser mode, return success immediately
- /*     const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'server';
+      const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'server';
       if (connectionMode === 'browser') {
         console.log('Browser mode detected, skipping proxy health check');
         return {
@@ -647,7 +647,7 @@ To fix this:
   /**
    * Estimate cost based on provider and tokens
    */
- /* private static estimateCost(providerId: string, tokens: number): number {
+  private static estimateCost(providerId: string, tokens: number): number {
     // Pricing per 1K tokens (as of 2024)
     const pricing: Record<string, number> = {
       openai: 0.06, // GPT-4 output pricing per 1K tokens

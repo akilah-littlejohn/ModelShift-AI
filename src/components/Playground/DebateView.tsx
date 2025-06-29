@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Swords, Play, X, Settings, Plus, Minus, RefreshCw, AlertTriangle, Info, Download, Copy, Check, Calendar, Filter } from 'lucide-react';
+import { Swords, Play, X, Settings, Plus, Minus, RefreshCw, AlertTriangle, Info, Download, Copy, Check, Calendar, Filter, Clock } from 'lucide-react';
 import { ProviderSelector } from './ProviderSelector';
 import { AgentSelector } from './AgentSelector';
 import { ResponseComparison } from './ResponseComparison';
@@ -7,6 +7,7 @@ import { ProxyService } from '../../lib/api/ProxyService';
 import { useAuth } from '../../contexts/AuthContext';
 import { AgentService } from '../../lib/agents';
 import { db } from '../../lib/supabase';
+import { IS_SERVER_MODE_COMING_SOON, CONNECTION_MODES } from '../../lib/constants';
 import { v4 as uuidv4 } from 'uuid';
 import toast from 'react-hot-toast';
 import type { DebateSideConfig, ComparisonResult } from '../../types';
@@ -89,7 +90,7 @@ export function DebateView() {
   });
 
   // Load connection mode from localStorage
-  const [connectionMode, setConnectionMode] = useState('browser'); // Default to browser mode for development
+  const [connectionMode, setConnectionMode] = useState(CONNECTION_MODES.BROWSER); // Default to browser mode for development
   
   useEffect(() => {
     const savedMode = localStorage.getItem('modelshift-connection-mode');
@@ -97,7 +98,7 @@ export function DebateView() {
       setConnectionMode(savedMode);
     } else {
       // Set default to browser mode for development
-      localStorage.setItem('modelshift-connection-mode', 'browser');
+      localStorage.setItem('modelshift-connection-mode', CONNECTION_MODES.BROWSER);
     }
   }, []);
 
@@ -266,7 +267,7 @@ Your response should be 3-4 paragraphs, focused on the strongest counterargument
         prompt: debateContext,
         agentId: agentId || undefined,
         userId: userId,
-        useUserKey: connectionMode === 'browser'
+        useUserKey: connectionMode === CONNECTION_MODES.BROWSER
       });
 
       // Calculate execution time
@@ -342,7 +343,7 @@ Return ONLY the improved prompt text without any explanations, introductions, or
         providerId: 'gemini',
         prompt: improvementPrompt,
         userId: user.id,
-        useUserKey: connectionMode === 'browser'
+        useUserKey: connectionMode === CONNECTION_MODES.BROWSER
       });
 
       if (!response.success) {
@@ -662,9 +663,14 @@ Return ONLY the improved prompt text without any explanations, introductions, or
       <div className="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full ${connectionMode === 'server' ? 'bg-primary-500' : 'bg-secondary-500'}`}></div>
+            <div className={`w-2 h-2 rounded-full ${connectionMode === CONNECTION_MODES.SERVER ? 'bg-primary-500' : 'bg-secondary-500'}`}></div>
             <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-              {connectionMode === 'server' ? 'Server Proxy Mode' : 'Direct Browser Mode'}
+              {connectionMode === CONNECTION_MODES.SERVER ? 'Server Proxy Mode' : 'Direct Browser Mode'}
+              {connectionMode === CONNECTION_MODES.SERVER && IS_SERVER_MODE_COMING_SOON && (
+                <span className="ml-2 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full text-xs font-medium">
+                  Coming Soon
+                </span>
+              )}
             </span>
           </div>
           <a 

@@ -2,10 +2,9 @@ import { supabase } from '../supabase';
 import { apiKeysDb } from '../api-keys/api-keys-db';
 import { serverEncryption } from '../api-keys/encryption';
 import { getProxyUrl, isDevelopment } from '../devProxy';
-import { IS_SERVER_MODE_COMING_SOON, CONNECTION_MODES } from '../constants';
 import type { Provider } from '../../types';
 
-export interface ProxyRequest {
+ export interface ProxyRequest {
   providerId: string;
   prompt: string;
   model?: string;
@@ -38,15 +37,9 @@ export class ProxyService {
     const startTime = Date.now();
     
     try {
-      // Check if server mode is coming soon - if so, force browser mode
-      if (IS_SERVER_MODE_COMING_SOON) {
-        console.log('Server mode is coming soon, forcing browser mode');
-        localStorage.setItem('modelshift-connection-mode', CONNECTION_MODES.BROWSER);
-      }
-      
       // Check if we should use direct browser mode
-      const connectionMode = localStorage.getItem('modelshift-connection-mode') || CONNECTION_MODES.SERVER;
-      if (connectionMode === CONNECTION_MODES.BROWSER) {
+      const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'server';
+      if (connectionMode === 'browser') {
         console.log('Using direct browser mode for API call');
         return this.callProviderDirectly(request);
       }
@@ -158,7 +151,7 @@ export class ProxyService {
         // If we get a 404, fall back to direct browser mode
         if (response.status === 404) {
           console.log('404 error with proxy, falling back to direct browser mode');
-          localStorage.setItem('modelshift-connection-mode', CONNECTION_MODES.BROWSER);
+          localStorage.setItem('modelshift-connection-mode', 'browser');
           return this.callProviderDirectly(request);
         }
         
@@ -193,14 +186,14 @@ export class ProxyService {
         
         // Fall back to direct browser mode
         console.log('Failed to parse JSON response, falling back to direct browser mode');
-        localStorage.setItem('modelshift-connection-mode', CONNECTION_MODES.BROWSER);
+        localStorage.setItem('modelshift-connection-mode', 'browser');
         return this.callProviderDirectly(request);
       }
 
       if (!data) {
         // Fall back to direct browser mode
         console.log('No data in response, falling back to direct browser mode');
-        localStorage.setItem('modelshift-connection-mode', CONNECTION_MODES.BROWSER);
+        localStorage.setItem('modelshift-connection-mode', 'browser');
         return this.callProviderDirectly(request);
       }
 
@@ -252,7 +245,7 @@ export class ProxyService {
           error.message.includes('NetworkError') ||
           error.message.includes('Network request failed'))) {
         console.log('Network error, falling back to direct browser mode');
-        localStorage.setItem('modelshift-connection-mode', CONNECTION_MODES.BROWSER);
+        localStorage.setItem('modelshift-connection-mode', 'browser');
         return this.callProviderDirectly(request);
       }
       
@@ -474,19 +467,9 @@ To fix this:
     errors: string[];
   }> {
     try {
-      // If server mode is coming soon, return a predefined response
-      if (IS_SERVER_MODE_COMING_SOON) {
-        return {
-          available: false,
-          authenticated: true,
-          configuredProviders: [],
-          errors: ['Server proxy mode is coming soon. Please use direct browser mode for now.']
-        };
-      }
-      
       // Check connection mode first - if in browser mode, return success immediately
-      const connectionMode = localStorage.getItem('modelshift-connection-mode') || CONNECTION_MODES.SERVER;
-      if (connectionMode === CONNECTION_MODES.BROWSER) {
+      const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'server';
+      if (connectionMode === 'browser') {
         console.log('Browser mode detected, skipping proxy health check');
         return {
           available: true,

@@ -1,5 +1,4 @@
 import type { Provider } from '../types';
-import { PROVIDER_STATUS } from '../lib/constants';
 
 export const providers: Provider[] = [
   {
@@ -25,7 +24,7 @@ export const providers: Provider[] = [
         output: 0.06
       }
     },
-    isAvailable: PROVIDER_STATUS.OPENAI,
+    isAvailable: true,
     apiConfig: {
       baseUrl: 'https://api.openai.com',
       endpointPath: '/v1/chat/completions',
@@ -76,7 +75,7 @@ export const providers: Provider[] = [
         output: 0.0015
       }
     },
-    isAvailable: PROVIDER_STATUS.GEMINI,
+    isAvailable: true,
     apiConfig: {
       baseUrl: 'https://generativelanguage.googleapis.com',
       endpointPath: '/v1beta/models/gemini-2.0-flash:generateContent',
@@ -129,7 +128,7 @@ export const providers: Provider[] = [
         output: 0.075
       }
     },
-    isAvailable: PROVIDER_STATUS.CLAUDE,
+    isAvailable: true,
     apiConfig: {
       baseUrl: 'https://api.anthropic.com',
       endpointPath: '/v1/messages',
@@ -188,7 +187,7 @@ export const providers: Provider[] = [
         output: 0.04
       }
     },
-    isAvailable: PROVIDER_STATUS.IBM,
+    isAvailable: true,
     apiConfig: {
       baseUrl: 'https://us-south.ml.cloud.ibm.com',
       endpointPath: '/ml/v1/text/generation',

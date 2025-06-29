@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Check, AlertCircle, RefreshCw, Clock } from 'lucide-react';
+import { Check, AlertCircle, RefreshCw } from 'lucide-react';
 import { providers } from '../../data/providers';
-import { keyVault } from '../../encryption';
+import { keyVault } from '../../lib/encryption';
 import { ProxyService } from '../../lib/api/ProxyService';
 import { useAuth } from '../../contexts/AuthContext';
-import { IS_SERVER_MODE_COMING_SOON, CONNECTION_MODES } from '../../lib/constants';
 import type { Provider } from '../../types';
 
 interface ProviderSelectorProps {
@@ -23,7 +22,7 @@ export function ProviderSelector({ selected, onChange, userApiKeys, singleSelect
   } | null>(null);
   const [isCheckingHealth, setIsCheckingHealth] = useState(false);
   const [connectionMode, setConnectionMode] = useState(() => 
-    localStorage.getItem('modelshift-connection-mode') || CONNECTION_MODES.SERVER
+    localStorage.getItem('modelshift-connection-mode') || 'server'
   );
 
   useEffect(() => {
@@ -32,7 +31,7 @@ export function ProviderSelector({ selected, onChange, userApiKeys, singleSelect
 
     // Listen for connection mode changes
     const handleStorageChange = () => {
-      const newMode = localStorage.getItem('modelshift-connection-mode') || CONNECTION_MODES.SERVER;
+      const newMode = localStorage.getItem('modelshift-connection-mode') || 'server';
       if (newMode !== connectionMode) {
         setConnectionMode(newMode);
         checkServerHealth();
@@ -62,7 +61,7 @@ export function ProviderSelector({ selected, onChange, userApiKeys, singleSelect
 
   const checkServerHealth = async () => {
     // Only check health in server mode
-    if (connectionMode !== CONNECTION_MODES.SERVER) {
+    if (connectionMode !== 'server') {
       setProxyHealth(null);
       return;
     }
@@ -108,7 +107,7 @@ export function ProviderSelector({ selected, onChange, userApiKeys, singleSelect
 
   const hasValidCredentials = (providerId: string): boolean => {
     // In browser mode, check if the user has a key for this provider
-    if (connectionMode === CONNECTION_MODES.BROWSER) {
+    if (connectionMode === 'browser') {
       const keyData = keyVault.retrieveDefault(providerId);
       if (!keyData) {
         return false;
@@ -135,7 +134,7 @@ export function ProviderSelector({ selected, onChange, userApiKeys, singleSelect
   return (
     <div className="space-y-4">
       {/* Server Health Status (only show in server mode) */}
-      {connectionMode === CONNECTION_MODES.SERVER && (
+      {connectionMode === 'server' && (
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-2 text-sm">
             <div className={`w-2 h-2 rounded-full ${proxyHealth?.available ? 'bg-green-500' : 'bg-amber-500'}`}></div>
@@ -143,12 +142,6 @@ export function ProviderSelector({ selected, onChange, userApiKeys, singleSelect
               {isCheckingHealth ? 'Checking server...' : 
                proxyHealth?.available ? 'Server connected' : 'Server unavailable'}
             </span>
-            {IS_SERVER_MODE_COMING_SOON && (
-              <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full text-xs font-medium flex items-center space-x-1">
-                <Clock className="w-3 h-3" />
-                <span>Coming Soon</span>
-              </span>
-            )}
           </div>
           <button 
             onClick={checkServerHealth}
@@ -175,7 +168,7 @@ export function ProviderSelector({ selected, onChange, userApiKeys, singleSelect
           const isSelected = selected.includes(provider.id);
           const hasCredentials = hasValidCredentials(provider.id);
           const isCustom = customProviders.some(p => p.id === provider.id);
-          const isDisabled = !provider.isAvailable; // Disable unavailable providers
+          const isDisabled = false; // In BYOK, we don't disable providers
           
           return (
             <div
@@ -212,11 +205,6 @@ export function ProviderSelector({ selected, onChange, userApiKeys, singleSelect
                           Custom
                         </span>
                       )}
-                      {!provider.isAvailable && (
-                        <span className="px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full text-xs font-medium">
-                          Temporarily Unavailable
-                        </span>
-                      )}
                     </div>
                     <p className="text-xs text-neutral-500 dark:text-neutral-400">
                       Max: {provider.capabilities.maxTokens} tokens
@@ -231,7 +219,7 @@ export function ProviderSelector({ selected, onChange, userApiKeys, singleSelect
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                       <span>API Key Available</span>
                     </div>
-                  ) : connectionMode === CONNECTION_MODES.BROWSER ? (
+                  ) : connectionMode === 'browser' ? (
                     <div className="flex items-center space-x-1 text-xs text-orange-600 dark:text-orange-400">
                       <AlertCircle className="w-3 h-3" />
                       <span>Add API Key in Settings</span>

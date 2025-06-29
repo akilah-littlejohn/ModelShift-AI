@@ -6,7 +6,6 @@ import { AgentSelector } from './AgentSelector';
 import { ProxyService } from '../../lib/api/ProxyService';
 import { AgentService } from '../../lib/agents';
 import { db } from '../../lib/supabase';
-import { IS_SERVER_MODE_COMING_SOON, CONNECTION_MODES } from '../../lib/constants';
 import type { MessageType } from './types';
 
 export function PlaygroundView() {
@@ -18,7 +17,7 @@ export function PlaygroundView() {
   const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash');
   const [selectedParameters, setSelectedParameters] = useState({ maxOutputTokens: 256 });
   const [selectedAgent, setSelectedAgent] = useState<{ id: string } | null>(null);
-  const [connectionMode, setConnectionMode] = useState(CONNECTION_MODES.BROWSER); // Default to browser mode for development
+  const [connectionMode, setConnectionMode] = useState('browser'); // Default to browser mode for development
 
   // Load connection mode from localStorage
   useEffect(() => {
@@ -27,7 +26,7 @@ export function PlaygroundView() {
       setConnectionMode(savedMode);
     } else {
       // Set default to browser mode for development
-      localStorage.setItem('modelshift-connection-mode', CONNECTION_MODES.BROWSER);
+      localStorage.setItem('modelshift-connection-mode', 'browser');
     }
   }, []);
 
@@ -169,14 +168,9 @@ export function PlaygroundView() {
       <div className="bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-3 mb-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full ${connectionMode === CONNECTION_MODES.SERVER ? 'bg-primary-500' : 'bg-secondary-500'}`}></div>
+            <div className={`w-2 h-2 rounded-full ${connectionMode === 'server' ? 'bg-primary-500' : 'bg-secondary-500'}`}></div>
             <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-              {connectionMode === CONNECTION_MODES.SERVER ? 'Server Proxy Mode' : 'Direct Browser Mode'}
-              {connectionMode === CONNECTION_MODES.SERVER && IS_SERVER_MODE_COMING_SOON && (
-                <span className="ml-2 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full text-xs font-medium">
-                  Coming Soon
-                </span>
-              )}
+              {connectionMode === 'server' ? 'Server Proxy Mode' : 'Direct Browser Mode'}
             </span>
           </div>
           <a 

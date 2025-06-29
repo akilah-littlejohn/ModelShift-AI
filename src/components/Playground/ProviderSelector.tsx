@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Check, AlertCircle, RefreshCw, Clock } from 'lucide-react';
 import { providers } from '../../data/providers';
-import { keyVault } from '../../encryption';
+import { keyVault } from '../../lib/encryption';
 import { ProxyService } from '../../lib/api/ProxyService';
 import { useAuth } from '../../contexts/AuthContext';
 import { IS_SERVER_MODE_COMING_SOON, CONNECTION_MODES } from '../../lib/constants';

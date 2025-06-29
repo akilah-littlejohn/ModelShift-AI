@@ -40,6 +40,7 @@ export default defineConfig({
         secure: true,
         timeout: 180000,
         configure: (proxy, _options) => {
+          proxy.options.proxyTimeout = 180000;
           proxy.on('error', (err, _req, _res) => {
             console.log('OpenAI proxy error', err);
           });
@@ -59,6 +60,7 @@ export default defineConfig({
         secure: true,
         timeout: 180000,
         configure: (proxy, _options) => {
+          proxy.options.proxyTimeout = 180000;
           proxy.on('error', (err, _req, _res) => {
             console.log('Anthropic proxy error', err);
           });
@@ -98,6 +100,7 @@ export default defineConfig({
         secure: true,
         timeout: 180000,
         configure: (proxy, _options) => {
+          proxy.options.proxyTimeout = 180000;
           proxy.on('error', (err, _req, _res) => {
             console.log('IBM proxy error', err);
           });

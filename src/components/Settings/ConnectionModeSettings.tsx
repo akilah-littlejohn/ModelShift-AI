@@ -30,7 +30,14 @@ export function ConnectionModeSettings() {
       if (health.available) {
         toast.success('Server connection is available');
       } else if (health.authenticated && health.errors.length > 0) {
-        toast.error(`Connection issue: ${health.errors[0]}`);
+        // Check if we automatically switched to browser mode
+        const currentMode = localStorage.getItem('modelshift-connection-mode');
+        if (currentMode === 'browser' && connectionMode !== 'browser') {
+          setConnectionMode('browser');
+          toast.success('Automatically switched to Direct Browser Mode');
+        } else {
+          toast.error(`Connection issue: ${health.errors[0]}`);
+        }
       } else if (!health.authenticated) {
         toast.error('Please sign in again to continue');
       }
@@ -150,12 +157,12 @@ export function ConnectionModeSettings() {
                     </h3>
                     <ul className="text-sm text-red-600 dark:text-red-400 space-y-1 pl-5 list-disc">
                       {proxyHealth.errors.map((error, index) => {
-                        // Updated: More user-friendly error messages
+                        // Enhanced: More user-friendly error messages
                         let userFriendlyError = error;
-                        if (error.includes('Supabase')) {
-                          userFriendlyError = 'Server connection not properly configured';
-                        } else if (error.includes('Edge Function')) {
-                          userFriendlyError = 'Server component not available';
+                        if (error.includes('Supabase configuration incomplete')) {
+                          userFriendlyError = 'Supabase not configured - please set up your .env.local file with real Supabase credentials';
+                        } else if (error.includes('Edge Function not deployed')) {
+                          userFriendlyError = 'Server component not available - automatically switched to Direct Browser Mode';
                         } else if (error.includes('API key')) {
                           userFriendlyError = 'API key configuration issue on server';
                         } else if (error.includes('auth')) {
@@ -234,9 +241,9 @@ export function ConnectionModeSettings() {
               API requests are made directly from your browser. Requires API keys to be configured in the API Keys section.
             </p>
             <div className="flex items-center space-x-2 text-xs">
-              <div className="w-2 h-2 rounded-full bg-amber-500"></div>
-              <span className="text-amber-600 dark:text-amber-400">
-                May be subject to CORS limitations
+              <div className="w-2 h-2 rounded-full bg-green-500"></div>
+              <span className="text-green-600 dark:text-green-400">
+                Always available
               </span>
             </div>
           </div>
@@ -260,6 +267,25 @@ export function ConnectionModeSettings() {
         </div>
       </div>
 
+      {/* Setup Instructions */}
+      <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+        <div className="flex items-start space-x-3">
+          <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <h3 className="font-medium text-green-900 dark:text-green-100 mb-1">
+              Getting Started
+            </h3>
+            <p className="text-sm text-green-700 dark:text-green-300 mb-2">
+              To use ModelShift AI, you have two options:
+            </p>
+            <ul className="text-sm text-green-700 dark:text-green-300 space-y-1 list-disc pl-5">
+              <li><strong>Quick Start:</strong> Use Direct Browser Mode and add your API keys in Settings → API Keys</li>
+              <li><strong>Production Setup:</strong> Configure your .env.local file with Supabase credentials and deploy the Edge Function</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
       {/* Troubleshooting Section */}
       <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
         <div className="flex items-start space-x-3">
@@ -272,8 +298,8 @@ export function ConnectionModeSettings() {
               If you're experiencing issues with Server Proxy Mode:
             </p>
             <ul className="text-sm text-amber-700 dark:text-amber-300 space-y-1 list-disc pl-5">
-              <li>Ensure your server components are properly deployed</li>
-              <li>Check that your API keys are correctly configured</li>
+              <li>Check that your .env.local file contains real Supabase credentials (not placeholder values)</li>
+              <li>Ensure the ai-proxy Edge Function is deployed to your Supabase project</li>
               <li>Verify your authentication is working properly</li>
               <li>Try switching to Direct Browser Mode and adding your API keys</li>
             </ul>
@@ -290,12 +316,12 @@ export function ConnectionModeSettings() {
               Need Help?
             </h3>
             <p className="text-sm text-blue-700 dark:text-blue-300 mb-2">
-              If you're still having issues after troubleshooting:
+              For detailed setup instructions:
             </p>
             <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1 list-disc pl-5">
-              <li>Check the server logs for detailed information</li>
-              <li>Verify your environment variables in your configuration file</li>
-              <li>Run the diagnostic script: <code className="bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded">npm run check-edge-function</code></li>
+              <li>Check the SUPABASE_SETUP_GUIDE.md in the docs folder</li>
+              <li>Follow the EDGE_FUNCTION_DEPLOYMENT.md guide for server setup</li>
+              <li>Use Direct Browser Mode as a quick alternative</li>
               <li>Check the browser console for detailed error messages</li>
             </ul>
           </div>

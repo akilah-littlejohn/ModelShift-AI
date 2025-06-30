@@ -31,6 +31,35 @@ export interface ProxyResponse {
 
 export class ProxyService {
   /**
+   * Check if Supabase is properly configured with real values
+   */
+  private static isSupabaseConfigured(): boolean {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    // Check if values exist and are not placeholder values
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return false;
+    }
+    
+    // Check for common placeholder patterns
+    const placeholderPatterns = [
+      'your-project-id',
+      'demo',
+      'example',
+      'placeholder',
+      'your-anon-key',
+      'abcdefgh'
+    ];
+    
+    const hasPlaceholder = placeholderPatterns.some(pattern => 
+      supabaseUrl.includes(pattern) || supabaseAnonKey.includes(pattern)
+    );
+    
+    return !hasPlaceholder;
+  }
+
+  /**
    * Make an authenticated API call through the Supabase Edge Function
    */
   static async callProvider(request: ProxyRequest): Promise<ProxyResponse> {
@@ -41,6 +70,13 @@ export class ProxyService {
       const connectionMode = localStorage.getItem('modelshift-connection-mode') || 'server';
       if (connectionMode === 'browser') {
         console.log('Using direct browser mode for API call');
+        return this.callProviderDirectly(request);
+      }
+      
+      // Check if Supabase is properly configured
+      if (!this.isSupabaseConfigured()) {
+        console.log('Supabase not properly configured, falling back to direct browser mode');
+        localStorage.setItem('modelshift-connection-mode', 'browser');
         return this.callProviderDirectly(request);
       }
       
@@ -65,16 +101,6 @@ export class ProxyService {
         throw new Error('Please sign in to continue.');
       }
 
-      // Check if Supabase is properly configured for proxy mode
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      
-      if (!supabaseUrl || !supabaseAnonKey || 
-          supabaseUrl.includes('demo') || supabaseAnonKey.includes('demo')) {
-        console.log('Supabase not configured for proxy mode, falling back to direct browser mode');
-        return this.callProviderDirectly(request);
-      }
-
       // Prepare the request body - always use user's API key in BYOK mode
       const requestBody = {
         providerId: request.providerId,
@@ -95,6 +121,7 @@ export class ProxyService {
       });
 
       // Get the correct URL for the Edge Function
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const originalProxyUrl = `${supabaseUrl}/functions/v1/ai-proxy`;
       const proxyUrl = getProxyUrl(originalProxyUrl);
 
@@ -125,6 +152,7 @@ export class ProxyService {
             fetchError.message.includes('NetworkError') ||
             fetchError.message.includes('Network request failed')) {
           console.log('Network error with proxy, falling back to direct browser mode');
+          localStorage.setItem('modelshift-connection-mode', 'browser');
           return this.callProviderDirectly(request);
         }
         
@@ -148,9 +176,9 @@ export class ProxyService {
           body: errorText
         });
         
-        // If we get a 404, fall back to direct browser mode
-        if (response.status === 404) {
-          console.log('404 error with proxy, falling back to direct browser mode');
+        // If we get a 404 or path invalid error, fall back to direct browser mode
+        if (response.status === 404 || errorText.includes('requested path is invalid')) {
+          console.log('404 or invalid path error with proxy, falling back to direct browser mode');
           localStorage.setItem('modelshift-connection-mode', 'browser');
           return this.callProviderDirectly(request);
         }
@@ -479,6 +507,18 @@ To fix this:
         };
       }
 
+      // Check if Supabase is properly configured
+      if (!this.isSupabaseConfigured()) {
+        console.log('Supabase not properly configured, automatically switching to browser mode');
+        localStorage.setItem('modelshift-connection-mode', 'browser');
+        return {
+          available: false,
+          authenticated: false,
+          configuredProviders: [],
+          errors: ['Supabase configuration incomplete. Please configure your .env.local file with real Supabase credentials, or use Direct Browser Mode.']
+        };
+      }
+
       // Check if user is authenticated with timeout
       const sessionPromise = supabase.auth.getSession();
       const sessionTimeoutPromise = new Promise((_, reject) => 
@@ -520,26 +560,12 @@ To fix this:
         };
       }
 
-      // Check if Supabase is configured for proxy mode
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      
-      if (!supabaseUrl || !supabaseAnonKey || 
-          supabaseUrl.includes('demo') || supabaseAnonKey.includes('demo')) {
-        console.error('Supabase not configured for proxy mode');
-        return {
-          available: false,
-          authenticated: true,
-          configuredProviders: [],
-          errors: ['Server connection not configured. Please use direct browser mode.']
-        };
-      }
-
       // Test the ai-proxy function with a health check
       try {
         console.log('Testing ai-proxy function with health check');
         
         // Build the health check request
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
         const originalEndpoint = `${supabaseUrl}/functions/v1/ai-proxy`;
         const proxyEndpoint = getProxyUrl(originalEndpoint);
         
@@ -563,16 +589,16 @@ To fix this:
           const errorText = await response.text();
           console.error(`Health check failed with status ${response.status}:`, errorText);
           
-          // If we get a 404, the function might not be deployed
-          if (response.status === 404) {
-            // Set connection mode to browser automatically when Edge Function is not found
+          // If we get a 404 or invalid path error, automatically switch to browser mode
+          if (response.status === 404 || errorText.includes('requested path is invalid')) {
+            console.log('Edge Function not found or invalid path, automatically switching to browser mode');
             localStorage.setItem('modelshift-connection-mode', 'browser');
             
             return {
               available: false,
               authenticated: true,
               configuredProviders: [],
-              errors: ['Edge Function not found. Please deploy the ai-proxy Edge Function or use browser mode.']
+              errors: ['Edge Function not deployed. Automatically switched to Direct Browser Mode. You can add your API keys in the API Keys section to continue.']
             };
           }
           
@@ -619,7 +645,7 @@ To fix this:
         let errorMessage = testError instanceof Error ? testError.message : 'Connection check failed';
         
         if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
-          errorMessage = 'Network error: Unable to connect to the Edge Function. Please check your internet connection.';
+          errorMessage = 'Network error: Unable to connect to the Edge Function. Automatically switched to Direct Browser Mode.';
           
           // Set connection mode to browser automatically when network error occurs
           localStorage.setItem('modelshift-connection-mode', 'browser');

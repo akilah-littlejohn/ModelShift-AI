@@ -1,45 +1,41 @@
 import React, { useState, useEffect } from 'react';
-import { Server, Globe, Zap, AlertTriangle, RefreshCw, CheckCircle, XCircle, Info, ExternalLink } from 'lucide-react';
+import { Server, Globe, Zap, AlertTriangle, RefreshCw, CheckCircle, XCircle, Info } from 'lucide-react';
 import { ProxyService } from '../../lib/api/ProxyService';
-import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
 export function ConnectionModeSettings() {
-  const { user } = useAuth();
-  const [connectionMode, setConnectionMode] = useState(() => 
-    localStorage.getItem('modelshift-connection-mode') || 'server'
-  );
+  const [connectionMode, setConnectionMode] = useState(() => {
+    return localStorage.getItem('modelshift-connection-mode') || 'browser';
+  });
   const [proxyHealth, setProxyHealth] = useState<{
     available: boolean;
     authenticated: boolean;
     configuredProviders: string[];
     errors: string[];
   } | null>(null);
-  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
+  // Check proxy health on component mount
   useEffect(() => {
-    checkServerHealth();
+    checkProxyHealth();
   }, []);
 
-  const checkServerHealth = async () => {
-    // Only check health in server mode
-    if (connectionMode !== 'server') {
-      setProxyHealth(null);
-      return;
-    }
-
-    setIsCheckingHealth(true);
+  const checkProxyHealth = async () => {
+    setIsLoading(true);
     try {
       const health = await ProxyService.checkProxyHealth();
       setProxyHealth(health);
       
+      // Show toast based on health status
       if (health.available) {
         toast.success('Server connection is available');
-      } else if (health.errors.length > 0) {
+      } else if (health.authenticated && health.errors.length > 0) {
         toast.error(`Connection issue: ${health.errors[0]}`);
+      } else if (!health.authenticated) {
+        toast.error('Please sign in again to continue');
       }
     } catch (error) {
-      console.error('Failed to check server health:', error);
+      console.error('Failed to check proxy health:', error);
       toast.error('Failed to check connection status');
       setProxyHealth({
         available: false,
@@ -47,8 +43,12 @@ export function ConnectionModeSettings() {
         configuredProviders: [],
         errors: [error instanceof Error ? error.message : 'Unknown error']
       });
+      
+      // Set connection mode to browser automatically when health check fails
+      localStorage.setItem('modelshift-connection-mode', 'browser');
+      setConnectionMode('browser');
     } finally {
-      setIsCheckingHealth(false);
+      setIsLoading(false);
     }
   };
 
@@ -59,7 +59,7 @@ export function ConnectionModeSettings() {
     
     // If switching to server mode, check health
     if (mode === 'server') {
-      checkServerHealth();
+      checkProxyHealth();
     }
   };
 
@@ -98,11 +98,11 @@ export function ConnectionModeSettings() {
             Server Connection Status
           </h2>
           <button
-            onClick={checkServerHealth}
-            disabled={isCheckingHealth}
+            onClick={checkProxyHealth}
+            disabled={isLoading}
             className="flex items-center space-x-2 px-3 py-1 text-sm bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {isCheckingHealth ? (
+            {isLoading ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
                 <span>Checking...</span>
@@ -149,35 +149,21 @@ export function ConnectionModeSettings() {
                       Connection Issues:
                     </h3>
                     <ul className="text-sm text-red-600 dark:text-red-400 space-y-1 pl-5 list-disc">
-                      {proxyHealth.errors.map((error, index) => (
-                        <li key={index}>{error}</li>
-                      ))}
+                      {proxyHealth.errors.map((error, index) => {
+                        // Updated: More user-friendly error messages
+                        let userFriendlyError = error;
+                        if (error.includes('Supabase')) {
+                          userFriendlyError = 'Server connection not properly configured';
+                        } else if (error.includes('Edge Function')) {
+                          userFriendlyError = 'Server component not available';
+                        } else if (error.includes('API key')) {
+                          userFriendlyError = 'API key configuration issue on server';
+                        } else if (error.includes('auth')) {
+                          userFriendlyError = 'Authentication issue - please sign in again';
+                        }
+                        return <li key={index}>{userFriendlyError}</li>;
+                      })}
                     </ul>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {proxyHealth.errors.some(error => error.includes('Edge Function not found')) && (
-              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-                <div className="flex items-start space-x-3">
-                  <Info className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <h3 className="font-medium text-amber-900 dark:text-amber-100 mb-1">
-                      Edge Function Deployment Required
-                    </h3>
-                    <p className="text-sm text-amber-700 dark:text-amber-300 mb-2">
-                      The ai-proxy Edge Function needs to be deployed to your Supabase project for Server Proxy Mode to work.
-                    </p>
-                    <a 
-                      href="/docs/EDGE_FUNCTION_DEPLOYMENT.md" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center space-x-1 text-sm text-primary-600 dark:text-primary-400 hover:underline"
-                    >
-                      <span>View Deployment Instructions</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
                   </div>
                 </div>
               </div>

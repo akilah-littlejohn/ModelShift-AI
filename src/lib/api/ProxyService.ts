@@ -1,10 +1,10 @@
 import { supabase } from '../supabase';
 import { apiKeysDb } from '../api-keys/api-keys-db';
 import { serverEncryption } from '../api-keys/encryption';
-import { getProxyUrl } from '../devProxy';
+import { getProxyUrl, isDevelopment } from '../devProxy';
 import type { Provider } from '../../types';
 
-export interface ProxyRequest {
+ export interface ProxyRequest {
   providerId: string;
   prompt: string;
   model?: string;
@@ -120,10 +120,12 @@ export class ProxyService {
       } catch (fetchError) {
         console.error('Fetch error:', fetchError);
         
+        // If we get a network error, fall back to direct browser mode
         if (fetchError.message.includes('Failed to fetch') || 
             fetchError.message.includes('NetworkError') ||
             fetchError.message.includes('Network request failed')) {
-          throw new Error(`Network error: Please check your internet connection and try again.`);
+          console.log('Network error with proxy, falling back to direct browser mode');
+          return this.callProviderDirectly(request);
         }
         
         if (fetchError.message.includes('timeout')) {
@@ -146,8 +148,11 @@ export class ProxyService {
           body: errorText
         });
         
+        // If we get a 404, fall back to direct browser mode
         if (response.status === 404) {
-          throw new Error('Edge Function not found. Please deploy the ai-proxy Edge Function to your Supabase project.');
+          console.log('404 error with proxy, falling back to direct browser mode');
+          localStorage.setItem('modelshift-connection-mode', 'browser');
+          return this.callProviderDirectly(request);
         }
         
         // Try to parse as JSON if possible
@@ -178,11 +183,18 @@ export class ProxyService {
       } catch (parseError) {
         const rawText = await responseClone.text();
         console.error('Failed to parse JSON response:', rawText);
-        throw new Error('Invalid response from server. Please check your Supabase Edge Function.');
+        
+        // Fall back to direct browser mode
+        console.log('Failed to parse JSON response, falling back to direct browser mode');
+        localStorage.setItem('modelshift-connection-mode', 'browser');
+        return this.callProviderDirectly(request);
       }
 
       if (!data) {
-        throw new Error('No data received from server. Please check your Supabase Edge Function.');
+        // Fall back to direct browser mode
+        console.log('No data in response, falling back to direct browser mode');
+        localStorage.setItem('modelshift-connection-mode', 'browser');
+        return this.callProviderDirectly(request);
       }
 
       if (!data.success) {
@@ -227,6 +239,16 @@ export class ProxyService {
       
       console.error('Proxy service error:', error);
       
+      // If we get a network error, fall back to direct browser mode
+      if (error.message && (
+          error.message.includes('Failed to fetch') || 
+          error.message.includes('NetworkError') ||
+          error.message.includes('Network request failed'))) {
+        console.log('Network error, falling back to direct browser mode');
+        localStorage.setItem('modelshift-connection-mode', 'browser');
+        return this.callProviderDirectly(request);
+      }
+      
       // Enhance error messages for common issues
       let errorMessage = error.message;
       
@@ -235,7 +257,7 @@ export class ProxyService {
       } else if (error.message.includes('timeout')) {
         errorMessage = `Your request timed out. Please try again with a shorter prompt or try later.`;
       } else if (error.message.includes('not found') && error.message.includes('function')) {
-        errorMessage = `Service not available. Please deploy the ai-proxy Edge Function to your Supabase project.`;
+        errorMessage = `Service not available. Please contact support.`;
       } else if (error.message.includes('requested path is invalid')) {
         errorMessage = `The requested service path is invalid. Please check your provider configuration or contact support.`;
       }
@@ -543,11 +565,14 @@ To fix this:
           
           // If we get a 404, the function might not be deployed
           if (response.status === 404) {
+            // Set connection mode to browser automatically when Edge Function is not found
+            localStorage.setItem('modelshift-connection-mode', 'browser');
+            
             return {
               available: false,
               authenticated: true,
               configuredProviders: [],
-              errors: ['Edge Function not found. Please deploy the ai-proxy Edge Function.']
+              errors: ['Edge Function not found. Please deploy the ai-proxy Edge Function or use browser mode.']
             };
           }
           
@@ -574,12 +599,10 @@ To fix this:
         // Parse the health check response
         const configuredProviders = data.configuredProviders || [];
         const errors = data.errors || [];
-        const byokEnabled = data.serverInfo?.byokEnabled || false;
 
         console.log('Health check successful:', {
           configuredProviders,
-          errors,
-          byokEnabled
+          errors
         });
 
         return {
@@ -597,10 +620,16 @@ To fix this:
         
         if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
           errorMessage = 'Network error: Unable to connect to the Edge Function. Please check your internet connection.';
+          
+          // Set connection mode to browser automatically when network error occurs
+          localStorage.setItem('modelshift-connection-mode', 'browser');
         } else if (errorMessage.includes('timeout')) {
           errorMessage = 'Connection timeout: The Edge Function took too long to respond.';
         } else if (errorMessage.includes('not found') || errorMessage.includes('404')) {
           errorMessage = 'Edge Function not found: Please make sure the ai-proxy function is deployed.';
+          
+          // Set connection mode to browser automatically when Edge Function is not found
+          localStorage.setItem('modelshift-connection-mode', 'browser');
         }
         
         return {

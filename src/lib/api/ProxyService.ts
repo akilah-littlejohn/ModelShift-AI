@@ -148,9 +148,9 @@ export class ProxyService {
           body: errorText
         });
         
-        // If we get a 404, fall back to direct browser mode
+        // If we get a 404, fall back to direct browser mode and switch connection mode
         if (response.status === 404) {
-          console.log('404 error with proxy, falling back to direct browser mode');
+          console.log('404 error with proxy (Edge Function not deployed), falling back to direct browser mode');
           localStorage.setItem('modelshift-connection-mode', 'browser');
           return this.callProviderDirectly(request);
         }
@@ -563,13 +563,15 @@ To fix this:
           const errorText = await response.text();
           console.error(`Health check failed with status ${response.status}:`, errorText);
           
-          // If we get a 404, the function might not be deployed
+          // If we get a 404, the function is not deployed - automatically switch to browser mode
           if (response.status === 404) {
+            console.log('Edge Function not deployed (404), automatically switching to browser mode');
+            localStorage.setItem('modelshift-connection-mode', 'browser');
             return {
-              available: false,
+              available: true, // Return available=true since we're switching to browser mode
               authenticated: true,
               configuredProviders: [],
-              errors: ['Edge Function not found. Please deploy the ai-proxy Edge Function.']
+              errors: ['Edge Function not deployed. Switched to direct browser mode.']
             };
           }
           
@@ -622,7 +624,15 @@ To fix this:
         } else if (errorMessage.includes('timeout')) {
           errorMessage = 'Connection timeout: The Edge Function took too long to respond.';
         } else if (errorMessage.includes('not found') || errorMessage.includes('404')) {
-          errorMessage = 'Edge Function not found: Please make sure the ai-proxy function is deployed.';
+          // Automatically switch to browser mode if Edge Function is not found
+          console.log('Edge Function not found, automatically switching to browser mode');
+          localStorage.setItem('modelshift-connection-mode', 'browser');
+          return {
+            available: true, // Return available=true since we're switching to browser mode
+            authenticated: true,
+            configuredProviders: [],
+            errors: ['Edge Function not deployed. Switched to direct browser mode.']
+          };
         }
         
         return {

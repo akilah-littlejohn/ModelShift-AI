@@ -89,10 +89,10 @@ export function ConnectionModeSettings() {
               Connection Modes Explained
             </h3>
             <p className="text-sm text-blue-700 dark:text-blue-300">
-              <strong>Server Proxy Mode:</strong> API requests are routed through secure servers, keeping your API keys secure. This is the recommended mode for production.
+              <strong>Server Proxy Mode:</strong> API requests go through secure servers, keeping your API keys secure. This is the recommended mode for production.
             </p>
             <p className="text-sm text-blue-700 dark:text-blue-300 mt-2">
-              <strong>Direct Browser Mode:</strong> API requests are made directly from your browser to the AI providers. This requires you to add your API keys in the API Keys section and may be subject to CORS limitations.
+              <strong>Direct Browser Mode:</strong> API requests go directly from browser to providers. This requires you to add your API keys in the API Keys section and may be subject to CORS limitations.
             </p>
           </div>
         </div>

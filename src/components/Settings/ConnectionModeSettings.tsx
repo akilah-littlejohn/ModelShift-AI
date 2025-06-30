@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Server, Globe, Zap, AlertTriangle, RefreshCw, CheckCircle, XCircle, Info, ExternalLink } from 'lucide-react';
 import { ProxyService } from '../../lib/api/ProxyService';
+import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
 export function ConnectionModeSettings() {
@@ -10,6 +11,7 @@ export function ConnectionModeSettings() {
   );
   const [proxyHealth, setProxyHealth] = useState<{
     available: boolean;
+    authenticated: boolean;
     configuredProviders: string[];
     errors: string[];
   } | null>(null);
@@ -41,6 +43,7 @@ export function ConnectionModeSettings() {
       toast.error('Failed to check connection status');
       setProxyHealth({
         available: false,
+        authenticated: false,
         configuredProviders: [],
         errors: [error instanceof Error ? error.message : 'Unknown error']
       });
@@ -123,6 +126,17 @@ export function ConnectionModeSettings() {
               )}
               <span className="font-medium text-neutral-900 dark:text-white">
                 Server Proxy: {proxyHealth.available ? 'Available' : 'Unavailable'}
+              </span>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              {proxyHealth.authenticated ? (
+                <CheckCircle className="w-5 h-5 text-green-500" />
+              ) : (
+                <XCircle className="w-5 h-5 text-red-500" />
+              )}
+              <span className="font-medium text-neutral-900 dark:text-white">
+                Authentication: {proxyHealth.authenticated ? 'Authenticated' : 'Not Authenticated'}
               </span>
             </div>
 
@@ -303,13 +317,4 @@ export function ConnectionModeSettings() {
       </div>
     </div>
   );
-}
-
-// Import useAuth at the top of the file
-function useAuth() {
-  // This is a placeholder to make the component compile
-  // In a real implementation, you would import useAuth from your auth context
-  return {
-    user: { id: 'user-id' }
-  };
 }
